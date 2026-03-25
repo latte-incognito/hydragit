@@ -4,6 +4,10 @@
   "description": "The git panel IntelliJ has, inside VS Code. No paywall.",
   "version": "0.1.0",
   "publisher": "vkushnarenko",
+  "repository": {
+  "type": "git",
+  "url": "https://github.com/latte-incognito/hydragit.git"
+},
   "engines": {
     "vscode": "^1.85.0"
   },
