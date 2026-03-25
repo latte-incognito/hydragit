@@ -1,0 +1,12 @@
+cmd/
+internal/
+go.mod
+go.sum
+extension/src/
+extension/node_modules/
+Makefile
+**/*.ts
+!extension/out/**
+**/.git
+docs/
+TASKS.md
