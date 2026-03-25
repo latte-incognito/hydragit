@@ -1,0 +1,30 @@
+{
+  "name": "hydragit",
+  "displayName": "HydraGit",
+  "description": "The git panel IntelliJ has, inside VS Code. No paywall.",
+  "version": "0.1.0",
+  "publisher": "vkushnarenko",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["SCM Providers"],
+  "activationEvents": [],
+  "main": "./extension/out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hydragit.open",
+        "title": "HydraGit: Open"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./extension/tsconfig.json",
+    "watch": "tsc -watch -p ./extension/tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
