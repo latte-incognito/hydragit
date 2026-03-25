@@ -1,0 +1,36 @@
+ore# Go
+bin/
+*.exe
+*.test
+*.out
+vendor/
+
+# Built binaries specifically
+bin/hydragit-server*
+
+# Go test cache
+/tmp/
+
+# TypeScript / Node
+extension/node_modules/
+extension/out/
+node_modules/
+
+# VS Code extension package
+*.vsix
+
+# VS Code local settings
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+# but keep .vscode/extensions.json if you have it
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+
+# Claude Code
+.claude/
