@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HydraGit — D3 Branch Graph</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #1e1e1e;
+  color: #ccc;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── HEADER ── */
+.header {
+  background: #2d2d2d;
+  padding: 10px 16px;
+  border-bottom: 0.5px solid #1a1a1a;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.header h1 { font-size: 13px; font-weight: 500; color: #eee; }
+.header p  { font-size: 10px; color: #555; margin-left: auto; }
+.badge {
+  font-size: 9px; padding: 2px 7px; border-radius:3px;
+  background: #0a3050; color: #56c8e8; border: 0.5px solid #1a5a7a;
+}
+
+/* ── LAYOUT ── */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── GRAPH PANEL ── */
+.graph-panel {
+  width: 420px;
+  flex-shrink: 0;
+  border-right: 0.5px solid #1a1a1a;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #252526;
+}
+.panel-title {
+  padding: 6px 12px;
+  font-size: 9px;
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  border-bottom: 0.5px solid #1a1a1a;
+  background: #222;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.graph-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.graph-scroll::-webkit-scrollbar { width: 5px; }
+.graph-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+/* D3 SVG graph column */
+#graphSvg {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* commit rows — positioned absolutely by D3 */
+.commit-rows {
+  position: relative;
+}
+.crow {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  cursor: pointer;
+  border-bottom: 0.5px solid #1f1f1f;
+  border-left: 2px solid transparent;
+  padding-right: 10px;
+  transition: background 0.08s;
+}
+.crow:hover { background: #2a2a2a; }
+.crow.sel   { background: #0e2030; border-left-color: #56c8e8; }
+.crow.sel .csubject { color: #eee; }
+
+.cgraph-slot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+.csubject {
+  flex: 1;
+  font-size: 11px;
+  color: #bbb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.cauthor {
+  width: 90px;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cdate {
+  width: 80px;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #3a3a3a;
+  text-align: right;
+}
+.pill {
+  display: inline-block;
+  font-size: 8px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-right: 3px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+}
+.pill-local  { background: #0a3050; color: #56c8e8; border: 0.5px solid #1a5a7a; }
+.pill-remote { background: #0a200a; color: #4e8c4e; border: 0.5px solid #1a4a1a; }
+.pill-tag    { background: #1a1200; color: #c8a020; border: 0.5px solid #5a4000; }
+
+/* col headers */
+.col-hdr {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  background: #1e1e1e;
+  border-bottom: 0.5px solid #1a1a1a;
+  font-size: 9px;
+  color: #3a3a3a;
+  padding-right: 10px;
+  flex-shrink: 0;
+}
+
+/* ── INFO PANEL ── */
+.info-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #1e1e1e;
+}
+.info-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #2a2a2a;
+  font-size: 12px;
+  gap: 8px;
+}
+.info-empty svg { opacity: .3; }
+
+/* commit detail */
+.detail {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.detail::-webkit-scrollbar { width: 5px; }
+.detail::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+.d-hash   { font-family: monospace; font-size: 13px; color: #3e6aa0; letter-spacing: .05em; }
+.d-msg    { font-size: 14px; color: #eee; line-height: 1.5; font-weight: 400; }
+.d-meta   { font-size: 11px; color: #555; display: flex; flex-direction: column; gap: 4px; }
+.d-meta span { color: #777; }
+.d-stats  { display: flex; gap: 10px; font-size: 11px; }
+.d-section-title {
+  font-size: 9px; color: #3a3a3a; text-transform: uppercase;
+  letter-spacing: .08em; margin-bottom: 6px;
+}
+
+/* file list in detail */
+.dfile {
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 8px; border-radius: 4px; cursor: pointer;
+  font-size: 11px; color: #888; margin-bottom: 2px;
+  border-left: 2px solid transparent;
+}
+.dfile:hover { background: #252526; color: #bbb; }
+.dfile.on    { background: #0e2030; color: #ccc; border-left-color: #56c8e8; }
+.fbadge {
+  font-size: 9px; padding: 1px 4px; border-radius: 2px;
+  font-weight: 600; min-width: 14px; text-align: center; flex-shrink: 0;
+}
+.fstats { margin-left: auto; font-size: 9px; color: #444; }
+
+/* diff */
+.diff-area {
+  background: #1a1a1a; border-radius: 6px; overflow: auto;
+  font-family: monospace; font-size: 11px;
+  border: 0.5px solid #252525; max-height: 260px;
+}
+.diff-area::-webkit-scrollbar { width: 5px; height: 5px; }
+.diff-area::-webkit-scrollbar-thumb { background: #333; border-radius:3px; }
+.dl { display: flex; min-height: 20px; align-items: center; }
+.dl-hunk { background: #0a2040; color: #569cd6; padding: 2px 12px; font-size:10px; width:100%; }
+.dl-add  { background: #0d2e1a; }
+.dl-rem  { background: #2e0d0d; }
+.dln { width: 36px; color: #2a2a2a; text-align: right; padding-right:8px; font-size:10px; flex-shrink:0; border-right: 0.5px solid #222; user-select:none; }
+.dlc { flex:1; padding-left:8px; white-space:pre; line-height:1.7; color:#666; }
+.dlc.add { color:#4ec94e; }
+.dlc.rem { color:#f07070; }
+
+/* actions row */
+.action-row {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.abtn {
+  font-size: 10px; padding: 4px 10px; border-radius: 4px;
+  border: 0.5px solid #333; background: #252526; color: #888; cursor: pointer;
+}
+.abtn:hover { background: #2d2d2d; color: #ccc; }
+
+/* ── ALGO EXPLAINER ── */
+.algo-panel {
+  background: #161616;
+  border-top: 0.5px solid #1a1a1a;
+  padding: 10px 14px;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #3a3a3a;
+  line-height: 1.6;
+}
+.algo-panel strong { color: #555; }
+
+/* SVG styles */
+.branch-line { fill: none; stroke-width: 1.8; }
+.commit-dot  { stroke-width: 2; }
+.commit-dot.merge { fill: #1e1e1e !important; stroke-width: 2; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>HydraGit — D3 Branch Graph</h1>
+  <span class="badge">D3 v7</span>
+  <span class="badge" style="background:#0a2510;color:#4ec94e;border-color:#1a5a1a">Lane algorithm</span>
+  <p>Click any commit to see details</p>
+</div>
+
+<div class="main">
+
+  <!-- GRAPH PANEL -->
+  <div class="graph-panel">
+    <div class="panel-title">
+      Git Log — master
+      <span style="margin-left:auto;color:#333">↺</span>
+    </div>
+    <div class="col-hdr">
+      <div style="flex-shrink:0" id="graphHdrSpacer"></div>
+      <div style="flex:1;padding-left:4px">Subject</div>
+      <div style="width:90px;padding:0 4px">Author</div>
+      <div style="width:80px;text-align:right">Date</div>
+    </div>
+    <div class="graph-scroll" id="graphScroll">
+      <div style="position:relative;display:flex" id="graphContainer">
+        <!-- SVG injected by D3 -->
+        <!-- commit rows injected alongside -->
+      </div>
+    </div>
+  </div>
+
+  <!-- INFO PANEL -->
+  <div class="info-panel" id="infoPanel">
+    <div class="info-empty" id="infoEmpty">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <circle cx="12" cy="8" r="4" stroke="#56c8e8" stroke-width="1.5"/>
+        <circle cx="12" cy="32" r="4" stroke="#56c8e8" stroke-width="1.5"/>
+        <circle cx="30" cy="20" r="4" stroke="#4ec94e" stroke-width="1.5"/>
+        <line x1="12" y1="12" x2="12" y2="28" stroke="#56c8e8" stroke-width="1.5"/>
+        <line x1="16" y1="9" x2="26" y2="18" stroke="#4ec94e" stroke-width="1.5"/>
+      </svg>
+      <span>Select a commit</span>
+    </div>
+    <div class="detail" id="detail" style="display:none"></div>
+  </div>
+</div>
+
+<div class="algo-panel" id="algoPanel">
+  <strong>Lane algorithm:</strong> each commit is assigned to the leftmost available lane. A lane opens when a branch starts and closes when it merges. Merge commits get the lane of their first parent.
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// COMMIT DATA — shaped like real git log output
+// hash, parents[], message, author, date, refs[]
+// ═══════════════════════════════════════════════════════════
+const RAW_COMMITS = [
+  { hash:'a1b2c3d', parents:['b2c3d4e'],           msg:'feat: add OAuth2 provider',       author:'Vitalii K.', date:'2h ago',   refs:['master','HEAD','origin/master'] },
+  { hash:'b2c3d4e', parents:['c3d4e5f'],           msg:'refactor: extract token service', author:'Vitalii K.', date:'5h ago',   refs:[] },
+  { hash:'c3d4e5f', parents:['d4e5f6a','f1e2d3c'], msg:"Merge branch 'feature/oauth'",    author:'Vitalii K.', date:'1d ago',   refs:[], merge:true },
+  { hash:'f1e2d3c', parents:['e5f6a7b'],           msg:'feat: Google OAuth provider',     author:'Vitalii K.', date:'1d ago',   refs:['feature/oauth'] },
+  { hash:'e5f6a7b', parents:['d4e5f6a'],           msg:'feat: OAuth skeleton',            author:'Vitalii K.', date:'2d ago',   refs:[] },
+  { hash:'d4e5f6a', parents:['a7b8c9d'],           msg:'fix: session expiry edge case',   author:'Vitalii K.', date:'3d ago',   refs:[] },
+  { hash:'a7b8c9d', parents:['b8c9d0e','g2h3i4j'], msg:"Merge branch 'hotfix/csrf'",      author:'Vitalii K.', date:'4d ago',   refs:[], merge:true },
+  { hash:'g2h3i4j', parents:['b8c9d0e'],           msg:'fix: CSRF token validation',      author:'Vitalii K.', date:'4d ago',   refs:['hotfix/csrf'] },
+  { hash:'b8c9d0e', parents:['c9d0e1f'],           msg:'chore: update dependencies',      author:'Vitalii K.', date:'5d ago',   refs:['v1.2.0'] },
+  { hash:'c9d0e1f', parents:['d0e1f2a'],           msg:'docs: update README',             author:'Vitalii K.', date:'6d ago',   refs:[] },
+  { hash:'d0e1f2a', parents:['e1f2a3b','h4i5j6k'], msg:"Merge branch 'feature/tests'",    author:'Vitalii K.', date:'1w ago',   refs:[], merge:true },
+  { hash:'h4i5j6k', parents:['i5j6k7l'],           msg:'test: add integration tests',     author:'Vitalii K.', date:'1w ago',   refs:['feature/tests'] },
+  { hash:'i5j6k7l', parents:['e1f2a3b'],           msg:'test: add unit tests for auth',   author:'Vitalii K.', date:'1w ago',   refs:[] },
+  { hash:'e1f2a3b', parents:['f2a3b4c'],           msg:'feat: initial auth module',       author:'Vitalii K.', date:'2w ago',   refs:[] },
+  { hash:'f2a3b4c', parents:[],                    msg:'init: project scaffold',          author:'Vitalii K.', date:'3w ago',   refs:['v1.0.0'] },
+];
+
+// ═══════════════════════════════════════════════════════════
+// LANE ASSIGNMENT ALGORITHM
+// This is the interesting part — computing which column
+// each commit goes in, and which paths to draw between them
+// ═══════════════════════════════════════════════════════════
+
+function assignLanes(commits) {
+  // Build a lookup map: hash → index
+  const idx = new Map(commits.map((c,i) => [c.hash, i]));
+
+  // lanes: array of "what commit hash currently owns this lane"
+  // null = lane is free
+  const lanes = [];
+
+  // result: each commit gets { lane, paths[] }
+  // path = { fromLane, toLane, fromRow, toRow, color }
+  const result = commits.map(c => ({ ...c, lane: -1, color: null }));
+
+  // lane color palette
+  const COLORS = [
+    '#56c8e8', // teal   — main
+    '#4ec94e', // green  — features
+    '#9a7ae8', // purple
+    '#e3b341', // amber
+    '#e87856', // orange
+    '#56e8c8', // mint
+    '#e85680', // pink
+    '#7898e8', // blue
+  ];
+
+  function getColor(lane) {
+    return COLORS[lane % COLORS.length];
+  }
+
+  function freeLane() {
+    const free = lanes.indexOf(null);
+    if (free !== -1) return free;
+    lanes.push(null);
+    return lanes.length - 1;
+  }
+
+  // connections: array of SVG path descriptors
+  const connections = [];
+
+  for (let i = 0; i < commits.length; i++) {
+    const c = commits[i];
+
+    // Find if any later commit already reserved a lane for this commit
+    // (i.e. this commit is a parent of something already rendered)
+    let myLane = lanes.indexOf(c.hash);
+
+    if (myLane === -1) {
+      // No lane reserved — grab a free one
+      myLane = freeLane();
+    }
+
+    result[i].lane = myLane;
+    result[i].color = getColor(myLane);
+
+    // Now handle parents
+    if (c.parents.length === 0) {
+      // Root commit — free the lane
+      lanes[myLane] = null;
+    } else if (c.parents.length === 1) {
+      // Simple commit — pass lane down to parent
+      lanes[myLane] = c.parents[0];
+      // Draw straight line down
+      const parentIdx = idx.get(c.parents[0]);
+      if (parentIdx !== undefined) {
+        connections.push({
+          fromRow: i, toRow: parentIdx,
+          fromLane: myLane, toLane: myLane,
+          color: result[i].color,
+          type: 'straight'
+        });
+      }
+    } else {
+      // Merge commit — first parent keeps lane, second gets new lane
+      const firstParentIdx  = idx.get(c.parents[0]);
+      const secondParentIdx = idx.get(c.parents[1]);
+
+      // First parent inherits this lane
+      lanes[myLane] = c.parents[0];
+
+      if (firstParentIdx !== undefined) {
+        connections.push({
+          fromRow: i, toRow: firstParentIdx,
+          fromLane: myLane, toLane: myLane,
+          color: result[i].color,
+          type: 'straight'
+        });
+      }
+
+      // Second parent (the branch being merged) gets its own lane
+      if (secondParentIdx !== undefined) {
+        // Check if second parent already has a lane reserved
+        let branchLane = lanes.indexOf(c.parents[1]);
+        if (branchLane === -1) {
+          branchLane = freeLane();
+          lanes[branchLane] = c.parents[1];
+        }
+        connections.push({
+          fromRow: i, toRow: secondParentIdx,
+          fromLane: myLane, toLane: branchLane,
+          color: getColor(branchLane),
+          type: 'branch'
+        });
+      }
+    }
+  }
+
+  return { commits: result, connections, laneCount: lanes.length };
+}
+
+// ═══════════════════════════════════════════════════════════
+// D3 RENDERING
+// ═══════════════════════════════════════════════════════════
+
+const ROW_H    = 32;   // height of each commit row
+const LANE_W   = 18;   // width per lane
+const DOT_R    = 4.5;  // commit dot radius
+const PADDING  = 10;   // left padding
+
+const { commits: laidOut, connections, laneCount } = assignLanes(RAW_COMMITS);
+const svgWidth  = Math.max(laneCount * LANE_W + PADDING * 2, 40);
+const svgHeight = laidOut.length * ROW_H;
+
+// Create the split layout: SVG on left, text rows on right
+const container = document.getElementById('graphContainer');
+
+// SVG element
+const svg = d3.select(container)
+  .append('svg')
+  .attr('id', 'graphSvg')
+  .attr('width', svgWidth)
+  .attr('height', svgHeight)
+  .style('flex-shrink', '0');
+
+// Update column header spacer
+document.getElementById('graphHdrSpacer').style.width = svgWidth + 'px';
+
+// ── Helper: compute x center of a lane ──
+function laneX(lane) {
+  return PADDING + lane * LANE_W + LANE_W / 2;
+}
+// ── Helper: compute y center of a row ──
+function rowY(row) {
+  return row * ROW_H + ROW_H / 2;
+}
+
+// ── Draw connections (lines between commits) ──
+const lineGroup = svg.append('g').attr('class', 'lines');
+
+connections.forEach(conn => {
+  const x1 = laneX(conn.fromLane);
+  const y1 = rowY(conn.fromRow);
+  const x2 = laneX(conn.toLane);
+  const y2 = rowY(conn.toRow);
+
+  if (conn.type === 'straight') {
+    // Simple vertical line
+    lineGroup.append('line')
+      .attr('x1', x1).attr('y1', y1 + DOT_R)
+      .attr('x2', x2).attr('y2', y2 - DOT_R)
+      .attr('stroke', conn.color)
+      .attr('stroke-width', 1.8)
+      .attr('opacity', 0.8);
+  } else {
+    // Curved branch line — cubic bezier
+    const cx1 = x1, cy1 = y1 + ROW_H * 0.6;
+    const cx2 = x2, cy2 = y2 - ROW_H * 0.6;
+    lineGroup.append('path')
+      .attr('d', `M${x1},${y1 + DOT_R} C${cx1},${cy1} ${cx2},${cy2} ${x2},${y2 - DOT_R}`)
+      .attr('fill', 'none')
+      .attr('stroke', conn.color)
+      .attr('stroke-width', 1.8)
+      .attr('opacity', 0.8);
+  }
+});
+
+// ── Draw commit dots ──
+const dotGroup = svg.append('g').attr('class', 'dots');
+
+laidOut.forEach((c, i) => {
+  const cx = laneX(c.lane);
+  const cy = rowY(i);
+
+  if (c.merge) {
+    // Merge commit: hollow circle with cross
+    dotGroup.append('circle')
+      .attr('cx', cx).attr('cy', cy)
+      .attr('r', DOT_R + 1)
+      .attr('fill', '#1e1e1e')
+      .attr('stroke', c.color)
+      .attr('stroke-width', 2)
+      .attr('class', 'commit-dot merge');
+    // cross
+    dotGroup.append('line')
+      .attr('x1', cx - 3).attr('y1', cy)
+      .attr('x2', cx + 3).attr('y2', cy)
+      .attr('stroke', c.color).attr('stroke-width', 1.5);
+    dotGroup.append('line')
+      .attr('x1', cx).attr('y1', cy - 3)
+      .attr('x2', cx).attr('y2', cy + 3)
+      .attr('stroke', c.color).attr('stroke-width', 1.5);
+  } else {
+    dotGroup.append('circle')
+      .attr('cx', cx).attr('cy', cy)
+      .attr('r', DOT_R)
+      .attr('fill', c.color)
+      .attr('class', 'commit-dot')
+      .attr('data-hash', c.hash);
+  }
+});
+
+// ── Render commit rows (HTML alongside SVG) ──
+const rowsDiv = d3.select(container)
+  .append('div')
+  .style('flex', '1')
+  .style('min-width', '0')
+  .style('position', 'relative');
+
+let selectedHash = null;
+
+function renderRows() {
+  const rows = rowsDiv.selectAll('.crow')
+    .data(laidOut, d => d.hash);
+
+  const enter = rows.enter()
+    .append('div')
+    .attr('class', d => `crow${d.hash === selectedHash ? ' sel' : ''}`)
+    .style('height', ROW_H + 'px')
+    .on('click', (event, d) => selectCommit(d.hash));
+
+  // subject + pills
+  enter.append('div')
+    .attr('class', 'csubject')
+    .html(d => {
+      const pills = d.refs.map(r => {
+        if (r === 'HEAD') return '';
+        if (r.startsWith('origin/')) return `<span class="pill pill-remote">${r}</span>`;
+        if (/^v\d/.test(r))          return `<span class="pill pill-tag">${r}</span>`;
+        return                               `<span class="pill pill-local">${r}</span>`;
+      }).join('');
+      const style = d.merge ? 'font-style:italic;color:#555' : '';
+      return `${pills}<span style="${style}">${d.msg}</span>`;
+    });
+
+  enter.append('div')
+    .attr('class', 'cauthor')
+    .text(d => d.author);
+
+  enter.append('div')
+    .attr('class', 'cdate')
+    .text(d => d.date);
+
+  // update selection state
+  rowsDiv.selectAll('.crow')
+    .classed('sel', d => d.hash === selectedHash);
+}
+
+renderRows();
+
+// ═══════════════════════════════════════════════════════════
+// COMMIT SELECTION + DETAIL PANEL
+// ═══════════════════════════════════════════════════════════
+
+// Fake diff data
+const DIFFS = {
+  default: [
+    { t:'hunk', text:'@@ -18,6 +18,14 @@ class AuthService {' },
+    { t:'ctx',  ln:18, text:'  private secret: string;' },
+    { t:'ctx',  ln:19, text:'  private expiry: number;' },
+    { t:'ctx',  ln:20, text:'' },
+    { t:'rem',  ln:21, text:'-  sign(payload: object): string {' },
+    { t:'rem',  ln:22, text:'-    return jwt.sign(payload, this.secret);' },
+    { t:'rem',  ln:23, text:'-  }' },
+    { t:'add',  ln:21, text:'+  sign(payload: object, opts?: Options): string {' },
+    { t:'add',  ln:22, text:'+    return jwt.sign(payload, this.secret, {' },
+    { t:'add',  ln:23, text:'+      expiresIn: opts?.expiresIn ?? this.expiry,' },
+    { t:'add',  ln:24, text:'+    });' },
+    { t:'add',  ln:25, text:'+  }' },
+    { t:'ctx',  ln:26, text:'' },
+    { t:'add',  ln:27, text:'+  async refresh(token: string): Promise<string> {' },
+    { t:'add',  ln:28, text:'+    const decoded = this.verify(token);' },
+    { t:'add',  ln:29, text:'+    return this.sign(decoded.payload);' },
+    { t:'add',  ln:30, text:'+  }' },
+  ]
+};
+
+function selectCommit(hash) {
+  selectedHash = hash;
+  renderRows(); // re-render to update .sel class
+
+  // Also update dot opacity
+  dotGroup.selectAll('.commit-dot')
+    .attr('opacity', d => 1);
+
+  const c = laidOut.find(x => x.hash === hash);
+  if (!c) return;
+
+  document.getElementById('infoEmpty').style.display = 'none';
+  const detail = document.getElementById('detail');
+  detail.style.display = 'flex';
+
+  // fake files based on commit
+  const files = c.merge ? [] : [
+    { p: 'src/auth/' + c.hash.slice(0,4) + '.ts', s:'M', a: Math.floor(Math.random()*80+5), r: Math.floor(Math.random()*20) },
+    { p: 'src/token.ts', s: c.refs.length ? 'A' : 'M', a: Math.floor(Math.random()*40+2), r: Math.floor(Math.random()*10) },
+  ];
+
+  const badges = { M:'#e3b341', A:'#4ec94e', D:'#f07070' };
+  const bgB    = { M:'#1c1000', A:'#0a2510', D:'#2e0d0d' };
+  const brB    = { M:'#6a4000', A:'#1a5a1a', D:'#6a1a1a' };
+
+  const pills = c.refs.filter(r=>r!=='HEAD').map(r => {
+    if (r.startsWith('origin/')) return `<span class="pill pill-remote">${r}</span>`;
+    if (/^v\d/.test(r))          return `<span class="pill pill-tag">${r}</span>`;
+    return                               `<span class="pill pill-local">${r}</span>`;
+  }).join(' ');
+
+  detail.innerHTML = `
+    <div>
+      <div class="d-hash">${c.hash}</div>
+      <div class="d-msg" style="margin-top:6px">${c.msg}</div>
+      ${pills ? `<div style="margin-top:6px">${pills}</div>` : ''}
+    </div>
+
+    <div class="d-meta">
+      <div><span>Author </span>${c.author}</div>
+      <div><span>Date   </span>${c.date}</div>
+    </div>
+
+    ${c.merge ? `
+      <div>
+        <div class="d-section-title">Merge commit</div>
+        <div style="color:#444;font-size:11px">No file changes — this commit merges two branches.</div>
+      </div>
+    ` : `
+      <div>
+        <div class="d-section-title">Changed files</div>
+        ${files.map((f,fi) => `
+          <div class="dfile ${fi===0?'on':''}" onclick="selectFile(this,'${f.p}')">
+            <span class="fbadge" style="background:${bgB[f.s]};color:${badges[f.s]};border:0.5px solid ${brB[f.s]}">${f.s}</span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.p}">${f.p.split('/').pop()}</span>
+            <span class="fstats"><span style="color:#4ec94e">+${f.a}</span> <span style="color:#f07070">-${f.r}</span></span>
+          </div>
+        `).join('')}
+      </div>
+
+      <div>
+        <div class="d-section-title">Diff — ${files[0]?.p.split('/').pop() || ''}</div>
+        <div class="diff-area" id="diffArea">
+          ${renderDiff(DIFFS.default)}
+        </div>
+      </div>
+
+      <div class="action-row">
+        <div class="abtn" onclick="flash('Cherry-pick: '+selectedHash)">Cherry-pick</div>
+        <div class="abtn" onclick="flash('Revert: '+selectedHash)">Revert</div>
+        <div class="abtn" onclick="flash('Copied: '+selectedHash)">Copy hash</div>
+      </div>
+    `}
+  `;
+}
+
+function selectFile(el, path) {
+  document.querySelectorAll('.dfile').forEach(d => d.classList.remove('on'));
+  el.classList.add('on');
+  const diff = document.getElementById('diffArea');
+  if (diff) diff.innerHTML = renderDiff(DIFFS.default);
+}
+
+function renderDiff(lines) {
+  return lines.map(l => {
+    if (l.t === 'hunk') return `<div class="dl dl-hunk">${l.text}</div>`;
+    const cls = l.t==='add'?'dl-add':l.t==='rem'?'dl-rem':'';
+    return `<div class="dl ${cls}">
+      <span class="dln">${l.ln}</span>
+      <span class="dlc ${l.t==='ctx'?'ctx':l.t}">${l.text}</span>
+    </div>`;
+  }).join('');
+}
+
+function flash(msg) {
+  const p = document.getElementById('algoPanel');
+  const orig = p.innerHTML;
+  p.innerHTML = `<strong style="color:#febc2e">⚡ ${msg}</strong>`;
+  setTimeout(() => p.innerHTML = orig, 2000);
+}
+</script>
+</body>
+</html>
