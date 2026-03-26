@@ -12,30 +12,48 @@ type Branch struct {
 }
 
 func Branches(repoPath string) ([]Branch, error) {
-	// format: refname:short, HEAD indicator (*), upstream:short
-	out, err := run(repoPath,
-		"branch", "--all", "--format=%(refname:short)\t%(HEAD)\t%(upstream:short)",
+	out, err := run(
+		repoPath,
+		"branch", "--all", "--format=%(refname)\t%(HEAD)\t%(upstream:short)",
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	var branches []Branch
-	for _, line := range strings.Split(out, "\n") {
-		if line == "" {
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
+
 		parts := strings.SplitN(line, "\t", 3)
 		if len(parts) < 3 {
 			continue
 		}
-		name := parts[0]
-		isCurrent := parts[1] == "*"
-		upstream := parts[2]
 
-		isRemote := strings.HasPrefix(name, "remotes/")
-		if isRemote {
-			name = strings.TrimPrefix(name, "remotes/")
+		ref := strings.TrimSpace(parts[0])
+		isCurrent := strings.TrimSpace(parts[1]) == "*"
+		upstream := strings.TrimSpace(parts[2])
+
+		var name string
+		var isRemote bool
+
+		switch {
+		case strings.HasPrefix(ref, "refs/heads/"):
+			name = strings.TrimPrefix(ref, "refs/heads/")
+			isRemote = false
+
+		case strings.HasPrefix(ref, "refs/remotes/"):
+			name = strings.TrimPrefix(ref, "refs/remotes/")
+			isRemote = true
+
+			// skip symbolic remote HEAD entry
+			if strings.HasSuffix(name, "/HEAD") {
+				continue
+			}
+
+		default:
+			continue
 		}
 
 		branches = append(branches, Branch{
@@ -45,6 +63,7 @@ func Branches(repoPath string) ([]Branch, error) {
 			Upstream:  upstream,
 		})
 	}
+
 	return branches, nil
 }
 

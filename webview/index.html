@@ -468,9 +468,9 @@ function esc(s){ return s ? s.replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
 
 // ── RENDER BRANCHES ────────────────────────────────────────
 function renderBranches(branches) {
-  const local = branches.filter(b => !b.isRemote);
-  const remote = branches.filter(b => b.isRemote);
-  const current = branches.find(b => b.isCurrent);
+  const local = branches.filter(b => b.isRemote === false);
+  const remote = branches.filter(b => b.isRemote === true);
+  const current = branches.find(b => b.isCurrent === true);
   document.getElementById('headBranchName').textContent = current ? current.name : 'HEAD';
   document.getElementById('localGroupCount').textContent = local.length;
   document.getElementById('localGroup').innerHTML = local.map(b => `
