@@ -28,6 +28,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(nonce);
 
     webviewView.webview.onDidReceiveMessage(async msg => {
+      console.log('[HydraGit] received:', msg.cmd); 
       try {
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
         webviewView.webview.postMessage({ id: msg.id, ok: true, data });
@@ -44,7 +45,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (workspaceRoot) {
       this.watcher = vscode.workspace.createFileSystemWatcher(
-        new vscode.RelativePattern(workspaceRoot, '.git/**'),
+         new vscode.RelativePattern(workspaceRoot, '.git/{HEAD,refs/**,COMMIT_EDITMSG}'),
       );
       const refresh = () => webviewView.webview.postMessage({ type: 'refresh' });
       this.watcher.onDidChange(refresh);
@@ -63,19 +64,20 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'index.html');
     let html = fs.readFileSync(htmlPath, 'utf8');
 
-    const csp = [
-      `default-src 'none'`,
-      `script-src 'nonce-${nonce}'`,
-      `style-src 'unsafe-inline'`,
-      `img-src data: https:`,
-      `font-src data:`,
-    ].join('; ');
+const csp = [
+  `default-src 'none'`,
+  `script-src 'unsafe-inline'`,   // ← changed from nonce to unsafe-inline
+  `style-src 'unsafe-inline'`,
+  `img-src data: https: blob:`,
+  `font-src data:`,
+].join('; ');
 
-    html = html.replace(
-      /<head>/i,
-      `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`,
-    );
-    html = html.replace(/<script/g, `<script nonce="${nonce}"`);
+html = html.replace(
+  /<head>/i,
+  `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`,
+);
+// remove the nonce injection line — not needed anymore
+// html = html.replace(/<script/g, `<script nonce="${nonce}"`);
 
     return html;
   }

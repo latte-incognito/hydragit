@@ -19,6 +19,10 @@ export function activate(ctx: vscode.ExtensionContext): void {
     : `hydragit-server-${platform}-${arch}`;
   const binaryPath = path.join(ctx.extensionPath, 'bin', binName);
 
+console.log('[HydraGit] extensionPath:', ctx.extensionPath);
+console.log('[HydraGit] binaryPath:', binaryPath);
+console.log('[HydraGit] exists:', require('fs').existsSync(binaryPath));
+
   goProcess = new GoProcess(binaryPath, workspaceRoot);
 
   const provider = new HydraViewProvider(ctx, goProcess);

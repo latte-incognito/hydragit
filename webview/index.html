@@ -394,7 +394,9 @@ function send(cmd, params={}) {
 }
 window.addEventListener('message', e => {
   const msg = e.data;
-  if (msg.type === 'refresh') { loadAll(); return; }
+  if (msg.type === 'refresh') {  clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(loadAll, 500); // debounce 500ms
+    return;}
   const p = _pending.get(msg.id);
   if (!p) return;
   _pending.delete(msg.id);
