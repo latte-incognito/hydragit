@@ -5,27 +5,60 @@
   "version": "0.1.0",
   "publisher": "vkushnarenko",
   "license": "MIT",
+  "icon": "images/icon.png",
   "repository": {
-  "type": "git",
-  "url": "https://github.com/latte-incognito/hydragit.git"
-},
+    "type": "git",
+    "url": "https://github.com/latte-incognito/hydragit.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": ["SCM Providers"],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:hydragit.mainView",
+    "onCommand:hydragit.open"
+  ],
   "main": "./extension/out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "hydragit.open",
-        "title": "HydraGit: Open"
+        "title": "HydraGit: Open",
+        "icon": "images/icon.png"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "hydragit",
+          "title": "HydraGit",
+          "icon": "images/icon-tight.png"
+        }
+      ]
+    },
+    "views": {
+      "hydragit": [
+        {
+          "id": "hydragit.mainView",
+          "name": "HydraGit",
+          "type": "webview"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "hydragit.open",
+          "when": "view == hydragit.mainView",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./extension/tsconfig.json",
-    "watch": "tsc -watch -p ./extension/tsconfig.json"
+    "watch": "tsc -watch -p ./extension/tsconfig.json",
+    "reinstall": "make package && code --install-extension hydragit-0.1.0.vsix"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
