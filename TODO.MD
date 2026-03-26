@@ -1,5 +1,5 @@
 - Fix the remote master <- add tests for this after 
-- font representation should be the same size and font as in explother sidebar
+- font representation should be the same size and font as in explother sidebar | DONE
 - add bubble with amount of files currently changed a top of hydragit action bar logo
 - for side bar add pycharm experince with check box of what files will be staged.
 - Date representaion 

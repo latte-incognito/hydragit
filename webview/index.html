@@ -4,8 +4,22 @@
 <meta charset="UTF-8">
 <title>HydraGit</title>
 <style>
+:root{
+  --hg-ui-font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  --hg-ui-font-size: var(--vscode-font-size, 13px);
+  --hg-ui-font-weight: var(--vscode-font-weight, 400);
+  --hg-ui-font-size-xxs: calc(var(--hg-ui-font-size) - 2px);
+  --hg-ui-font-size-xs: calc(var(--hg-ui-font-size) - 1px);
+  --hg-ui-font-size-sm: var(--hg-ui-font-size);
+  --hg-ui-font-size-md: var(--hg-ui-font-size);
+  --hg-ui-font-size-lg: calc(var(--hg-ui-font-size) + 1px);
+  --hg-editor-font-family: var(--vscode-editor-font-family, var(--vscode-editor-fontFamily, Consolas, 'Courier New', monospace));
+  --hg-editor-font-size: var(--vscode-editor-font-size, var(--vscode-editor-fontSize, 12px));
+  --hg-editor-font-weight: var(--vscode-editor-font-weight, var(--vscode-editor-fontWeight, 400));
+  --hg-editor-line-height: var(--vscode-editor-line-height, var(--vscode-editor-lineHeight, 1.5));
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;
+body{font-family:var(--hg-ui-font-family);font-size:var(--hg-ui-font-size);font-weight:var(--hg-ui-font-weight);
   background:var(--vscode-editor-background,#1e1e1e);color:var(--vscode-foreground,#ccc);
   height:100vh;display:flex;flex-direction:column;overflow:hidden;user-select:none}
 
@@ -15,7 +29,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
   border-bottom:0.5px solid var(--vscode-panel-border,#1a1a1a);flex-shrink:0}
 .tb-logo{width:15px;height:15px;border-radius:2px;object-fit:cover}
 .tb-sep{width:0.5px;height:16px;background:var(--vscode-widget-border,#3a3a3a);margin:0 2px}
-.tb-btn{font-size:10px;padding:2px 8px;border-radius:3px;
+.tb-btn{font-size:var(--hg-ui-font-size-xs);padding:2px 8px;border-radius:3px;
   border:0.5px solid var(--vscode-widget-border,#3a3a3a);
   background:var(--vscode-sideBar-background,#252526);
   color:var(--vscode-descriptionForeground,#888);cursor:pointer;white-space:nowrap}
@@ -25,10 +39,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .tb-btn.primary:hover{background:#1a6a8c}
 .tb-search{flex:1;max-width:200px;background:var(--vscode-input-background,#1a1a1a);
   border:0.5px solid var(--vscode-input-border,#333);border-radius:3px;
-  color:var(--vscode-input-foreground,#ccc);font-size:10px;padding:2px 7px;
+  color:var(--vscode-input-foreground,#ccc);font-size:var(--hg-ui-font-size-xs);padding:2px 7px;
   outline:none;margin-left:auto}
 .tb-search:focus{border-color:#56c8e8}
-.tb-title{font-size:11px;color:var(--vscode-descriptionForeground,#555);margin-left:4px}
+.tb-title{font-size:var(--hg-ui-font-size-sm);color:var(--vscode-descriptionForeground,#555);margin-left:4px}
 
 /* ── THREE-PANE LAYOUT ── */
 .main{display:flex;flex:1;overflow:hidden;min-height:0}
@@ -38,13 +52,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
   background:var(--vscode-sideBar-background,#252526);
   border-right:0.5px solid var(--vscode-panel-border,#1a1a1a);
   display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
-.pane-hdr{padding:5px 10px;font-size:9px;
+.pane-hdr{padding:5px 10px;font-size:var(--hg-ui-font-size-xxs);
   color:var(--vscode-disabledForeground,#444);
   text-transform:uppercase;letter-spacing:.08em;
   border-bottom:0.5px solid var(--vscode-panel-border,#1a1a1a);
   background:var(--vscode-sideBarSectionHeader-background,#222);
   flex-shrink:0;display:flex;align-items:center;justify-content:space-between}
-.pane-hdr-btn{font-size:13px;color:var(--vscode-disabledForeground,#444);
+.pane-hdr-btn{font-size:var(--hg-ui-font-size-lg);color:var(--vscode-disabledForeground,#444);
   cursor:pointer;line-height:1}
 .pane-hdr-btn:hover{color:var(--vscode-foreground,#ccc)}
 .tree-scroll{flex:1;overflow-y:auto;padding:4px 0}
@@ -52,41 +66,41 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .tree-scroll::-webkit-scrollbar-thumb{background:var(--vscode-scrollbarSlider-background,#333);border-radius:2px}
 
 .tgroup-hdr{display:flex;align-items:center;padding:4px 8px;gap:4px;
-  cursor:pointer;color:var(--vscode-descriptionForeground,#666);font-size:10px;user-select:none}
+  cursor:pointer;color:var(--vscode-descriptionForeground,#666);font-size:var(--hg-ui-font-size-xs);user-select:none}
 .tgroup-hdr:hover{color:var(--vscode-foreground,#ccc)}
-.tgroup-arrow{font-size:9px;width:10px;flex-shrink:0;transition:transform .15s}
+.tgroup-arrow{font-size:var(--hg-ui-font-size-xxs);width:10px;flex-shrink:0;transition:transform .15s}
 .tgroup-arrow.open{transform:rotate(0deg)}
 .tgroup-arrow.closed{transform:rotate(-90deg)}
-.tgroup-label{font-weight:500;letter-spacing:.04em;text-transform:uppercase;font-size:9px}
-.tgroup-count{font-size:9px;color:var(--vscode-disabledForeground,#3a3a3a);margin-left:auto}
+.tgroup-label{font-weight:500;letter-spacing:.04em;text-transform:uppercase;font-size:var(--hg-ui-font-size-xxs)}
+.tgroup-count{font-size:var(--hg-ui-font-size-xxs);color:var(--vscode-disabledForeground,#3a3a3a);margin-left:auto}
 
 .titem{display:flex;align-items:center;padding:4px 8px 4px 22px;gap:5px;
-  cursor:pointer;font-size:11px;color:var(--vscode-descriptionForeground,#888);
+  cursor:pointer;font-size:var(--hg-ui-font-size-sm);color:var(--vscode-descriptionForeground,#888);
   border-left:2px solid transparent;white-space:nowrap;overflow:hidden}
 .titem:hover{background:var(--vscode-list-hoverBackground,#2a2d2e);color:var(--vscode-foreground,#ccc)}
 .titem.active{background:#0e2535;color:var(--vscode-foreground,#ccc);border-left-color:#56c8e8}
 .titem.current{color:var(--vscode-foreground,#eee)}
-.titem-icon{font-size:10px;flex-shrink:0;width:14px;text-align:center}
+.titem-icon{font-size:var(--hg-ui-font-size-xs);flex-shrink:0;width:14px;text-align:center}
 .titem-name{overflow:hidden;text-overflow:ellipsis;flex:1}
-.status-badge{font-size:8px;padding:1px 4px;border-radius:2px;margin-left:auto;
+.status-badge{font-size:var(--hg-ui-font-size-xxs);padding:1px 4px;border-radius:2px;margin-left:auto;
   background:#1c1000;color:#e3b341;border:0.5px solid #6a4000;flex-shrink:0}
 
 .tsubgroup{padding:2px 0}
 .tsubgroup-hdr{display:flex;align-items:center;padding:3px 8px 3px 22px;gap:4px;
-  cursor:pointer;color:var(--vscode-descriptionForeground,#555);font-size:10px;user-select:none}
+  cursor:pointer;color:var(--vscode-descriptionForeground,#555);font-size:var(--hg-ui-font-size-xs);user-select:none}
 .tsubgroup-hdr:hover{color:var(--vscode-foreground,#888)}
-.tsubgroup-arrow{font-size:8px;width:10px;flex-shrink:0}
-.titem.remote{padding-left:36px;font-size:10px;color:var(--vscode-descriptionForeground,#666)}
+.tsubgroup-arrow{font-size:var(--hg-ui-font-size-xxs);width:10px;flex-shrink:0}
+.titem.remote{padding-left:36px;font-size:var(--hg-ui-font-size-xs);color:var(--vscode-descriptionForeground,#666)}
 .titem.remote:hover{color:var(--vscode-foreground,#999)}
 
-.titem.stash{padding-left:22px;font-size:10px;flex-direction:column;
+.titem.stash{padding-left:22px;font-size:var(--hg-ui-font-size-xs);flex-direction:column;
   align-items:flex-start;height:auto;padding-top:5px;padding-bottom:5px;gap:2px}
 .titem.stash.active{background:#0e2535;border-left-color:#9a7ae8}
 .stash-msg{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%}
-.stash-meta{font-size:9px;color:var(--vscode-disabledForeground,#3a3a3a);display:flex;gap:6px;width:100%}
+.stash-meta{font-size:var(--hg-ui-font-size-xxs);color:var(--vscode-disabledForeground,#3a3a3a);display:flex;gap:6px;width:100%}
 .stash-actions{padding:4px 8px;border-top:0.5px solid var(--vscode-panel-border,#1a1a1a);
   display:flex;gap:3px;flex-shrink:0;background:var(--vscode-editor-background,#1e1e1e)}
-.sab{font-size:9px;padding:2px 6px;border-radius:3px;
+.sab{font-size:var(--hg-ui-font-size-xxs);padding:2px 6px;border-radius:3px;
   border:0.5px solid var(--vscode-widget-border,#333);
   background:var(--vscode-sideBar-background,#252526);
   color:var(--vscode-descriptionForeground,#777);cursor:pointer;flex:1;text-align:center}
@@ -106,7 +120,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .log-col-hdr{display:flex;align-items:center;height:22px;
   background:var(--vscode-sideBarSectionHeader-background,#222);
   border-bottom:0.5px solid var(--vscode-panel-border,#1a1a1a);
-  flex-shrink:0;font-size:9px;color:var(--vscode-disabledForeground,#3a3a3a);
+  flex-shrink:0;font-size:var(--hg-ui-font-size-xxs);color:var(--vscode-disabledForeground,#3a3a3a);
   padding-right:10px}
 .lch-graph{width:28px;flex-shrink:0;padding-left:4px}
 .lch-subject{flex:1;padding-left:4px}
@@ -123,14 +137,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .crow:hover{background:var(--vscode-list-hoverBackground,#2a2a2a)}
 .crow.sel{background:#0e2030;border-left-color:#56c8e8}
 .cgraph{width:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
-.csubject{flex:1;font-size:11px;color:var(--vscode-foreground,#bbb);
+.csubject{flex:1;font-size:var(--hg-ui-font-size-sm);color:var(--vscode-foreground,#bbb);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;padding-left:4px}
-.cauthor{width:90px;flex-shrink:0;font-size:10px;
+.cauthor{width:90px;flex-shrink:0;font-size:var(--hg-ui-font-size-xs);
   color:var(--vscode-descriptionForeground,#555);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cdate{width:110px;flex-shrink:0;font-size:10px;
+.cdate{width:110px;flex-shrink:0;font-size:var(--hg-ui-font-size-xs);
   color:var(--vscode-disabledForeground,#3a3a3a);text-align:right}
 
-.pill{display:inline-block;font-size:8px;padding:1px 4px;border-radius:2px;
+.pill{display:inline-block;font-size:var(--hg-ui-font-size-xxs);padding:1px 4px;border-radius:2px;
   font-weight:600;white-space:nowrap;margin-right:3px;vertical-align:middle;position:relative;top:-1px}
 .pill-main{background:#0a3050;color:#56c8e8;border:0.5px solid #1a5a7a}
 .pill-remote{background:#0a200a;color:#4e8c4e;border:0.5px solid #1a4a1a}
@@ -143,17 +157,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 .detail-empty{flex:1;display:flex;flex-direction:column;align-items:center;
   justify-content:center;color:var(--vscode-disabledForeground,#2a2a2a);
-  font-size:11px;gap:8px}
+  font-size:var(--hg-ui-font-size-sm);gap:8px}
 
 /* commit meta */
 .detail-meta{padding:10px 12px;border-bottom:0.5px solid var(--vscode-panel-border,#1a1a1a);
   flex-shrink:0;background:var(--vscode-sideBar-background,#252526)}
-.dm-hash{font-family:monospace;font-size:11px;color:#3e6aa0;margin-bottom:4px}
-.dm-msg{font-size:11px;color:var(--vscode-foreground,#eee);line-height:1.4;margin-bottom:6px}
-.dm-row{font-size:10px;color:var(--vscode-descriptionForeground,#666);
+.dm-hash{font-family:var(--hg-editor-font-family);font-size:var(--hg-editor-font-size);font-weight:var(--hg-editor-font-weight);line-height:var(--hg-editor-line-height);color:#3e6aa0;margin-bottom:4px}
+.dm-msg{font-size:var(--hg-ui-font-size-sm);color:var(--vscode-foreground,#eee);line-height:1.4;margin-bottom:6px}
+.dm-row{font-size:var(--hg-ui-font-size-xs);color:var(--vscode-descriptionForeground,#666);
   display:flex;gap:6px;margin-bottom:2px}
 .dm-row span{color:var(--vscode-disabledForeground,#444);min-width:40px}
-.dm-stats{display:flex;gap:8px;font-size:10px;margin-top:4px}
+.dm-stats{display:flex;gap:8px;font-size:var(--hg-ui-font-size-xs);margin-top:4px}
 .dm-actions{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
 
 /* file list in detail */
@@ -162,36 +176,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .detail-files::-webkit-scrollbar{width:4px}
 .detail-files::-webkit-scrollbar-thumb{background:var(--vscode-scrollbarSlider-background,#333)}
 .dfile{display:flex;align-items:center;padding:3px 10px;gap:5px;
-  cursor:pointer;font-size:10px;color:var(--vscode-descriptionForeground,#888);
+  cursor:pointer;font-size:var(--hg-ui-font-size-xs);color:var(--vscode-descriptionForeground,#888);
   border-left:2px solid transparent}
 .dfile:hover{background:var(--vscode-list-hoverBackground,#2a2a2a);color:var(--vscode-foreground,#ccc)}
 .dfile.on{background:#0e2030;color:var(--vscode-foreground,#ccc);border-left-color:#56c8e8}
-.dfile-badge{font-size:8px;padding:1px 3px;border-radius:2px;font-weight:600;
+.dfile-badge{font-size:var(--hg-ui-font-size-xxs);padding:1px 3px;border-radius:2px;font-weight:600;
   min-width:12px;text-align:center;flex-shrink:0}
-.dfile-stats{margin-left:auto;font-size:9px;flex-shrink:0}
+.dfile-stats{margin-left:auto;font-size:var(--hg-ui-font-size-xxs);flex-shrink:0}
 
 /* diff */
-.detail-diff{flex:1;overflow:auto;font-family:monospace;font-size:11px;min-height:0}
+.detail-diff{flex:1;overflow:auto;font-family:var(--hg-editor-font-family);font-size:var(--hg-editor-font-size);font-weight:var(--hg-editor-font-weight);line-height:var(--hg-editor-line-height);min-height:0}
 .detail-diff::-webkit-scrollbar{width:5px;height:5px}
 .detail-diff::-webkit-scrollbar-thumb{background:var(--vscode-scrollbarSlider-background,#333);border-radius:3px}
 .dl{display:flex;align-items:center;min-height:19px}
-.dl-hunk{background:#0a2040;color:#569cd6;padding:2px 12px;font-size:10px;
+.dl-hunk{background:#0a2040;color:#569cd6;padding:2px 12px;font-size:calc(var(--hg-editor-font-size) - 1px);
   border-top:0.5px solid #1a3a5a;border-bottom:0.5px solid #1a3a5a}
 .dl-add{background:#0d2e1a}
 .dl-rem{background:#2e0d0d}
 .dln{width:36px;color:var(--vscode-scrollbarSlider-background,#2a2a2a);text-align:right;
-  padding-right:7px;font-size:10px;flex-shrink:0;
+  padding-right:7px;font-size:calc(var(--hg-editor-font-size) - 1px);flex-shrink:0;
   border-right:0.5px solid var(--vscode-sideBar-background,#1e1e1e);user-select:none}
 .dlc{flex:1;padding-left:7px;white-space:pre;line-height:1.7;
   color:var(--vscode-descriptionForeground,#666)}
 .dlc.add{color:#4ec94e}
 .dlc.rem{color:#f07070}
 .diff-empty{padding:16px;color:var(--vscode-disabledForeground,#333);
-  font-style:italic;font-size:11px}
+  font-style:italic;font-size:var(--hg-ui-font-size-sm)}
 
 /* ── STATUSBAR ── */
 .statusbar{height:20px;background:#0e4a6a;display:flex;align-items:center;
-  padding:0 10px;font-size:10px;color:#7abdd4;gap:8px;
+  padding:0 10px;font-size:var(--hg-ui-font-size-xs);color:#7abdd4;gap:8px;
   border-top:0.5px solid #0a3a5a;flex-shrink:0}
 .sb-branch{color:#56c8e8;font-weight:500}
 .sb-right{margin-left:auto;color:#4a7a8a}
@@ -202,11 +216,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
   box-shadow:0 6px 24px rgba(0,0,0,.6);z-index:999;
   min-width:168px;padding:3px 0;display:none}
 .ctx.show{display:block}
-.ctx-lbl{padding:5px 14px 3px;font-size:9px;
+.ctx-lbl{padding:5px 14px 3px;font-size:var(--hg-ui-font-size-xxs);
   color:var(--vscode-menu-separatorBackground,#444);
   text-transform:uppercase;letter-spacing:.07em}
 .ctx-sep{height:0.5px;background:var(--vscode-menu-separatorBackground,#333);margin:3px 0}
-.ci{padding:5px 14px;font-size:11px;color:var(--vscode-menu-foreground,#bbb);
+.ci{padding:5px 14px;font-size:var(--hg-ui-font-size-sm);color:var(--vscode-menu-foreground,#bbb);
   cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap}
 .ci:hover{background:var(--vscode-menu-selectionBackground,#0e2535);
   color:var(--vscode-menu-selectionForeground,#eee)}
@@ -491,7 +505,7 @@ function renderBranches(branches) {
     <div class="tsubgroup">
       <div class="tsubgroup-hdr" onclick="toggleGroup(this,'rg-${origin}')">
         <span class="tsubgroup-arrow">▾</span>
-        <span style="font-size:10px">${esc(origin)}</span>
+        <span style="font-size:var(--hg-ui-font-size-xs)">${esc(origin)}</span>
       </div>
       <div id="rg-${origin}">
         ${bs.map(b => `<div class="titem remote" id="branch-${esc(b.name)}"
@@ -542,7 +556,7 @@ async function loadAll() {
 function renderLog(list) {
   const el = document.getElementById('logScroll');
   if (!list || !list.length) {
-    el.innerHTML='<div style="padding:20px;color:#333;font-size:11px;font-style:italic">No commits</div>';
+    el.innerHTML='<div style="padding:20px;color:#333;font-size:var(--hg-ui-font-size-xs);font-style:italic">No commits</div>';
     return;
   }
   // compute max lane for SVG width
@@ -590,11 +604,11 @@ function selectCommit(i) {
     ${(c.refs||[]).length?`<div class="dm-row"><span>Refs</span>${esc((c.refs||[]).join(', '))}</div>`:''}
     <div class="dm-stats"><span style="color:#555">Loading…</span></div>
     <div class="dm-actions">
-      <div class="tb-btn" style="font-size:9px;padding:2px 6px" onclick="commitAct('cherry-pick','${c.hash||''}')">Cherry-pick</div>
-      <div class="tb-btn" style="font-size:9px;padding:2px 6px" onclick="commitAct('revert','${c.hash||''}')">Revert</div>
-      <div class="tb-btn" style="font-size:9px;padding:2px 6px" onclick="copyHash('${c.hash||''}')">Copy hash</div>
+      <div class="tb-btn" style="font-size:var(--hg-ui-font-size-xxs);padding:2px 6px" onclick="commitAct('cherry-pick','${c.hash||''}')">Cherry-pick</div>
+      <div class="tb-btn" style="font-size:var(--hg-ui-font-size-xxs);padding:2px 6px" onclick="commitAct('revert','${c.hash||''}')">Revert</div>
+      <div class="tb-btn" style="font-size:var(--hg-ui-font-size-xxs);padding:2px 6px" onclick="copyHash('${c.hash||''}')">Copy hash</div>
     </div>`;
-  document.getElementById('detailFiles').innerHTML='<div style="padding:10px;color:#333;font-size:10px">Loading…</div>';
+  document.getElementById('detailFiles').innerHTML='<div style="padding:10px;color:#333;font-size:var(--hg-ui-font-size-xs)">Loading…</div>';
   document.getElementById('detailDiff').innerHTML='<div class="diff-empty">Select a file to see diff</div>';
   send('diff', {commit: c.hash}).then(files => {
     const statsEl = document.querySelector('#detailMeta .dm-stats');
@@ -610,10 +624,10 @@ function selectCommit(i) {
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(f.path)}">${esc(f.path.split('/').pop())}</span>
           <span class="dfile-stats">${f.additions?`<span style="color:#4ec94e">+${f.additions}</span>`:''} ${f.deletions?`<span style="color:#f07070">-${f.deletions}</span>`:''}</span>
         </div>`).join('')
-      : '<div style="padding:10px;color:#333;font-size:10px;font-style:italic">No file changes</div>';
+      : '<div style="padding:10px;color:#333;font-size:var(--hg-ui-font-size-xs);font-style:italic">No file changes</div>';
     if (files.length) selectDiffFile(files[0].path);
   }).catch(e => {
-    document.getElementById('detailFiles').innerHTML=`<div style="padding:10px;color:#f07070;font-size:10px">${esc(e.message)}</div>`;
+    document.getElementById('detailFiles').innerHTML=`<div style="padding:10px;color:#f07070;font-size:var(--hg-ui-font-size-xs)">${esc(e.message)}</div>`;
   });
 }
 
@@ -662,7 +676,7 @@ function renderStashes() {
   const g = document.getElementById('stashGroup');
   document.getElementById('stashCount').textContent = stashes.length;
   if (!stashes.length) {
-    g.innerHTML='<div style="padding:8px 22px;font-size:10px;color:#333;font-style:italic">No stashes</div>';
+    g.innerHTML='<div style="padding:8px 22px;font-size:var(--hg-ui-font-size-xs);color:#333;font-style:italic">No stashes</div>';
     return;
   }
   g.innerHTML = stashes.map((s,i) => `
