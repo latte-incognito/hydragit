@@ -22,10 +22,14 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       enableScripts: true,
       localResourceRoots: [
         vscode.Uri.file(path.join(this.ctx.extensionPath, 'webview')),
+        vscode.Uri.file(path.join(this.ctx.extensionPath, 'images')),
       ],
     };
 
-    webviewView.webview.html = this.getHtml(nonce);
+  const iconUri =   webviewView.webview.asWebviewUri(
+    vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon.png'))
+  );
+    webviewView.webview.html = this.getHtml(nonce, iconUri);
 
     webviewView.webview.onDidReceiveMessage(async msg => {
       console.log('[HydraGit] received:', msg.cmd); 
@@ -60,7 +64,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     vscode.commands.executeCommand('hydragit.mainView.focus');
   }
 
-  private getHtml(nonce: string): string {
+  private getHtml(nonce: string, iconUri: vscode.Uri): string {
     const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'index.html');
     let html = fs.readFileSync(htmlPath, 'utf8');
 
@@ -78,7 +82,7 @@ html = html.replace(
 );
 // remove the nonce injection line — not needed anymore
 // html = html.replace(/<script/g, `<script nonce="${nonce}"`);
-
+html = html.replace(/\{\{ICON_URI\}\}/g, iconUri.toString());
     return html;
   }
 }
