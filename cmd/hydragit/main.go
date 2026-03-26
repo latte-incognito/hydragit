@@ -5,14 +5,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"flag"
 
 	"hydragit/internal/ipc"
+)
+
+var (
+	version   = "dev"
+	commit    = "none"
+	buildTime = "unknown"
 )
 
 func main() {
 	repoPath := os.Getenv("HYDRAGIT_REPO")
 	if repoPath == "" {
 		repoPath = "."
+	}
+
+	showVersion := flag.Bool("version", false, "show version")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("version=%s commit=%s built=%s\n", version, commit, buildTime)
+		return
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)

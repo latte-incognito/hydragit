@@ -17,7 +17,8 @@
   "activationEvents": [
     "onView:hydragit.mainView",
     "onView:hydragit.sidebarView",
-    "onCommand:hydragit.open"
+    "onCommand:hydragit.open",
+    "onCommand:hydragit.showVersionInfo"
   ],
   "main": "./extension/out/extension.js",
   "contributes": {
@@ -26,6 +27,10 @@
         "command": "hydragit.open",
         "title": "HydraGit: Open",
         "icon": "images/icon.png"
+      },
+      {
+        "command": "hydragit.showVersionInfo",
+        "title": "HydraGit: Show Version Info"
       }
     ],
     "viewsContainers": {

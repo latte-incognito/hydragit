@@ -12,6 +12,7 @@ bin/hydragit-server*
 /tmp/
 
 # TypeScript / Node
+extension/src/generated/buildInfo.ts
 extension/node_modules/
 extension/out/
 node_modules/
