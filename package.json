@@ -64,8 +64,7 @@
   "scripts": {
     "compile": "tsc -p ./extension/tsconfig.json",
     "watch": "tsc -watch -p ./extension/tsconfig.json",
-    "reinstall-go": "make package && code --install-extension hydragit-0.1.0.vsix",
-    "reinstall-js": "cd extension && npm run compile && cd .. && vsce package --out hydragit-0.1.0.vsix && code --install-extension hydragit-0.1.0.vsix"
+    "dev": "make install-local"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

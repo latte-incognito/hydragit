@@ -19,3 +19,6 @@ package: build
 
 publish: build
 	vsce publish
+
+install-local: package
+	code --install-extension hydragit-*.vsix --force
