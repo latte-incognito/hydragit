@@ -49,7 +49,7 @@
         {
           "id": "hydragit.sidebarView",
           "name": "HydraGit",
-          "type": "tree"
+          "type": "webview"
         }
       ],
       "hydragit-panel": [
@@ -59,13 +59,7 @@
           "type": "webview"
         }
       ]
-    },
-    "viewsWelcome": [
-      {
-        "view": "hydragit.sidebarView",
-        "contents": "Opening HydraGit in the bottom panel…"
-      }
-    ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./extension/tsconfig.json",

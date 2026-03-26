@@ -6,11 +6,17 @@ import (
 	"time"
 )
 
+type FileStatus struct {
+    Path   string `json:"path"`
+    Status string `json:"status"` // M, A, D, U, R
+}
+
 type StatusResult struct {
 	Branch   string `json:"branch"`
 	Ahead    int    `json:"ahead"`
 	Behind   int    `json:"behind"`
 	Modified int    `json:"modified"`
+	Files    []FileStatus `json:"files"`
 }
 
 type Commit struct {
@@ -41,16 +47,37 @@ func Status(repoPath string) (StatusResult, error) {
 		}
 	}
 
-	// modified count (working tree + index, exclude untracked)
-	out, err := run(repoPath, "status", "--porcelain")
-	if err != nil {
-		return res, err
-	}
-	if out != "" {
-		res.Modified = len(strings.Split(strings.TrimRight(out, "\n"), "\n"))
-	}
+ // modified count (working tree + index, exclude untracked)
+    out, err := run(repoPath, "status", "--porcelain")
+    if err == nil {
+        lines := strings.Split(strings.TrimSpace(out), "\n")
+        for _, l := range lines {
+            if len(l) < 2 { continue }
+            if l[0] != '?' { res.Modified++ }
+        }
+    }
 
-	return res, nil
+    if err == nil {
+        lines := strings.Split(strings.TrimSpace(out), "\n")
+        for _, l := range lines {
+            if len(l) < 4 { continue }
+            xy := strings.TrimRight(l[:2], " ")
+            path := strings.TrimSpace(l[3:])
+            // handle renames: "old -> new"
+            if strings.Contains(path, " -> ") {
+                path = strings.SplitN(path, " -> ", 2)[1]
+            }
+            status := string(xy[0])
+            if status == " " { status = string(xy[1]) }
+            if status == "?" { status = "U" } // untracked
+            res.Files = append(res.Files, FileStatus{
+                Path:   path,
+                Status: status,
+            })
+        }
+    }
+
+    return res, nil
 }
 
 // Log returns up to limit commits on the given branch (all branches if branch=="").

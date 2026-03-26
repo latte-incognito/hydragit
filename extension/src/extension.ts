@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { GoProcess } from './goProcess';
-import { HydraViewProvider } from './panel';
+import { HydraSidebarProvider, HydraViewProvider } from './panel';
 
 let goProcess: GoProcess | undefined;
 
@@ -32,6 +32,14 @@ console.log('[HydraGit] exists:', require('fs').existsSync(binaryPath));
       webviewOptions: { retainContextWhenHidden: true },
     }),
   );
+  
+  ctx.subscriptions.push(
+  vscode.window.registerWebviewViewProvider(
+    'hydragit.sidebarView',
+    new HydraSidebarProvider(ctx, goProcess),
+    { webviewOptions: { retainContextWhenHidden: true } }
+  )
+);
 
   ctx.subscriptions.push(
     vscode.commands.registerCommand('hydragit.open', () => {

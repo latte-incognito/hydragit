@@ -82,3 +82,41 @@ html = html.replace(
     return html;
   }
 }
+
+export class HydraSidebarProvider implements vscode.WebviewViewProvider {
+  public static readonly viewType = 'hydragit.sidebarView';
+
+  constructor(
+    private readonly ctx: vscode.ExtensionContext,
+    private readonly goProcess: GoProcess,
+  ) {}
+
+  resolveWebviewView(webviewView: vscode.WebviewView): void {
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.file(path.join(this.ctx.extensionPath, 'webview')),
+      ],
+    };
+
+    webviewView.webview.html = this.getHtml();
+
+    webviewView.webview.onDidReceiveMessage(async msg => {
+      try {
+        const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data });
+      } catch (err) {
+        webviewView.webview.postMessage({
+          id: msg.id,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    });
+  }
+
+  private getHtml(): string {
+    const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'sidebar.html');
+    return fs.readFileSync(htmlPath, 'utf8');
+  }
+}
