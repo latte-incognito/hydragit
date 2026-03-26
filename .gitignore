@@ -34,3 +34,6 @@ dist/
 
 # Claude Code
 .claude/
+
+#idea
+.idea/
