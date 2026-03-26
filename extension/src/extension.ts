@@ -1,10 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { GoProcess } from './goProcess';
-import { HydraPanel } from './panel';
+import { HydraViewProvider } from './panel';
 
 let goProcess: GoProcess | undefined;
-let hydraPanel: HydraPanel | undefined;
 
 export function activate(ctx: vscode.ExtensionContext): void {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -22,20 +21,33 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
   goProcess = new GoProcess(binaryPath, workspaceRoot);
 
+  const provider = new HydraViewProvider(ctx, goProcess);
+
   ctx.subscriptions.push(
-    vscode.commands.registerCommand('hydragit.open', () => {
-      if (!goProcess) { return; }
-      if (hydraPanel) {
-        hydraPanel.reveal();
-      } else {
-        hydraPanel = new HydraPanel(ctx, goProcess);
-      }
+    vscode.window.registerWebviewViewProvider('hydragit.mainView', provider, {
+      webviewOptions: { retainContextWhenHidden: true },
     }),
   );
+
+  ctx.subscriptions.push(
+    vscode.commands.registerCommand('hydragit.open', () => {
+      vscode.commands.executeCommand('hydragit.mainView.focus');
+    }),
+  );
+
+  // Activity bar icon — clicking it focuses the bottom panel view
+  const sidebarView = vscode.window.createTreeView('hydragit.sidebarView', {
+    treeDataProvider: { getTreeItem: () => { throw new Error(); }, getChildren: () => [] },
+  });
+  sidebarView.onDidChangeVisibility(e => {
+    if (e.visible) {
+      vscode.commands.executeCommand('hydragit.mainView.focus');
+    }
+  });
+  ctx.subscriptions.push(sidebarView);
 }
 
 export function deactivate(): void {
   goProcess?.dispose();
   goProcess = undefined;
-  hydraPanel = undefined;
 }

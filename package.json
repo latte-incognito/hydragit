@@ -16,6 +16,7 @@
   "categories": ["SCM Providers"],
   "activationEvents": [
     "onView:hydragit.mainView",
+    "onView:hydragit.sidebarView",
     "onCommand:hydragit.open"
   ],
   "main": "./extension/out/extension.js",
@@ -34,10 +35,24 @@
           "title": "HydraGit",
           "icon": "images/icon-tight.png"
         }
+      ],
+      "panel": [
+        {
+          "id": "hydragit-panel",
+          "title": "HydraGit",
+          "icon": "images/icon-tight.png"
+        }
       ]
     },
     "views": {
       "hydragit": [
+        {
+          "id": "hydragit.sidebarView",
+          "name": "HydraGit",
+          "type": "tree"
+        }
+      ],
+      "hydragit-panel": [
         {
           "id": "hydragit.mainView",
           "name": "HydraGit",
@@ -45,15 +60,12 @@
         }
       ]
     },
-    "menus": {
-      "view/title": [
-        {
-          "command": "hydragit.open",
-          "when": "view == hydragit.mainView",
-          "group": "navigation"
-        }
-      ]
-    }
+    "viewsWelcome": [
+      {
+        "view": "hydragit.sidebarView",
+        "contents": "Opening HydraGit in the bottom panel…"
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p ./extension/tsconfig.json",

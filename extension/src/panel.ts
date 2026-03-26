@@ -3,37 +3,36 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { GoProcess } from './goProcess';
 
-export class HydraPanel {
-  private panel: vscode.WebviewPanel;
+export class HydraViewProvider implements vscode.WebviewViewProvider {
   private watcher: vscode.FileSystemWatcher | undefined;
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
     private readonly goProcess: GoProcess,
-  ) {
+  ) {}
+
+  resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    _context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken,
+  ): void {
     const nonce = Math.random().toString(36).slice(2);
 
-    this.panel = vscode.window.createWebviewPanel(
-      'hydragit',
-      'HydraGit',
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [
-          vscode.Uri.file(path.join(ctx.extensionPath, 'webview')),
-        ],
-      },
-    );
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.file(path.join(this.ctx.extensionPath, 'webview')),
+      ],
+    };
 
-    this.panel.webview.html = this.getHtml(nonce);
+    webviewView.webview.html = this.getHtml(nonce);
 
-    this.panel.webview.onDidReceiveMessage(async msg => {
+    webviewView.webview.onDidReceiveMessage(async msg => {
       try {
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
-        this.panel.webview.postMessage({ id: msg.id, ok: true, data });
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data });
       } catch (err) {
-        this.panel.webview.postMessage({
+        webviewView.webview.postMessage({
           id: msg.id,
           ok: false,
           error: err instanceof Error ? err.message : String(err),
@@ -47,20 +46,23 @@ export class HydraPanel {
       this.watcher = vscode.workspace.createFileSystemWatcher(
         new vscode.RelativePattern(workspaceRoot, '.git/**'),
       );
-      const refresh = () => this.panel.webview.postMessage({ type: 'refresh' });
+      const refresh = () => webviewView.webview.postMessage({ type: 'refresh' });
       this.watcher.onDidChange(refresh);
       this.watcher.onDidCreate(refresh);
       this.watcher.onDidDelete(refresh);
     }
 
-    this.panel.onDidDispose(() => this.watcher?.dispose());
+    webviewView.onDidDispose(() => this.watcher?.dispose());
+  }
+
+  focus(): void {
+    vscode.commands.executeCommand('hydragit.mainView.focus');
   }
 
   private getHtml(nonce: string): string {
     const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'index.html');
     let html = fs.readFileSync(htmlPath, 'utf8');
 
-    // Inject nonce into existing script tags and add CSP meta tag
     const csp = [
       `default-src 'none'`,
       `script-src 'nonce-${nonce}'`,
@@ -76,9 +78,5 @@ export class HydraPanel {
     html = html.replace(/<script/g, `<script nonce="${nonce}"`);
 
     return html;
-  }
-
-  reveal(): void {
-    this.panel.reveal();
   }
 }
