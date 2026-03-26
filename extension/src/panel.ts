@@ -85,6 +85,7 @@ html = html.replace(
 
 export class HydraSidebarProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'hydragit.sidebarView';
+  private panelOpened = false;
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
@@ -113,6 +114,22 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
         });
       }
     });
+
+    // auto-open main panel first time sidebar becomes visible
+  webviewView.onDidChangeVisibility(() => {
+  if (webviewView.visible) {
+    vscode.commands.executeCommand('hydragit.open');
+  }
+});
+// open main panel immediately on first load
+  vscode.commands.executeCommand('hydragit.open');
+
+  // and every subsequent time sidebar becomes visible
+  webviewView.onDidChangeVisibility(() => {
+    if (webviewView.visible) {
+      vscode.commands.executeCommand('hydragit.open');
+    }
+  });
   }
 
   private getHtml(): string {
