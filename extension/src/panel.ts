@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { GoProcess } from './goProcess';
+import { HydraStatusService, HydraStatusSnapshot } from './HydraStatusService';
 
 export class HydraViewProvider implements vscode.WebviewViewProvider {
   private watcher: vscode.FileSystemWatcher | undefined;
@@ -91,11 +92,12 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'hydragit.sidebarView';
 
   private view?: vscode.WebviewView;
-  private lastBadgeCount: number | undefined;
+  private statusSub?: vscode.Disposable;
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
     private readonly goProcess: GoProcess,
+    private readonly statusService: HydraStatusService,
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -112,13 +114,6 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       try {
-        // badge updates from webview
-        if (msg?.type === 'badgeCount') {
-          this.updateBadge(msg.count);
-          return;
-        }
-
-        // normal request/response bridge to Go backend
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
         webviewView.webview.postMessage({ id: msg.id, ok: true, data });
       } catch (err) {
@@ -139,31 +134,70 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
         vscode.commands.executeCommand('hydragit.open');
       }
     });
+
+    this.statusSub?.dispose();
+    this.statusSub = this.statusService.onDidChange((snapshot) => {
+      this.postStatus(snapshot);
+    });
+
+    this.postStatus(this.statusService.getSnapshot());
   }
 
-  private updateBadge(count: unknown): void {
-    if (!this.view) return;
+  dispose(): void {
+    this.statusSub?.dispose();
+  }
 
-    const normalized = Math.max(0, Number(count) || 0);
-
-    if (this.lastBadgeCount === normalized) {
-      return;
-    }
-    this.lastBadgeCount = normalized;
-
-    if (normalized === 0) {
-      this.view.badge = undefined;
-      return;
-    }
-
-    this.view.badge = {
-      value: normalized,
-      tooltip: normalized === 1 ? '1 changed file' : `${normalized} changed files`,
-    };
+  private postStatus(snapshot: HydraStatusSnapshot): void {
+    this.view?.webview.postMessage({
+      type: 'statusUpdate',
+      data: snapshot,
+    });
   }
 
   private getHtml(): string {
     const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'sidebar.html');
     return fs.readFileSync(htmlPath, 'utf8');
+  }
+}
+
+type BadgeTreeItem = {
+  id: string;
+  label: string;
+};
+
+export class HydraBadgeTreeProvider implements vscode.TreeDataProvider<BadgeTreeItem> {
+  private readonly _onDidChangeTreeData = new vscode.EventEmitter<BadgeTreeItem | undefined | void>();
+  readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+
+  constructor(private readonly statusService: HydraStatusService) {
+    this.statusService.onDidChange(() => {
+      this._onDidChangeTreeData.fire();
+    });
+  }
+
+  refresh(): void {
+    this._onDidChangeTreeData.fire();
+  }
+
+  getTreeItem(element: BadgeTreeItem): vscode.TreeItem {
+    const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.None);
+    item.id = element.id;
+    item.contextValue = 'hydragitBadgeCarrier';
+    return item;
+  }
+
+  getChildren(): Thenable<BadgeTreeItem[]> {
+    const snapshot = this.statusService.getSnapshot();
+    const files = snapshot.files ?? [];
+    const branch = snapshot.branch || '—';
+
+    // Minimal placeholder content. You can return [] if you want,
+    // but one tiny row can make the view less broken if it becomes visible.
+    return Promise.resolve([
+      {
+        id: 'status',
+        label: `Branch: ${branch} • Changes: ${files.length}`,
+      },
+    ]);
   }
 }

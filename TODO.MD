@@ -1,5 +1,4 @@
 - Fix the remote master <- add tests for this after 
-- add bubble with amount of files currently changed a top of hydragit action bar logo
 - for side bar add pycharm experince with check box of what files will be staged.
 - Date representaion 
 - Version info somewher inside UI
@@ -12,3 +11,4 @@
 - Preparea repo with crazy paths 
 - dont forget to clean up TOdos from code 
 - don't forget to do normal frontend splitting js/ts from css and html file ...
+- bug in changes files TODO.MD shows ODO.MD

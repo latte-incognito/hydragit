@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { buildInfo } from './generated/buildInfo';
 import { GoProcess } from './goProcess';
-import { HydraSidebarProvider, HydraViewProvider } from './panel';
+import { HydraBadgeTreeProvider, HydraSidebarProvider, HydraViewProvider } from './panel';
+import { HydraStatusService } from './HydraStatusService';
 
 let goProcess: GoProcess | undefined;
 let output: vscode.OutputChannel;
@@ -42,8 +43,12 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
   goProcess = new GoProcess(binaryPath, workspaceRoot);
 
+  const statusService = new HydraStatusService(goProcess, 3000);
+  ctx.subscriptions.push(statusService);
+
   const mainProvider = new HydraViewProvider(ctx, goProcess);
-  const sidebarProvider = new HydraSidebarProvider(ctx, goProcess);
+  const sidebarProvider = new HydraSidebarProvider(ctx, goProcess, statusService);
+  const badgeTreeProvider = new HydraBadgeTreeProvider(statusService);
 
   ctx.subscriptions.push(
     vscode.window.registerWebviewViewProvider('hydragit.mainView', mainProvider, {
@@ -57,11 +62,39 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }),
   );
 
+  const badgeTree = vscode.window.createTreeView('hydragit.badgeCarrier', {
+    treeDataProvider: badgeTreeProvider,
+    showCollapseAll: false,
+  });
+  ctx.subscriptions.push(badgeTree);
+
+  const updateBadge = () => {
+    const snapshot = statusService.getSnapshot();
+    const count = snapshot.files?.length ?? 0;
+
+    badgeTree.badge = count > 0
+      ? {
+          value: count,
+          tooltip: count === 1 ? '1 changed file' : `${count} changed files`,
+        }
+      : undefined;
+  };
+
+  ctx.subscriptions.push(
+    statusService.onDidChange(() => {
+      updateBadge();
+      badgeTreeProvider.refresh();
+    }),
+  );
+
   ctx.subscriptions.push(
     vscode.commands.registerCommand('hydragit.open', () => {
       return vscode.commands.executeCommand('hydragit.mainView.focus');
     }),
   );
+
+  statusService.start();
+  updateBadge();
 }
 
 export function deactivate(): void {

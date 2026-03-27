@@ -349,68 +349,33 @@ function send(cmd, params = {}) {
   });
 }
 
-// responses only — ignore watcher refresh events (avoid infinite loop)
+function applyStatus(status) {
+  document.getElementById('statusBranch').textContent = status.branch || '—';
+
+  const files = status.files || [];
+  changedFiles = files;
+  renderFiles(files);
+  updateButtons();
+}
+
 window.addEventListener('message', e => {
   const msg = e.data;
-  if (msg.type === 'refresh') return; // watcher fires too often, we use polling
+
+  if (msg.type === 'statusUpdate') {
+    applyStatus(msg.data || {});
+    return;
+  }
+
   const p = _pending.get(msg.id);
   if (!p) return;
   _pending.delete(msg.id);
   msg.ok ? p.resolve(msg.data) : p.reject(new Error(msg.error));
-});
-// -- Badge wiring
-let lastBadgeCount;
-
-function sendBadgeCount(count) {
-  const normalized = Math.max(0, Number(count) || 0);
-  if (lastBadgeCount === normalized) return;
-  lastBadgeCount = normalized;
-  vscode.postMessage({ type: 'badgeCount', count: normalized });
-}
-
-// Because this badge is driven by the sidebar webview polling, the badge updates only after that webview exists and runs. Webview views are real webviews, and their state/lifecycle is tied to the webview instance, even if you use retainContextWhenHidden. So this is fine for your current design,
-// but it is not the strongest design if later you want the badge to stay correct before the sidebar ever opens
-
-// ── POLLING ────────────────────────────────────────────
-// poll every 3s instead of watcher to avoid infinite loop bug
-let pollTimer = null;
-
-function startPolling() {
-  if (pollTimer) return;
-  pollTimer = setInterval(loadChanges, 3000);
-}
-function stopPolling() {
-  clearInterval(pollTimer);
-  pollTimer = null;
-}
-
-document.addEventListener('visibilitychange', () => {
-  document.hidden ? stopPolling() : startPolling();
 });
 
 // ── STATE ──────────────────────────────────────────────
 let changedFiles = [];
 let sectionOpen = true;
 
-// ── LOAD CHANGES ───────────────────────────────────────
-async function loadChanges() {
-  try {
-    const status = await send('status');
-    document.getElementById('statusBranch').textContent = status.branch || '—';
-
-    const files = status.files || [];
-    changedFiles = files;
-
-    sendBadgeCount(files.length);
-
-    renderFiles(files);
-    updateButtons();
-  } catch (e) {
-    sendBadgeCount(0);
-    document.getElementById('fileList').innerHTML =
-      `<div class="empty-state">Could not load changes<br><span style="font-size:var(--hg-ui-font-size-xxs);color:var(--vscode-errorForeground,#f48771)">${esc(e.message)}</span></div>`;
-  }
-}
 
 // ── RENDER FILES ───────────────────────────────────────
 function renderFiles(files) {
@@ -495,9 +460,6 @@ function esc(s) {
   return s ? s.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
 }
 
-// ── INIT ───────────────────────────────────────────────
-loadChanges();
-startPolling();
 </script>
 </body>
 </html>

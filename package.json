@@ -15,6 +15,7 @@
   },
   "categories": ["SCM Providers"],
   "activationEvents": [
+     "onStartupFinished",
     "onView:hydragit.mainView",
     "onView:hydragit.sidebarView",
     "onCommand:hydragit.open",
@@ -55,7 +56,12 @@
           "id": "hydragit.sidebarView",
           "name": "HydraGit",
           "type": "webview"
-        }
+        },
+            {
+        "id": "hydragit.badgeCarrier",
+        "name": "Status",
+        "when": "false"
+    }
       ],
       "hydragit-panel": [
         {
