@@ -30,7 +30,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
   const iconUri =   webviewView.webview.asWebviewUri(
     vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon.png'))
   );
-    webviewView.webview.html = this.getHtml(nonce, iconUri);
+    webviewView.webview.html = this.getHtml(webviewView.webview, nonce, iconUri);
 
     webviewView.webview.onDidReceiveMessage(async msg => {
       console.log('[HydraGit] received:', msg.cmd); 
@@ -65,27 +65,32 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     vscode.commands.executeCommand('hydragit.mainView.focus');
   }
 
-  private getHtml(nonce: string, iconUri: vscode.Uri): string {
-    const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'index.html');
-    let html = fs.readFileSync(htmlPath, 'utf8');
+ private getHtml(webview: vscode.Webview, nonce: string, iconUri: vscode.Uri): string {
+  const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'index.html');
+  let html = fs.readFileSync(htmlPath, 'utf8');
 
-const csp = [
-  `default-src 'none'`,
-  `script-src 'unsafe-inline'`,   // ← changed from nonce to unsafe-inline
-  `style-src 'unsafe-inline'`,
-  `img-src data: https: blob:`,
-  `font-src data:`,
-].join('; ');
+  const scriptUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'index.js')
+  );
+  const styleUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'index.css')
+  );
 
-html = html.replace(
-  /<head>/i,
-  `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`,
-);
-// remove the nonce injection line — not needed anymore
-// html = html.replace(/<script/g, `<script nonce="${nonce}"`);
-html = html.replace(/\{\{ICON_URI\}\}/g, iconUri.toString());
-    return html;
-  }
+  const csp = [
+    `default-src 'none'`,
+    `script-src ${webview.cspSource}`,
+    `style-src  ${webview.cspSource} 'unsafe-inline'`,
+    `img-src data: https: blob: ${webview.cspSource}`,
+    `font-src data:`,
+  ].join('; ');
+
+  html = html.replace(/<head>/i, `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`);
+  html = html.replace('./index.js', scriptUri.toString());
+  html = html.replace('</head>', `<link rel="stylesheet" href="${styleUri}"></head>`);
+  html = html.replace(/\{\{ICON_URI\}\}/g, iconUri.toString());
+
+  return html;
+};
 }
 
 export class HydraSidebarProvider implements vscode.WebviewViewProvider {

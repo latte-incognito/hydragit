@@ -10,7 +10,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         sidebar: resolve(__dirname, 'webview/src/panels/sidebar/main.ts'),
-        // index:   resolve(__dirname, 'webview/src/panels/index/main.ts'),
+        index:   resolve(__dirname, 'webview/src/panels/index/main.ts'),
       },
       output: {
         entryFileNames: 'webview/[name].js',
