@@ -189,10 +189,10 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
-    font-family: var(--hg-editor-font-family);
-    font-size:   var(--hg-editor-font-size);
-    font-weight: var(--hg-editor-font-weight);
-    line-height: var(--hg-editor-line-height);
+    font-family:  var(--vscode-editor-font-family, Consolas, monospace) !important;
+    font-size:    var(--vscode-editor-font-size,   12px)!important;
+    font-weight:  var(--vscode-editor-font-weight, 400)!important;
+    line-height:   var(--vscode-editor-line-height, 1.5)!important;
   }
 
   .dl      { display: flex; align-items: center; min-height: 19px; }
