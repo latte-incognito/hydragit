@@ -16,6 +16,8 @@ export default defineConfig({
         entryFileNames: 'webview/[name].js',
         chunkFileNames: 'webview/[name]-[hash].js',
         assetFileNames: 'webview/[name][extname]',
+          inlineDynamicImports: false,
+        manualChunks: undefined,
       },
     },
   },

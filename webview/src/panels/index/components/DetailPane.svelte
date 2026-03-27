@@ -8,8 +8,8 @@
   export let loading:   boolean = false
   export let iconUri:   string  = ''
 
-  export let onSelectFile:  (path: string) => void = () => {}
-  export let onCommitAction:(action: string, hash: string) => void = () => {}
+  export let onSelectFile:   (path: string) => void = () => {}
+  export let onCommitAction: (action: string, hash: string) => void = () => {}
 
   const badges: Record<string, string> = { M: '#e3b341', A: '#4ec94e', D: '#f07070' }
   const bgB:    Record<string, string> = { M: '#1c1000', A: '#0a2510', D: '#2e0d0d' }
@@ -27,7 +27,8 @@
     </div>
   {:else}
     <div class="detail-content">
-      <!-- Meta -->
+
+      <!-- meta: fixed, no scroll -->
       <div class="detail-meta">
         <div class="dm-hash">{(commit.hash ?? '').slice(0, 8)}</div>
         <div class="dm-msg">{commit.message ?? commit.msg ?? ''}</div>
@@ -52,18 +53,19 @@
         </div>
       </div>
 
-      <!-- Files -->
+      <!-- files: fixed max-height, own scroll -->
       <div class="detail-files">
         {#if loading}
-          <div class="df-loading">Loading…</div>
+          <div class="df-msg">Loading…</div>
         {:else if files.length === 0}
-          <div class="df-loading" style="font-style:italic">No file changes</div>
+          <div class="df-msg" style="font-style:italic">No file changes</div>
         {:else}
           {#each files as f}
-            <div class="dfile" class:on={selFile === f.path} on:click={() => onSelectFile(f.path)}
+            <div class="dfile" class:on={selFile === f.path}
+              on:click={() => onSelectFile(f.path)}
               role="option" aria-selected={selFile === f.path} tabindex="0">
               <span class="dfile-badge"
-                style="background:{bgB[f.status] ?? '#1a1a1a'};color:{badges[f.status] ?? '#888'};border:0.5px solid {brB[f.status] ?? '#333'}">
+                style="background:{bgB[f.status]??'#1a1a1a'};color:{badges[f.status]??'#888'};border:0.5px solid {brB[f.status]??'#333'}">
                 {f.status ?? 'M'}
               </span>
               <span class="dfile-name" title={f.path}>{f.path.split('/').pop()}</span>
@@ -76,7 +78,7 @@
         {/if}
       </div>
 
-      <!-- Diff -->
+      <!-- diff: fills remaining, own scroll, editor font -->
       <div class="detail-diff">
         {#if !selFile}
           <div class="diff-empty">Select a file to see diff</div>
@@ -86,14 +88,18 @@
           {#each hunks as h}
             <div class="dl dl-hunk">{h.header}</div>
             {#each h.lines as l}
-              <div class="dl" class:dl-add={l.type === 'add'} class:dl-rem={l.type === 'del'}>
+              <div class="dl" class:dl-add={l.type==='add'} class:dl-rem={l.type==='del'}>
                 <span class="dln"></span>
-                <span class="dlc" class:add={l.type === 'add'} class:rem={l.type === 'del'} class:ctx={l.type === 'ctx'}>{l.content}</span>
+                <span class="dlc"
+                  class:add={l.type==='add'}
+                  class:rem={l.type==='del'}
+                  class:ctx={l.type==='ctx'}>{l.content}</span>
               </div>
             {/each}
           {/each}
         {/if}
       </div>
+
     </div>
   {/if}
 </div>
@@ -101,70 +107,103 @@
 <style>
   .pane-detail {
     width: 280px; min-width: 160px; max-width: 500px;
-    display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+    display: flex; flex-direction: column;
+    overflow: hidden; flex-shrink: 0;
     background: var(--vscode-editor-background, #1e1e1e);
   }
-  .detail-empty {
-    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    color: var(--vscode-disabledForeground, #2a2a2a); font-size: var(--hg-font-sm); gap: 8px;
-  }
-  .detail-empty-icon { width: 36px; height: 36px; object-fit: contain; opacity: .78; display: block; }
-  .detail-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
+  .detail-empty {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: var(--vscode-disabledForeground, #2a2a2a);
+    font-size: var(--hg-font-sm); gap: 8px;
+  }
+  .detail-empty-icon { width: 36px; height: 36px; object-fit: contain; opacity: .78; }
+
+  /* detail-content fills the pane, stacks meta/files/diff vertically */
+  .detail-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;   /* clips — each child scrolls itself */
+    min-height: 0;
+  }
+
+  /* ── Meta ── fixed, never scrolls */
   .detail-meta {
+    flex-shrink: 0;
     padding: 10px 12px;
     border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
-    flex-shrink: 0; background: var(--vscode-sideBar-background, #252526);
+    background: var(--vscode-sideBar-background, #252526);
   }
-  .dm-hash { font-family: var(--hg-editor-font-family); font-size: var(--hg-editor-font-size); color: #3e6aa0; margin-bottom: 4px; }
-  .dm-msg  { font-size: var(--hg-font-sm); color: var(--vscode-foreground, #eee); line-height: 1.4; margin-bottom: 6px; }
-  .dm-row  { font-size: var(--hg-font-xs); color: var(--vscode-descriptionForeground, #666); display: flex; gap: 6px; margin-bottom: 2px; }
-  .dm-row :global(span) { color: var(--vscode-disabledForeground, #444); min-width: 40px; }
-  .dm-stats   { display: flex; gap: 8px; font-size: var(--hg-font-xs); margin-top: 4px; }
+  .dm-hash {
+    font-family: var(--hg-editor-font-family);
+    font-size:   var(--hg-editor-font-size);
+    font-weight: var(--hg-editor-font-weight);
+    line-height: var(--hg-editor-line-height);
+    color: #3e6aa0; margin-bottom: 4px;
+  }
+  .dm-msg    { font-size: var(--hg-font-sm); color: var(--vscode-foreground, #eee); line-height: 1.4; margin-bottom: 6px; }
+  .dm-row    { font-size: var(--hg-font-xs); color: var(--vscode-descriptionForeground, #666); display: flex; gap: 6px; margin-bottom: 2px; }
+  .dm-stats  { display: flex; gap: 8px; font-size: var(--hg-font-xs); margin-top: 4px; }
   .dm-actions { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
 
   .tb-btn {
     font-size: var(--hg-font-xxs); padding: 2px 6px; border-radius: 3px;
     border: 0.5px solid var(--vscode-widget-border, #3a3a3a);
     background: var(--vscode-sideBar-background, #252526);
-    color: var(--vscode-descriptionForeground, #888); cursor: pointer;
-    font-family: var(--hg-font-family);
+    color: var(--vscode-descriptionForeground, #888);
+    cursor: pointer; font-family: var(--hg-font-family);
   }
   .tb-btn:hover { color: var(--vscode-foreground, #ccc); }
 
+  /* ── Files ── max-height cap, own scroll */
   .detail-files {
-    flex-shrink: 0; max-height: 160px; overflow-y: auto;
+    flex-shrink: 0;
+    max-height: 160px;
+    overflow-y: auto;
     border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
   }
-  .df-loading { padding: 10px; color: #333; font-size: var(--hg-font-xs); }
+  .df-msg { padding: 10px; color: #333; font-size: var(--hg-font-xs); }
 
   .dfile {
     display: flex; align-items: center; padding: 3px 10px; gap: 5px;
-    cursor: pointer; font-size: var(--hg-font-xs); color: var(--vscode-descriptionForeground, #888);
+    cursor: pointer; font-size: var(--hg-font-xs);
+    color: var(--vscode-descriptionForeground, #888);
     border-left: 2px solid transparent;
   }
   .dfile:hover { background: var(--vscode-list-hoverBackground, #2a2a2a); color: var(--vscode-foreground, #ccc); }
   .dfile.on   { background: #0e2030; color: var(--vscode-foreground, #ccc); border-left-color: #56c8e8; }
-  .dfile-badge {
-    font-size: var(--hg-font-xxs); padding: 1px 3px; border-radius: 2px;
-    font-weight: 600; min-width: 12px; text-align: center; flex-shrink: 0;
-  }
+  .dfile-badge { font-size: var(--hg-font-xxs); padding: 1px 3px; border-radius: 2px; font-weight: 600; min-width: 12px; text-align: center; flex-shrink: 0; }
   .dfile-name  { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dfile-stats { margin-left: auto; font-size: var(--hg-font-xxs); flex-shrink: 0; }
 
+  /* ── Diff ── fills all remaining space, own scroll, editor font */
   .detail-diff {
-    flex: 1; overflow: auto;
-    font-family: var(--hg-editor-font-family); font-size: var(--hg-editor-font-size);
-    line-height: 1.5; min-height: 0;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    font-family: var(--hg-editor-font-family);
+    font-size:   var(--hg-editor-font-size);
+    font-weight: var(--hg-editor-font-weight);
+    line-height: var(--hg-editor-line-height);
   }
+
   .dl      { display: flex; align-items: center; min-height: 19px; }
-  .dl-hunk { background: #0a2040; color: #569cd6; padding: 2px 12px; font-size: calc(var(--hg-editor-font-size) - 1px); }
-  .dl-add  { background: #0d2e1a; }
-  .dl-rem  { background: #2e0d0d; }
+  .dl-hunk {
+    background: #0a2040; color: #569cd6; padding: 2px 12px;
+    font-size: calc(var(--hg-editor-font-size) - 1px);
+    border-top: 0.5px solid #1a3a5a; border-bottom: 0.5px solid #1a3a5a;
+  }
+  .dl-add { background: #0d2e1a; }
+  .dl-rem { background: #2e0d0d; }
+
   .dln {
     width: 36px; color: var(--vscode-scrollbarSlider-background, #2a2a2a);
-    text-align: right; padding-right: 7px; font-size: calc(var(--hg-editor-font-size) - 1px);
-    flex-shrink: 0; border-right: 0.5px solid var(--vscode-sideBar-background, #1e1e1e);
+    text-align: right; padding-right: 7px;
+    font-size: calc(var(--hg-editor-font-size) - 1px);
+    flex-shrink: 0;
+    border-right: 0.5px solid var(--vscode-sideBar-background, #1e1e1e);
     user-select: none;
   }
   .dlc     { flex: 1; padding-left: 7px; white-space: pre; line-height: 1.7; color: var(--vscode-descriptionForeground, #666); }
