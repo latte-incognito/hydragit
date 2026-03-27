@@ -1,8 +1,6 @@
 import '$styles/vscode-theme.css'
+import { mount } from 'svelte'
 import Sidebar from './Sidebar.svelte'
 
-const app = new Sidebar({
-  target: document.body,
-})
+mount(Sidebar, { target: document.body })
 
-export default app

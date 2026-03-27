@@ -111,7 +111,7 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
       ],
     };
 
-    webviewView.webview.html = this.getHtml();
+    webviewView.webview.html = this.getHtml(webviewView.webview);
     
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       try {
@@ -153,10 +153,23 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private getHtml(): string {
-    const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'sidebar.html');
-    return fs.readFileSync(htmlPath, 'utf8');
-  }
+private getHtml(webview: vscode.Webview): string {
+  const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'sidebar.html');
+  let html = fs.readFileSync(htmlPath, 'utf8');
+
+  const scriptUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'sidebar.js')
+  );
+
+  const styleUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'sidebar.css')
+  );
+
+  html = html.replace('./sidebar.js', scriptUri.toString());
+  html = html.replace('</head>', `<link rel="stylesheet" href="${styleUri}"></head>`);
+
+  return html;
+}
 }
 
 type BadgeTreeItem = {
