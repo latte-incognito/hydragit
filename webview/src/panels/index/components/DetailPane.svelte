@@ -137,7 +137,7 @@
     border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
     background: var(--vscode-sideBar-background, #252526);
   }
-  div.dm-hash {
+  .dm-hash {
     font-family:  var(--vscode-editor-font-family, Consolas, monospace) !important;
     font-size:    var(--vscode-editor-font-size,   12px)!important;
     font-weight:  var(--vscode-editor-font-weight, 400)!important;
@@ -146,6 +146,11 @@
   }
   .dm-msg    { font-size: var(--hg-font-sm); color: var(--vscode-foreground, #eee); line-height: 1.4; margin-bottom: 6px; }
   .dm-row    { font-size: var(--hg-font-xs); color: var(--vscode-descriptionForeground, #666); display: flex; gap: 6px; margin-bottom: 2px; }
+  .dm-row span {
+  color: var(--vscode-disabledForeground, #555);
+  min-width: 52px;
+  flex-shrink: 0;
+}
   .dm-stats  { display: flex; gap: 8px; font-size: var(--hg-font-xs); margin-top: 4px; }
   .dm-actions { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
 
