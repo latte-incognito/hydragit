@@ -184,6 +184,7 @@ Check off items as they're completed and verified working.
 ## v0.2.0 (future — do not start until v0.1 is shipped)
 
 - [ ] Staged diff view
+- [ ] Split webview into index.html + index.js, use asWebviewUri, proper nonce CSP
 - [ ] Unstaged diff view  
 - [ ] Stage / unstage files
 - [ ] Commit from extension

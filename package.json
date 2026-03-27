@@ -1,0 +1,78 @@
+{
+  "name": "hydragit",
+  "displayName": "HydraGit",
+  "description": "The git panel IntelliJ has, inside VS Code. No paywall.",
+  "version": "0.1.0",
+  "publisher": "vkushnarenko",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/latte-incognito/hydragit.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["SCM Providers"],
+  "activationEvents": [
+    "onStartupFinished",
+    "onStartupFinished"
+  ],
+  "main": "./extension/out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hydragit.showVersionInfo",
+        "title": "HydraGit: Show Version Info"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "hydragit",
+          "title": "HydraGit",
+          "icon": "images/icon-tight.png",
+          "command": "hydragit.revealAll"
+        }
+      ],
+      "panel": [
+        {
+          "id": "hydragit-panel",
+          "title": "HydraGit",
+          "icon": "images/icon-tight.png"
+        }
+      ]
+    },
+    "views": {
+      "hydragit": [
+        {
+          "id": "hydragit.sidebarView",
+          "name": "HydraGit",
+          "type": "webview"
+        },
+            {
+        "id": "hydragit.badgeCarrier",
+        "name": "Status",
+        "when": "false"
+    }
+      ],
+      "hydragit-panel": [
+        {
+          "id": "hydragit.mainView",
+          "name": "HydraGit",
+          "type": "webview"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./extension/tsconfig.json",
+    "watch": "tsc -watch -p ./extension/tsconfig.json",
+    "dev": "make install-local"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

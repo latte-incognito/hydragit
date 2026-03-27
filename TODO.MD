@@ -1,0 +1,15 @@
+- Fix the remote master <- add tests for this after 
+- for side bar add pycharm experince with check box of what files will be staged.
+- Date representaion 
+- Version info somewher inside UI
+- Stashed vs staged 
+- Remove top panel, saying Hydragit , logo, fetch, pull push
+- context menu is dead for now
+- remove bottom panel, from bottom panel menu, instead, this data should go bottom status bar in vs code
+- Side bar, shoul commit message be floating under las file with changes with  stop on the full bottom 
+- meaningfull tests. 
+- Preparea repo with crazy paths 
+- dont forget to clean up TOdos from code 
+- don't forget to do normal frontend splitting js/ts from css and html file ...
+- bug in changes files TODO.MD shows ODO.MD
+- Split panel.ts to 3 different panels: minor later on
