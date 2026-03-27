@@ -21,10 +21,10 @@
   --hg-font-lg:  calc(var(--hg-font-size) + 1px);
 
   /* Editor font — double fallback covers all VSCode versions */
-  --hg-editor-font-family: var(--vscode-editor-font-family, var(--vscode-editor-fontFamily, Consolas, 'Courier New', monospace));
-  --hg-editor-font-size:   var(--vscode-editor-font-size,   var(--vscode-editor-fontSize,   12px));
-  --hg-editor-font-weight: var(--vscode-editor-font-weight, var(--vscode-editor-fontWeight, 400));
-  --hg-editor-line-height: var(--vscode-editor-line-height, var(--vscode-editor-lineHeight, 1.5));
+  --hg-editor-font-family: var(--vscode-editor-font-family, Consolas, 'Courier New', monospace);
+  --hg-editor-font-size:   var(--vscode-editor-font-size,   12px);
+  --hg-editor-font-weight: var(--vscode-editor-font-weight,  400);
+  --hg-editor-line-height: var(--vscode-editor-line-height, 1.5);
 }
 
 body {

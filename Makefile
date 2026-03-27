@@ -35,6 +35,7 @@ build-extension: gen-build-info
 build: build-all build-extension build-webview
 
 package: build
+	rm -f *.vsix
 	vsce package
 
 publish: build
