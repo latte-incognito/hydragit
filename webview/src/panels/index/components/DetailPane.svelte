@@ -110,6 +110,7 @@
     display: flex; flex-direction: column;
     overflow: hidden; flex-shrink: 0;
     background: var(--vscode-editor-background, #1e1e1e);
+    height: 100%; 
   }
 
   .detail-empty {
