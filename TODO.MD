@@ -13,3 +13,4 @@
 - don't forget to do normal frontend splitting js/ts from css and html file ...
 - bug in changes files TODO.MD shows ODO.MD
 - Split panel.ts to 3 different panels: minor later on
+- Split  webview root to separate folders for each panel and then update paths

@@ -16,3 +16,11 @@ extension/tsconfig.json
 **/*.ts
 !out/**
 hydragit-server
+# Source files
+webview/src/
+
+# Config files
+svelte.config.js
+tsconfig.json
+tsconfig.node.json
+vite.config.ts
