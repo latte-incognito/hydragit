@@ -15,20 +15,12 @@
   },
   "categories": ["SCM Providers"],
   "activationEvents": [
-     "onStartupFinished",
-    "onView:hydragit.mainView",
-    "onView:hydragit.sidebarView",
-    "onCommand:hydragit.open",
-    "onCommand:hydragit.showVersionInfo"
+    "onStartupFinished",
+    "onStartupFinished"
   ],
   "main": "./extension/out/extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "hydragit.open",
-        "title": "HydraGit: Open",
-        "icon": "images/icon.png"
-      },
       {
         "command": "hydragit.showVersionInfo",
         "title": "HydraGit: Show Version Info"
@@ -39,7 +31,8 @@
         {
           "id": "hydragit",
           "title": "HydraGit",
-          "icon": "images/icon-tight.png"
+          "icon": "images/icon-tight.png",
+          "command": "hydragit.revealAll"
         }
       ],
       "panel": [

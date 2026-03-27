@@ -50,6 +50,13 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const sidebarProvider = new HydraSidebarProvider(ctx, goProcess, statusService);
   const badgeTreeProvider = new HydraBadgeTreeProvider(statusService);
 
+ctx.subscriptions.push(
+  vscode.commands.registerCommand('hydragit.revealAll', async () => {
+    await vscode.commands.executeCommand('workbench.view.extension.hydragit');
+    await vscode.commands.executeCommand('hydragit.mainView.focus');
+  }),
+);
+
   ctx.subscriptions.push(
     vscode.window.registerWebviewViewProvider('hydragit.mainView', mainProvider, {
       webviewOptions: { retainContextWhenHidden: true },
@@ -84,12 +91,6 @@ export function activate(ctx: vscode.ExtensionContext): void {
     statusService.onDidChange(() => {
       updateBadge();
       badgeTreeProvider.refresh();
-    }),
-  );
-
-  ctx.subscriptions.push(
-    vscode.commands.registerCommand('hydragit.open', () => {
-      return vscode.commands.executeCommand('hydragit.mainView.focus');
     }),
   );
 

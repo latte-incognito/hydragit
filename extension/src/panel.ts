@@ -94,6 +94,7 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private statusSub?: vscode.Disposable;
 
+
   constructor(
     private readonly ctx: vscode.ExtensionContext,
     private readonly goProcess: GoProcess,
@@ -111,7 +112,7 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
     };
 
     webviewView.webview.html = this.getHtml();
-
+    
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       try {
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
@@ -125,22 +126,20 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
       }
     });
 
-    // open main panel immediately on first load
-    vscode.commands.executeCommand('hydragit.open');
-
-    // and every subsequent time sidebar becomes visible
-    webviewView.onDidChangeVisibility(() => {
-      if (webviewView.visible) {
-        vscode.commands.executeCommand('hydragit.open');
-      }
-    });
-
     this.statusSub?.dispose();
     this.statusSub = this.statusService.onDidChange((snapshot) => {
       this.postStatus(snapshot);
     });
 
     this.postStatus(this.statusService.getSnapshot());
+
+    vscode.commands.executeCommand('hydragit.revealAll');
+      // and every subsequent time sidebar becomes visible
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) {
+        vscode.commands.executeCommand('hydragit.revealAll');
+      }
+    });
   }
 
   dispose(): void {
