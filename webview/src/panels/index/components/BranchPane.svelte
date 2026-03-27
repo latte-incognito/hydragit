@@ -139,6 +139,8 @@
     background: var(--vscode-sideBar-background, #252526);
     border-right: 0.5px solid var(--vscode-panel-border, #1a1a1a);
     display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+    min-height: 0;
+    height: 100%; 
   }
   .pane-hdr {
     padding: 5px 10px;
