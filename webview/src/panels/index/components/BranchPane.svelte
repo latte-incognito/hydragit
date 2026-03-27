@@ -143,10 +143,10 @@
     height: 100%; 
   }
   .pane-hdr {
-    padding: 5px 10px;
+    height: 22px;
+    padding: 0px 10px;
     font-size: var(--hg-font-xxs);
     color: var(--vscode-disabledForeground, #444);
-    text-transform: uppercase; letter-spacing: .08em;
     border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
     background: var(--vscode-sideBarSectionHeader-background, #222);
     flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
