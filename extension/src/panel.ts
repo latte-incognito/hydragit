@@ -88,6 +88,19 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
   html = html.replace('./index.js', scriptUri.toString());
   html = html.replace('</head>', `<link rel="stylesheet" href="${styleUri}"></head>`);
   html = html.replace('<body>', `<body data-icon-uri="${iconUri.toString()}">`)
+  html = html.replace('</head>', `<style>
+  html, body { 
+    margin: 0 !important; 
+    padding: 0 !important; 
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+  .app-root {
+    width: 100vw !important;
+    height: 100vh !important;
+  }
+</style></head>`)
 
   return html;
 };
