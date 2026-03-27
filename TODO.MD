@@ -12,3 +12,4 @@
 - dont forget to clean up TOdos from code 
 - don't forget to do normal frontend splitting js/ts from css and html file ...
 - bug in changes files TODO.MD shows ODO.MD
+- Split panel.ts to 3 different panels: minor later on
