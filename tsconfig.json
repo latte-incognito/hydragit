@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "$shared/*": ["./webview/src/shared/*"],
+      "$styles/*": ["./webview/src/styles/*"]
+    }
+  },
+  "include": ["webview/src/**/*.ts", "webview/src/**/*.svelte"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

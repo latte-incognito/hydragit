@@ -6,7 +6,19 @@ DIRTY := $(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo true |
 LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)
 BUILD_INFO_TS := extension/src/generated/buildInfo.ts
 
-.PHONY: gen-build-info build-go build-all build-ts build package publish
+.PHONY: gen-build-info build-go build-all build-extension build package publish build-webview webview-dev webview-check
+
+## Build webview (production, minified)
+build-webview:
+	npm run build
+
+## Watch mode for development
+webview-dev:
+	npm run dev
+
+## Type-check Svelte components without emitting
+webview-check:
+	npx svelte-check --tsconfig ./tsconfig.json
 
 build-go:
 	go build -o bin/hydragit-server ./cmd/hydragit
@@ -17,10 +29,10 @@ build-all:
 	GOOS=linux   GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o bin/hydragit-server-linux-x64     ./cmd/hydragit
 	GOOS=windows GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o bin/hydragit-server-win32-x64.exe ./cmd/hydragit
 
-build-ts: gen-build-info
+build-extension: gen-build-info
 	cd extension && npm run compile
 
-build: build-all build-ts
+build: build-all build-extension build-webview
 
 package: build
 	vsce package

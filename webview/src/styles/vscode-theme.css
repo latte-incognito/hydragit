@@ -1,0 +1,54 @@
+/* ── HydraGit VSCode theme tokens ──────────────────────────────────────────
+   All --hg-* variables derive from VSCode's injected --vscode-* vars.
+   Import this once at the app root (main.ts or Sidebar.svelte).
+   ───────────────────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* UI font */
+  --hg-font-family:    var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  --hg-font-size:      var(--vscode-font-size, 13px);
+  --hg-font-weight:    var(--vscode-font-weight, 400);
+
+  /* Editor font (for code-y bits) */
+  --hg-editor-font-family: var(--vscode-editor-font-family, var(--hg-font-family));
+  --hg-editor-font-size:   var(--vscode-editor-font-size, var(--hg-font-size));
+
+  /* Size scale */
+  --hg-font-xxs: calc(var(--hg-font-size) - 2px);
+  --hg-font-xs:  calc(var(--hg-font-size) - 1px);
+  --hg-font-sm:  var(--hg-font-size);
+  --hg-font-lg:  calc(var(--hg-font-size) + 1px);
+}
+
+body {
+  font-family: var(--hg-font-family);
+  font-size:   var(--hg-font-size);
+  font-weight: var(--hg-font-weight);
+  background:  var(--vscode-sideBar-background, #252526);
+  color:       var(--vscode-foreground, #cccccc);
+  height:      100vh;
+  display:     flex;
+  flex-direction: column;
+  overflow:    hidden;
+  user-select: none;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar         { width: 4px; }
+::-webkit-scrollbar-thumb   {
+  background:    var(--vscode-scrollbarSlider-background, #424242);
+  border-radius: 2px;
+}
+
+/* Spinner */
+@keyframes hg-spin {
+  to { transform: rotate(360deg); }
+}
