@@ -89,7 +89,9 @@ html = html.replace(/\{\{ICON_URI\}\}/g, iconUri.toString());
 
 export class HydraSidebarProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'hydragit.sidebarView';
-  private panelOpened = false;
+
+  private view?: vscode.WebviewView;
+  private lastBadgeCount: number | undefined;
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
@@ -97,6 +99,8 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.view = webviewView;
+
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [
@@ -106,34 +110,56 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.html = this.getHtml();
 
-    webviewView.webview.onDidReceiveMessage(async msg => {
+    webviewView.webview.onDidReceiveMessage(async (msg) => {
       try {
+        // badge updates from webview
+        if (msg?.type === 'badgeCount') {
+          this.updateBadge(msg.count);
+          return;
+        }
+
+        // normal request/response bridge to Go backend
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
         webviewView.webview.postMessage({ id: msg.id, ok: true, data });
       } catch (err) {
         webviewView.webview.postMessage({
-          id: msg.id,
+          id: msg?.id,
           ok: false,
           error: err instanceof Error ? err.message : String(err),
         });
       }
     });
 
-    // auto-open main panel first time sidebar becomes visible
-  webviewView.onDidChangeVisibility(() => {
-  if (webviewView.visible) {
+    // open main panel immediately on first load
     vscode.commands.executeCommand('hydragit.open');
-  }
-});
-// open main panel immediately on first load
-  vscode.commands.executeCommand('hydragit.open');
 
-  // and every subsequent time sidebar becomes visible
-  webviewView.onDidChangeVisibility(() => {
-    if (webviewView.visible) {
-      vscode.commands.executeCommand('hydragit.open');
+    // and every subsequent time sidebar becomes visible
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) {
+        vscode.commands.executeCommand('hydragit.open');
+      }
+    });
+  }
+
+  private updateBadge(count: unknown): void {
+    if (!this.view) return;
+
+    const normalized = Math.max(0, Number(count) || 0);
+
+    if (this.lastBadgeCount === normalized) {
+      return;
     }
-  });
+    this.lastBadgeCount = normalized;
+
+    if (normalized === 0) {
+      this.view.badge = undefined;
+      return;
+    }
+
+    this.view.badge = {
+      value: normalized,
+      tooltip: normalized === 1 ? '1 changed file' : `${normalized} changed files`,
+    };
   }
 
   private getHtml(): string {

@@ -8,7 +8,6 @@ let goProcess: GoProcess | undefined;
 let output: vscode.OutputChannel;
 
 export function activate(ctx: vscode.ExtensionContext): void {
-
   output = vscode.window.createOutputChannel('HydraGit');
   output.appendLine(
     `[HydraGit] version=${buildInfo.version} commit=${buildInfo.commit} built=${buildInfo.buildTime} dirty=${buildInfo.dirty}`
@@ -29,12 +28,12 @@ export function activate(ctx: vscode.ExtensionContext): void {
   ctx.subscriptions.push(output, disposable);
 
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!workspaceRoot) { // TODO need some fall back for those times where git not initiated
+  if (!workspaceRoot) {
     vscode.window.showErrorMessage('HydraGit: no workspace folder open.');
     return;
   }
 
-  const platform = process.platform; // 'darwin', 'linux', 'win32'
+  const platform = process.platform;
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
   const binName = platform === 'win32'
     ? `hydragit-server-win32-x64.exe`
@@ -43,38 +42,26 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
   goProcess = new GoProcess(binaryPath, workspaceRoot);
 
-  const provider = new HydraViewProvider(ctx, goProcess);
+  const mainProvider = new HydraViewProvider(ctx, goProcess);
+  const sidebarProvider = new HydraSidebarProvider(ctx, goProcess);
 
   ctx.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('hydragit.mainView', provider, {
+    vscode.window.registerWebviewViewProvider('hydragit.mainView', mainProvider, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
   );
-  
-  ctx.subscriptions.push(
-  vscode.window.registerWebviewViewProvider(
-    'hydragit.sidebarView',
-    new HydraSidebarProvider(ctx, goProcess),
-    { webviewOptions: { retainContextWhenHidden: true } }
-  )
-);
 
   ctx.subscriptions.push(
-    vscode.commands.registerCommand('hydragit.open', () => {
-      vscode.commands.executeCommand('hydragit.mainView.focus');
+    vscode.window.registerWebviewViewProvider('hydragit.sidebarView', sidebarProvider, {
+      webviewOptions: { retainContextWhenHidden: true },
     }),
   );
 
-  // Activity bar icon — clicking it focuses the bottom panel view
-  const sidebarView = vscode.window.createTreeView('hydragit.sidebarView', {
-    treeDataProvider: { getTreeItem: () => { throw new Error(); }, getChildren: () => [] },
-  });
-  sidebarView.onDidChangeVisibility(e => {
-    if (e.visible) {
-      vscode.commands.executeCommand('hydragit.mainView.focus');
-    }
-  });
-  ctx.subscriptions.push(sidebarView);
+  ctx.subscriptions.push(
+    vscode.commands.registerCommand('hydragit.open', () => {
+      return vscode.commands.executeCommand('hydragit.mainView.focus');
+    }),
+  );
 }
 
 export function deactivate(): void {
