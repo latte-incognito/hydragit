@@ -26,7 +26,7 @@
   let sbBranch = 'master'
   let sbInfo   = ''
   let sbCounts = ''
-  let iconUri  = ''
+  let iconUri = document.body.dataset.iconUri ?? ''
   let repoName = 'HydraGit'
 
   let branchPaneEl: HTMLElement | null = null
