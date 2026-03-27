@@ -11,27 +11,33 @@
   let startX = 0
   let startW = 0
 
-  function onMouseDown(e: MouseEvent) {
-    dragging = true
-    startX = e.clientX
-    startW = isRight ? (rightEl?.offsetWidth ?? 0) : (leftEl?.offsetWidth ?? 0)
-    divEl.classList.add('dragging')
-    document.body.style.cursor = 'col-resize'
-    e.preventDefault()
-  }
+function onMouseDown(e: MouseEvent) {
+  dragging = true
+  startX = e.clientX
+  const leftTarget = leftEl?.firstElementChild as HTMLElement
+  const rightTarget = rightEl?.firstElementChild as HTMLElement
+  startW = isRight 
+    ? (rightTarget?.offsetWidth ?? 0) 
+    : (leftTarget?.offsetWidth ?? 0)
+  e.preventDefault()
+}
 
-  function onMouseMove(e: MouseEvent) {
-    if (!dragging) return
-    const dx = e.clientX - startX
-    if (isRight && rightEl) {
-      const newW = Math.max(160, Math.min(500, startW - dx))
-      rightEl.style.width = newW + 'px'
-      rightEl.style.flex  = 'none'
-    } else if (leftEl) {
-      const newW = Math.max(120, Math.min(400, startW + dx))
-      leftEl.style.width = newW + 'px'
-    }
+function onMouseMove(e: MouseEvent) {
+  if (!dragging) return
+  const dx = e.clientX - startX
+
+  if (isRight && rightEl) {
+    const target = rightEl.firstElementChild as HTMLElement
+    const newW = Math.max(160, Math.min(500, startW - dx))
+    target.style.width = newW + 'px'
+    target.style.flex = 'none'
+  } else if (leftEl) {
+    const target = leftEl.firstElementChild as HTMLElement
+    const newW = Math.max(120, Math.min(400, startW + dx))
+    target.style.width = newW + 'px'
+    target.style.flex = 'none'
   }
+}
 
   function onMouseUp() {
     if (!dragging) return
@@ -54,7 +60,7 @@
 
 <style>
   .divider {
-    width: 4px; background: transparent; cursor: col-resize;
+    width: 1px; background: transparent; cursor: col-resize;
     flex-shrink: 0; position: relative; z-index: 10;
   }
   .divider:hover, .divider:global(.dragging) {
