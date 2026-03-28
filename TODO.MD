@@ -1,4 +1,3 @@
-- Fix the remote master <- add tests for this after 
 - for side bar add pycharm experince with check box of what files will be staged.
 - Date representaion 
 - Version info somewher inside UI
@@ -16,3 +15,4 @@
 - Split  webview root to separate folders for each panel and then update paths
 - Add playwright tests for UI
 - Add github actions, when repo go public.
+- Prettifier config missing 

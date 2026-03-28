@@ -15,7 +15,7 @@
 
   $: local  = branches.filter(b => !b.isRemote)
   $: remote = branches.filter(b => b.isRemote)
-
+  $: currentUpstream = local.find(b => b.isCurrent)?.upstream ?? '' 
   $: remoteByOrigin = remote.reduce((acc, b) => {
     const origin = b.name.split('/')[0]
     acc[origin] = acc[origin] ?? []
@@ -53,42 +53,52 @@
     {#if localOpen}
       <div>
         {#each local as b}
-          <div class="titem" class:current={b.isCurrent} class:active={b.name === activeBranch}
+        <div class="titem" class:current={b.isCurrent} class:active={b.name === activeBranch}
+            class:gone={b.gone}
             on:click={() => onSelectBranch(b.name, false)}
             on:contextmenu={e => onBranchCtx(e, b.name, b.isCurrent)}
             role="option" aria-selected={b.name === activeBranch} tabindex="0">
-            <span class="titem-icon">{b.isCurrent ? '⭐' : '⎇'}</span>
-            <span class="titem-name">{b.name}</span>
-          </div>
+              <span class="titem-icon">{b.isCurrent ? '⭐' : '⎇'}</span>
+              <span class="titem-name">{b.name}</span>
+              {#if b.gone}
+                <span class="track gone">gone</span>
+              {:else if b.trackShort}
+                <span class="track">{b.trackShort}</span>
+               {/if}
+        </div>
         {/each}
       </div>
     {/if}
 
-    <!-- Remote -->
-    <div class="tgroup-hdr" on:click={() => remoteOpen = !remoteOpen} role="button" tabindex="0">
-      <span class="tgroup-arrow" class:open={remoteOpen} class:closed={!remoteOpen}>▾</span>
-      <span class="tgroup-label">Remote</span>
-      <span class="tgroup-count">{remote.length}</span>
-    </div>
-    {#if remoteOpen}
-      {#each Object.entries(remoteByOrigin) as [origin, bs]}
-        <div class="tsubgroup">
-          <div class="tsubgroup-hdr" role="button" tabindex="0">
-            <span class="tsubgroup-arrow">▾</span>
-            <span>{origin}</span>
-          </div>
-          {#each bs as b}
-            <div class="titem remote" class:active={b.name === activeBranch}
-              on:click={() => onSelectBranch(b.name, true)}
-              on:contextmenu={e => onBranchCtx(e, b.name, false)}
-              role="option" aria-selected={b.name === activeBranch} tabindex="0">
-              <span class="titem-icon" style="color:#4e8c4e">⭐</span>
-              <span class="titem-name">{b.name.split('/').slice(1).join('/')}</span>
-            </div>
-          {/each}
+   <!-- Remote -->
+<div class="tgroup-hdr" on:click={() => remoteOpen = !remoteOpen} role="button" tabindex="0">
+  <span class="tgroup-arrow" class:open={remoteOpen} class:closed={!remoteOpen}>▾</span>
+  <span class="tgroup-label">Remote</span>
+  <span class="tgroup-count">{remote.length}</span>
+</div>
+{#if remoteOpen}
+  {#each Object.entries(remoteByOrigin) as [origin, bs]}
+    <div class="tsubgroup">
+      <div class="tsubgroup-hdr" role="button" tabindex="0">
+        <span class="tsubgroup-arrow">▾</span>
+        <span>{origin}</span>
+      </div>
+      {#each bs as b}
+        <div class="titem remote" class:active={b.name === activeBranch}
+          class:gone={b.gone}
+          on:click={() => onSelectBranch(b.name, true)}
+          on:contextmenu={e => onBranchCtx(e, b.name, false)}
+          role="option" aria-selected={b.name === activeBranch} tabindex="0">
+          <span class="titem-icon">{b.name === currentUpstream ? '⭐' : '⎇'}</span>
+          <span class="titem-name">{b.name.split('/').slice(1).join('/')}</span>
+          {#if b.gone}
+            <span class="track gone">gone</span>
+          {/if}
         </div>
       {/each}
-    {/if}
+    </div>
+  {/each}
+{/if}
 
     <!-- Stashes -->
     <div class="tgroup-hdr" on:click={() => stashOpen = !stashOpen} role="button" tabindex="0">
@@ -188,6 +198,20 @@
   .titem.remote { padding-left: 36px; font-size: var(--hg-font-xs); color: var(--vscode-descriptionForeground, #666); }
   .titem.remote:hover { color: var(--vscode-foreground, #999); }
 
+.track {
+  margin-left: auto;
+  font-size: 0.7rem;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+.track.gone {
+  color: #f07070;
+  opacity: 1;
+}
+.titem.gone .titem-name {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
   .titem.stash {
     padding-left: 22px; font-size: var(--hg-font-xs);
     flex-direction: column; align-items: flex-start;

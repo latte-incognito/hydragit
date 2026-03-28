@@ -1,7 +1,10 @@
 export interface Branch {
-  name:      string
-  isCurrent: boolean
-  isRemote:  boolean
+  name:       string
+  isCurrent:  boolean
+  isRemote:   boolean
+  upstream?:  string
+  trackShort?: string  // "[ahead 2]", "[behind 1]", "[gone]"
+  gone?:       boolean
 }
 
 export interface Commit {
