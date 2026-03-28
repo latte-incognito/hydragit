@@ -28,6 +28,31 @@
   {:else}
     <div class="detail-content">
 
+        <!-- files: fixed max-height, own scroll -->
+      <div class="detail-files">
+        {#if loading}
+          <div class="df-msg">Loading…</div>
+        {:else if files.length === 0}
+          <div class="df-msg" style="font-style:italic">No file changes</div>
+        {:else}
+          {#each files as f}
+            <div class="dfile" class:on={selFile === f.path}
+              on:click={() => onSelectFile(f.path)}
+              role="option" aria-selected={selFile === f.path} tabindex="0">
+              <span class="dfile-badge"
+                style="background:{bgB[f.status]??'#1a1a1a'};color:{badges[f.status]??'#888'};border:0.5px solid {brB[f.status]??'#333'}">
+                {f.status ?? 'M'}
+              </span>
+              <span class="dfile-name" title={f.path}>{f.path.split('/').pop()}</span>
+              <span class="dfile-stats">
+                {#if f.additions}<span style="color:#4ec94e">+{f.additions}</span>{/if}
+                {#if f.deletions}<span style="color:#f07070">-{f.deletions}</span>{/if}
+              </span>
+            </div>
+          {/each}
+        {/if}
+      </div>
+
       <!-- meta: fixed, no scroll -->
       <div class="detail-meta">
         <div class="dm-hash">{(commit.hash ?? '').slice(0, 8)}</div>
@@ -53,53 +78,6 @@
         </div>
       </div>
 
-      <!-- files: fixed max-height, own scroll -->
-      <div class="detail-files">
-        {#if loading}
-          <div class="df-msg">Loading…</div>
-        {:else if files.length === 0}
-          <div class="df-msg" style="font-style:italic">No file changes</div>
-        {:else}
-          {#each files as f}
-            <div class="dfile" class:on={selFile === f.path}
-              on:click={() => onSelectFile(f.path)}
-              role="option" aria-selected={selFile === f.path} tabindex="0">
-              <span class="dfile-badge"
-                style="background:{bgB[f.status]??'#1a1a1a'};color:{badges[f.status]??'#888'};border:0.5px solid {brB[f.status]??'#333'}">
-                {f.status ?? 'M'}
-              </span>
-              <span class="dfile-name" title={f.path}>{f.path.split('/').pop()}</span>
-              <span class="dfile-stats">
-                {#if f.additions}<span style="color:#4ec94e">+{f.additions}</span>{/if}
-                {#if f.deletions}<span style="color:#f07070">-{f.deletions}</span>{/if}
-              </span>
-            </div>
-          {/each}
-        {/if}
-      </div>
-
-      <!-- diff: fills remaining, own scroll, editor font -->
-      <div class="detail-diff">
-        {#if !selFile}
-          <div class="diff-empty">Select a file to see diff</div>
-        {:else if hunks.length === 0}
-          <div class="diff-empty">No diff</div>
-        {:else}
-          {#each hunks as h}
-            <div class="dl dl-hunk">{h.header}</div>
-            {#each h.lines as l}
-              <div class="dl" class:dl-add={l.type==='add'} class:dl-rem={l.type==='del'}>
-                <span class="dln"></span>
-                <span class="dlc"
-                  class:add={l.type==='add'}
-                  class:rem={l.type==='del'}
-                  class:ctx={l.type==='ctx'}>{l.content}</span>
-              </div>
-            {/each}
-          {/each}
-        {/if}
-      </div>
-
     </div>
   {/if}
 </div>
@@ -122,21 +100,22 @@
   .detail-empty-icon { width: 36px; height: 36px; object-fit: contain; opacity: .78; }
 
   /* detail-content fills the pane, stacks meta/files/diff vertically */
-  .detail-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;   /* clips — each child scrolls itself */
-    min-height: 0;
-  }
+.detail-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
 
-  /* ── Meta ── fixed, never scrolls */
-  .detail-meta {
-    flex-shrink: 0;
-    padding: 10px 12px;
-    border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
-    background: var(--vscode-sideBar-background, #252526);
-  }
+  /* ── Meta ── */
+.detail-meta {
+  flex: 1;
+  min-height: 0;
+  padding: 10px 12px;
+  overflow-y: auto;
+  background: var(--vscode-sideBar-background, #252526);
+}
   .dm-hash {
     font-family:  var(--vscode-editor-font-family, Consolas, monospace) !important;
     font-size:    var(--vscode-editor-font-size,   12px)!important;
@@ -164,12 +143,13 @@
   .tb-btn:hover { color: var(--vscode-foreground, #ccc); }
 
   /* ── Files ── max-height cap, own scroll */
-  .detail-files {
-    flex-shrink: 0;
-    max-height: 160px;
-    overflow-y: auto;
-    border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
-  }
+.detail-files {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
+  max-height: none;  /* remove the old 160px cap */
+}
   .df-msg { padding: 10px; color: #333; font-size: var(--hg-font-xs); }
 
   .dfile {
@@ -184,36 +164,5 @@
   .dfile-name  { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dfile-stats { margin-left: auto; font-size: var(--hg-font-xxs); flex-shrink: 0; }
 
-  /* ── Diff ── fills all remaining space, own scroll, editor font */
-  .detail-diff {
-    flex: 1;
-    min-height: 0;
-    overflow: auto;
-    font-family:  var(--vscode-editor-font-family, Consolas, monospace) !important;
-    font-size:    var(--vscode-editor-font-size,   12px)!important;
-    font-weight:  var(--vscode-editor-font-weight, 400)!important;
-    line-height:   var(--vscode-editor-line-height, 1.5)!important;
-  }
-
-  .dl      { display: flex; align-items: center; min-height: 19px; }
-  .dl-hunk {
-    background: #0a2040; color: #569cd6; padding: 2px 12px;
-    font-size: calc(var(--hg-editor-font-size) - 1px);
-    border-top: 0.5px solid #1a3a5a; border-bottom: 0.5px solid #1a3a5a;
-  }
-  .dl-add { background: #0d2e1a; }
-  .dl-rem { background: #2e0d0d; }
-
-  .dln {
-    width: 36px; color: var(--vscode-scrollbarSlider-background, #2a2a2a);
-    text-align: right; padding-right: 7px;
-    font-size: calc(var(--hg-editor-font-size) - 1px);
-    flex-shrink: 0;
-    border-right: 0.5px solid var(--vscode-sideBar-background, #1e1e1e);
-    user-select: none;
-  }
-  .dlc     { flex: 1; padding-left: 7px; white-space: pre; line-height: 1.7; color: var(--vscode-descriptionForeground, #666); }
-  .dlc.add { color: #4ec94e; }
-  .dlc.rem { color: #f07070; }
-  .diff-empty { padding: 16px; color: var(--vscode-disabledForeground, #333); font-style: italic; font-size: var(--hg-font-sm); }
+  
 </style>
