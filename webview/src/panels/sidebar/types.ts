@@ -1,9 +1,11 @@
 export interface GitFile {
   path:   string
-  status: string   // M | A | D | U | R | C | T
+  status: string
 }
 
 export interface GitStatus {
   branch: string
+  ahead:  number
+  behind: number
   files:  GitFile[]
 }
