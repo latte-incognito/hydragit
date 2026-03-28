@@ -3,7 +3,7 @@ package graph
 import "hydragit/internal/git"
 
 var LaneColors = []string{
-	"#56c8e8", // teal   — lane 0
+	"#56c8e8", // teal
 	"#4ec94e", // green
 	"#9a7ae8", // purple
 	"#e3b341", // amber
@@ -23,7 +23,7 @@ type Path struct {
 	FromRow  int    `json:"fromRow"`
 	ToRow    int    `json:"toRow"`
 	Color    string `json:"color"`
-	Type     string `json:"type"` // "straight" or "curve"
+	Type     string `json:"type"` // "straight" | "curve"
 }
 
 type LaidOutCommit struct {
@@ -33,38 +33,45 @@ type LaidOutCommit struct {
 	Paths []Path `json:"paths"`
 }
 
+// laneTracker manages lane allocation and ownership.
+type laneTracker struct {
+	owners []string // owners[i] = hash claimed on lane i, "" = free
+}
+
+func (t *laneTracker) claim(hash string) int {
+	for i, h := range t.owners {
+		if h == hash {
+			return i
+		}
+	}
+	return t.alloc(hash)
+}
+
+func (t *laneTracker) alloc(hash string) int {
+	for i, h := range t.owners {
+		if h == "" {
+			t.owners[i] = hash
+			return i
+		}
+	}
+	t.owners = append(t.owners, hash)
+	return len(t.owners) - 1
+}
+
+func (t *laneTracker) free(lane int)           { t.owners[lane] = "" }
+func (t *laneTracker) set(lane int, hash string) { t.owners[lane] = hash }
+
 func AssignLanes(commits []git.Commit) []LaidOutCommit {
 	rowOf := make(map[string]int, len(commits))
 	for i, c := range commits {
 		rowOf[c.Hash] = i
 	}
 
-	lanes := []string{} // lanes[i] = hash waiting for lane i, "" = free
-
+	tracker := &laneTracker{}
 	result := make([]LaidOutCommit, len(commits))
 
-	freeLane := func() int {
-		for i, h := range lanes {
-			if h == "" {
-				return i
-			}
-		}
-		lanes = append(lanes, "")
-		return len(lanes) - 1
-	}
-
 	for i, c := range commits {
-		// Step 1: find or claim a lane
-		myLane := -1
-		for li, h := range lanes {
-			if h == c.Hash {
-				myLane = li
-				break
-			}
-		}
-		if myLane == -1 {
-			myLane = freeLane()
-		}
+		myLane := tracker.claim(c.Hash)
 
 		result[i] = LaidOutCommit{
 			Commit: c,
@@ -72,63 +79,40 @@ func AssignLanes(commits []git.Commit) []LaidOutCommit {
 			Color:  laneColor(myLane),
 		}
 
-		// Step 2: set up lanes for parents
-		switch len(c.Parents) {
+		if len(c.Parents) == 0 {
+			tracker.free(myLane)
+			continue
+		}
 
-		case 0:
-			// Root commit — free the lane
-			lanes[myLane] = ""
+		// First parent always inherits the current lane (straight line down)
+		tracker.set(myLane, c.Parents[0])
+		result[i].Paths = append(result[i].Paths, pathTo(i, rowOf, myLane, myLane, c.Parents[0]))
 
-		case 1:
-			// Normal commit — pass lane straight down to parent
-			lanes[myLane] = c.Parents[0]
-
-			if parentRow, ok := rowOf[c.Parents[0]]; ok {
-				result[i].Paths = append(result[i].Paths, Path{
-					FromLane: myLane, ToLane: myLane,
-					FromRow: i, ToRow: parentRow,
-					Color: laneColor(myLane),
-					Type:  "straight",
-				})
-			}
-
-		default:
-			// Merge commit — first parent keeps lane, second spawns new lane
-			lanes[myLane] = c.Parents[0]
-
-			// straight line to first parent
-			if parentRow, ok := rowOf[c.Parents[0]]; ok {
-				result[i].Paths = append(result[i].Paths, Path{
-					FromLane: myLane, ToLane: myLane,
-					FromRow: i, ToRow: parentRow,
-					Color: laneColor(myLane),
-					Type:  "straight",
-				})
-			}
-
-			// curved line to second parent
-			branchLane := -1
-			for li, h := range lanes {
-				if h == c.Parents[1] {
-					branchLane = li
-					break
-				}
-			}
-			if branchLane == -1 {
-				branchLane = freeLane()
-				lanes[branchLane] = c.Parents[1]
-			}
-
-			if parentRow, ok := rowOf[c.Parents[1]]; ok {
-				result[i].Paths = append(result[i].Paths, Path{
-					FromLane: myLane, ToLane: branchLane,
-					FromRow: i, ToRow: parentRow,
-					Color: laneColor(branchLane),
-					Type:  "curve",
-				})
-			}
+		// Additional parents (merge commits) get their own lane with a curve
+		for _, parent := range c.Parents[1:] {
+			branchLane := tracker.claim(parent)
+			result[i].Paths = append(result[i].Paths, pathTo(i, rowOf, myLane, branchLane, parent))
 		}
 	}
 
 	return result
+}
+
+// pathTo builds a Path from row i to the row of parentHash.
+// Returns a zero-value Path if the parent isn't in rowOf (cross-repo / shallow clone).
+func pathTo(fromRow int, rowOf map[string]int, fromLane, toLane int, parentHash string) Path {
+	toRow, ok := rowOf[parentHash]
+	if !ok {
+		return Path{}
+	}
+	pathType := "straight"
+	if fromLane != toLane {
+		pathType = "curve"
+	}
+	return Path{
+		FromLane: fromLane, ToLane: toLane,
+		FromRow: fromRow, ToRow: toRow,
+		Color: laneColor(toLane),
+		Type:  pathType,
+	}
 }
