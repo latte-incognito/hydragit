@@ -14,3 +14,5 @@
 - bug in changes files TODO.MD shows ODO.MD
 - Split panel.ts to 3 different panels: minor later on
 - Split  webview root to separate folders for each panel and then update paths
+- Add playwright tests for UI
+- Add github actions, when repo go public.
