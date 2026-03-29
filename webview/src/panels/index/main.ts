@@ -1,5 +1,5 @@
-import '$styles/vscode-theme.css'
-import { mount } from 'svelte'
-import App from './App.svelte'
+import '$styles/vscode-theme.css';
+import { mount } from 'svelte';
+import App from './App.svelte';
 
-mount(App, { target: document.body })
+mount(App, { target: document.body });

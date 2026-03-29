@@ -9,13 +9,13 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
-    private readonly goProcess: GoProcess,
+    private readonly goProcess: GoProcess
   ) {}
 
   resolveWebviewView(
     webviewView: vscode.WebviewView,
     _context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken,
+    _token: vscode.CancellationToken
   ): void {
     const nonce = Math.random().toString(36).slice(2);
 
@@ -27,13 +27,13 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       ],
     };
 
-  const iconUri =   webviewView.webview.asWebviewUri(
-    vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon.png'))
-  );
+    const iconUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon.png'))
+    );
     webviewView.webview.html = this.getHtml(webviewView.webview, nonce, iconUri);
 
-    webviewView.webview.onDidReceiveMessage(async msg => {
-      console.log('[HydraGit] received:', msg.cmd); 
+    webviewView.webview.onDidReceiveMessage(async (msg) => {
+      console.log('[HydraGit] received:', msg.cmd);
       try {
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
         webviewView.webview.postMessage({ id: msg.id, ok: true, data });
@@ -50,7 +50,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (workspaceRoot) {
       this.watcher = vscode.workspace.createFileSystemWatcher(
-         new vscode.RelativePattern(workspaceRoot, '.git/{HEAD,refs/**,COMMIT_EDITMSG}'),
+        new vscode.RelativePattern(workspaceRoot, '.git/{HEAD,refs/**,COMMIT_EDITMSG}')
       );
       const refresh = () => webviewView.webview.postMessage({ type: 'refresh' });
       this.watcher.onDidChange(refresh);
@@ -65,30 +65,35 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     vscode.commands.executeCommand('hydragit.mainView.focus');
   }
 
- private getHtml(webview: vscode.Webview, nonce: string, iconUri: vscode.Uri): string {
-  const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'index.html');
-  let html = fs.readFileSync(htmlPath, 'utf8');
+  private getHtml(webview: vscode.Webview, nonce: string, iconUri: vscode.Uri): string {
+    const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'index.html');
+    let html = fs.readFileSync(htmlPath, 'utf8');
 
-  const scriptUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'index.js')
-  );
-  const styleUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'index.css')
-  );
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'index.js')
+    );
+    const styleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'index.css')
+    );
 
-  const csp = [
-    `default-src 'none'`,
-    `script-src ${webview.cspSource}`,
-    `style-src  ${webview.cspSource} 'unsafe-inline'`,
-    `img-src data: https: blob: ${webview.cspSource}`,
-    `font-src data:`,
-  ].join('; ');
+    const csp = [
+      `default-src 'none'`,
+      `script-src ${webview.cspSource}`,
+      `style-src  ${webview.cspSource} 'unsafe-inline'`,
+      `img-src data: https: blob: ${webview.cspSource}`,
+      `font-src data:`,
+    ].join('; ');
 
-  html = html.replace(/<head>/i, `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`);
-  html = html.replace('./index.js', scriptUri.toString());
-  html = html.replace('</head>', `<link rel="stylesheet" href="${styleUri}"></head>`);
-  html = html.replace('<body>', `<body data-icon-uri="${iconUri.toString()}">`)
-  html = html.replace('</head>', `<style>
+    html = html.replace(
+      /<head>/i,
+      `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`
+    );
+    html = html.replace('./index.js', scriptUri.toString());
+    html = html.replace('</head>', `<link rel="stylesheet" href="${styleUri}"></head>`);
+    html = html.replace('<body>', `<body data-icon-uri="${iconUri.toString()}">`);
+    html = html.replace(
+      '</head>',
+      `<style>
   html, body { 
     margin: 0 !important; 
     padding: 0 !important; 
@@ -100,10 +105,11 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     width: 100vw !important;
     height: 100vh !important;
   }
-</style></head>`)
+</style></head>`
+    );
 
-  return html;
-};
+    return html;
+  }
 }
 
 export class HydraSidebarProvider implements vscode.WebviewViewProvider {
@@ -112,11 +118,10 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private statusSub?: vscode.Disposable;
 
-
   constructor(
     private readonly ctx: vscode.ExtensionContext,
     private readonly goProcess: GoProcess,
-    private readonly statusService: HydraStatusService,
+    private readonly statusService: HydraStatusService
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -124,13 +129,11 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.file(path.join(this.ctx.extensionPath, 'webview')),
-      ],
+      localResourceRoots: [vscode.Uri.file(path.join(this.ctx.extensionPath, 'webview'))],
     };
 
     webviewView.webview.html = this.getHtml(webviewView.webview);
-    
+
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       try {
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
@@ -152,7 +155,7 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
     this.postStatus(this.statusService.getSnapshot());
 
     vscode.commands.executeCommand('hydragit.revealAll');
-      // and every subsequent time sidebar becomes visible
+    // and every subsequent time sidebar becomes visible
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) {
         vscode.commands.executeCommand('hydragit.revealAll');
@@ -171,23 +174,23 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
     });
   }
 
-private getHtml(webview: vscode.Webview): string {
-  const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'sidebar.html');
-  let html = fs.readFileSync(htmlPath, 'utf8');
+  private getHtml(webview: vscode.Webview): string {
+    const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'sidebar.html');
+    let html = fs.readFileSync(htmlPath, 'utf8');
 
-  const scriptUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'sidebar.js')
-  );
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'sidebar.js')
+    );
 
-  const styleUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'sidebar.css')
-  );
+    const styleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'sidebar.css')
+    );
 
-  html = html.replace('./sidebar.js', scriptUri.toString());
-  html = html.replace('</head>', `<link rel="stylesheet" href="${styleUri}"></head>`);
+    html = html.replace('./sidebar.js', scriptUri.toString());
+    html = html.replace('</head>', `<link rel="stylesheet" href="${styleUri}"></head>`);
 
-  return html;
-}
+    return html;
+  }
 }
 
 type BadgeTreeItem = {
@@ -196,7 +199,9 @@ type BadgeTreeItem = {
 };
 
 export class HydraBadgeTreeProvider implements vscode.TreeDataProvider<BadgeTreeItem> {
-  private readonly _onDidChangeTreeData = new vscode.EventEmitter<BadgeTreeItem | undefined | void>();
+  private readonly _onDidChangeTreeData = new vscode.EventEmitter<
+    BadgeTreeItem | undefined | void
+  >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   constructor(private readonly statusService: HydraStatusService) {

@@ -13,27 +13,27 @@ export class GoProcess {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    readline.createInterface({ input: this.proc.stdout! })
-      .on('line', line => {
-        let resp: { id: string; ok: boolean; data?: unknown; error?: string };
-        try {
-          resp = JSON.parse(line);
-        } catch {
-          console.log('[HydraGit] bad JSON from Go:', line);
-          return;
-        }
-        const p = this.pending.get(resp.id);
-        if (!p) { return; }
-        this.pending.delete(resp.id);
-        if (resp.ok) {
-          p.resolve(resp.data);
-        } else {
-          p.reject(new Error(resp.error ?? 'unknown error'));
-        }
-      });
+    readline.createInterface({ input: this.proc.stdout! }).on('line', (line) => {
+      let resp: { id: string; ok: boolean; data?: unknown; error?: string };
+      try {
+        resp = JSON.parse(line);
+      } catch {
+        console.log('[HydraGit] bad JSON from Go:', line);
+        return;
+      }
+      const p = this.pending.get(resp.id);
+      if (!p) {
+        return;
+      }
+      this.pending.delete(resp.id);
+      if (resp.ok) {
+        p.resolve(resp.data);
+      } else {
+        p.reject(new Error(resp.error ?? 'unknown error'));
+      }
+    });
 
-    this.proc.stderr?.on('data', (d: Buffer) =>
-      console.log('[HydraGit]', d.toString().trim()));
+    this.proc.stderr?.on('data', (d: Buffer) => console.log('[HydraGit]', d.toString().trim()));
   }
 
   send(cmd: string, params: object = {}): Promise<unknown> {

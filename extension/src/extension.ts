@@ -23,7 +23,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
     output.show(true);
     output.appendLine(message);
-    await vscode.window.showInformationMessage(`HydraGit ${buildInfo.version} (${buildInfo.commit})`);
+    await vscode.window.showInformationMessage(
+      `HydraGit ${buildInfo.version} (${buildInfo.commit})`
+    );
   });
 
   ctx.subscriptions.push(output, disposable);
@@ -36,9 +38,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
   const platform = process.platform;
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-  const binName = platform === 'win32'
-    ? `hydragit-server-win32-x64.exe`
-    : `hydragit-server-${platform}-${arch}`;
+  const binName =
+    platform === 'win32' ? `hydragit-server-win32-x64.exe` : `hydragit-server-${platform}-${arch}`;
   const binaryPath = path.join(ctx.extensionPath, 'bin', binName);
 
   goProcess = new GoProcess(binaryPath, workspaceRoot);
@@ -50,23 +51,23 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const sidebarProvider = new HydraSidebarProvider(ctx, goProcess, statusService);
   const badgeTreeProvider = new HydraBadgeTreeProvider(statusService);
 
-ctx.subscriptions.push(
-  vscode.commands.registerCommand('hydragit.revealAll', async () => {
-    await vscode.commands.executeCommand('workbench.view.extension.hydragit');
-    await vscode.commands.executeCommand('hydragit.mainView.focus');
-  }),
-);
+  ctx.subscriptions.push(
+    vscode.commands.registerCommand('hydragit.revealAll', async () => {
+      await vscode.commands.executeCommand('workbench.view.extension.hydragit');
+      await vscode.commands.executeCommand('hydragit.mainView.focus');
+    })
+  );
 
   ctx.subscriptions.push(
     vscode.window.registerWebviewViewProvider('hydragit.mainView', mainProvider, {
       webviewOptions: { retainContextWhenHidden: true },
-    }),
+    })
   );
 
   ctx.subscriptions.push(
     vscode.window.registerWebviewViewProvider('hydragit.sidebarView', sidebarProvider, {
       webviewOptions: { retainContextWhenHidden: true },
-    }),
+    })
   );
 
   const badgeTree = vscode.window.createTreeView('hydragit.badgeCarrier', {
@@ -79,19 +80,20 @@ ctx.subscriptions.push(
     const snapshot = statusService.getSnapshot();
     const count = snapshot.files?.length ?? 0;
 
-    badgeTree.badge = count > 0
-      ? {
-          value: count,
-          tooltip: count === 1 ? '1 changed file' : `${count} changed files`,
-        }
-      : undefined;
+    badgeTree.badge =
+      count > 0
+        ? {
+            value: count,
+            tooltip: count === 1 ? '1 changed file' : `${count} changed files`,
+          }
+        : undefined;
   };
 
   ctx.subscriptions.push(
     statusService.onDidChange(() => {
       updateBadge();
       badgeTreeProvider.refresh();
-    }),
+    })
   );
 
   statusService.start();

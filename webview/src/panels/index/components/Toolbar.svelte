@@ -1,8 +1,8 @@
 <script lang="ts">
-  export let repoName: string = 'HydraGit'
-  export let iconUri:  string = ''
-  export let onAction: (a: string) => void = () => {}
-  export let onSearch: (q: string) => void = () => {}
+  export let repoName: string = 'HydraGit';
+  export let iconUri: string = '';
+  export let onAction: (a: string) => void = () => {};
+  export let onSearch: (q: string) => void = () => {};
 </script>
 
 <div class="toolbar">
@@ -18,7 +18,7 @@
     class="tb-search"
     type="text"
     placeholder="Search commits…"
-    on:input={e => onSearch((e.target as HTMLInputElement).value)}
+    on:input={(e) => onSearch((e.target as HTMLInputElement).value)}
   />
 </div>
 
@@ -33,9 +33,23 @@
     border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
     flex-shrink: 0;
   }
-  .tb-logo  { width: 15px; height: 15px; border-radius: 2px; object-fit: cover; }
-  .tb-sep   { width: 0.5px; height: 16px; background: var(--vscode-widget-border, #3a3a3a); margin: 0 2px; }
-  .tb-title { font-size: var(--hg-font-sm); color: var(--vscode-descriptionForeground, #555); margin-left: 4px; }
+  .tb-logo {
+    width: 15px;
+    height: 15px;
+    border-radius: 2px;
+    object-fit: cover;
+  }
+  .tb-sep {
+    width: 0.5px;
+    height: 16px;
+    background: var(--vscode-widget-border, #3a3a3a);
+    margin: 0 2px;
+  }
+  .tb-title {
+    font-size: var(--hg-font-sm);
+    color: var(--vscode-descriptionForeground, #555);
+    margin-left: 4px;
+  }
 
   .tb-btn {
     font-size: var(--hg-font-xs);
@@ -48,9 +62,18 @@
     white-space: nowrap;
     font-family: var(--hg-font-family);
   }
-  .tb-btn:hover  { background: var(--vscode-list-hoverBackground, #2a2a2a); color: var(--vscode-foreground, #ccc); }
-  .tb-btn.primary { background: #0e5a7c; border-color: #1a8ab0; color: #56c8e8; }
-  .tb-btn.primary:hover { background: #1a6a8c; }
+  .tb-btn:hover {
+    background: var(--vscode-list-hoverBackground, #2a2a2a);
+    color: var(--vscode-foreground, #ccc);
+  }
+  .tb-btn.primary {
+    background: #0e5a7c;
+    border-color: #1a8ab0;
+    color: #56c8e8;
+  }
+  .tb-btn.primary:hover {
+    background: #1a6a8c;
+  }
 
   .tb-search {
     flex: 1;
@@ -65,5 +88,7 @@
     margin-left: auto;
     font-family: var(--hg-font-family);
   }
-  .tb-search:focus { border-color: #56c8e8; }
+  .tb-search:focus {
+    border-color: #56c8e8;
+  }
 </style>
