@@ -6,7 +6,7 @@ DIRTY := $(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo true |
 LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)
 BUILD_INFO_TS := extension/src/generated/buildInfo.ts
 
-.PHONY: gen-build-info build-go build-all build-extension build package publish build-webview webview-dev webview-check
+.PHONY: gen-build-info build-go build-all build-extension build package publish build-webview webview-dev webview-check fmt fmt-go fmt-ts fmt-check
 
 ## Build webview (production, minified)
 build-webview:
@@ -54,3 +54,19 @@ gen-build-info:
 	'  dirty: $(DIRTY),' \
 	'} as const;' \
 	> $(BUILD_INFO_TS)
+
+# Format everything
+fmt: fmt-go fmt-ts
+
+# Format Go files
+fmt-go:
+	gofmt -w .
+
+# Format TS/Svelte files
+fmt-ts:
+	npx prettier --write .
+
+# Check formatting without writing (useful for CI)
+fmt-check:
+	gofmt -l . | grep . && exit 1 || true
+	npx prettier --check .

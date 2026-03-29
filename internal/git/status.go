@@ -51,8 +51,8 @@ func Status(repoPath string) (StatusResult, error) {
 			continue
 		}
 
-		xy := line[:2]   // two-character status code, e.g. "M ", " M", "??"
-		raw := line[3:]  // everything after the separator space
+		xy := line[:2]  // two-character status code, e.g. "M ", " M", "??"
+		raw := line[3:] // everything after the separator space
 
 		// Renames are reported as "old -> new"; we only care about the new path.
 		path := raw

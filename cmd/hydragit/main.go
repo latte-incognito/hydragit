@@ -3,9 +3,9 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
-	"flag"
 
 	"hydragit/internal/ipc"
 )

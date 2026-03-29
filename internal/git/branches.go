@@ -6,12 +6,12 @@ import (
 )
 
 type Branch struct {
-	Name      string `json:"name"`
-	IsCurrent bool   `json:"isCurrent"`
-	IsRemote  bool   `json:"isRemote"`
-	Upstream  string `json:"upstream,omitempty"`
+	Name       string `json:"name"`
+	IsCurrent  bool   `json:"isCurrent"`
+	IsRemote   bool   `json:"isRemote"`
+	Upstream   string `json:"upstream,omitempty"`
 	TrackShort string `json:"trackShort,omitempty"` // "[ahead 2]", "[behind 1]", "[gone]"
-	Gone       bool   `json:"gone,omitempty"` 
+	Gone       bool   `json:"gone,omitempty"`
 }
 
 func Branches(repoPath string) ([]Branch, error) {
@@ -39,28 +39,28 @@ func Branches(repoPath string) ([]Branch, error) {
 			continue
 		}
 
-		ref        := parts[0]
-		isCurrent  := parts[1] == "*"
-		upstream   := parts[2]
+		ref := parts[0]
+		isCurrent := parts[1] == "*"
+		upstream := parts[2]
 		trackShort := parts[3] // e.g. "[ahead 1]", "[behind 3]", ""
-		gone       := trackShort == "[gone]"
-		objType    := parts[4]
+		gone := trackShort == "[gone]"
+		objType := parts[4]
 
 		// skip tag objects that sneak into the range, and symbolic refs (HEAD pointers)
 		if objType == "tag" {
 			continue
 		}
 
-		var name     string
+		var name string
 		var isRemote bool
 
 		switch {
 		case strings.HasPrefix(ref, "refs/heads/"):
-			name     = strings.TrimPrefix(ref, "refs/heads/")
+			name = strings.TrimPrefix(ref, "refs/heads/")
 			isRemote = false
 
 		case strings.HasPrefix(ref, "refs/remotes/"):
-			name     = strings.TrimPrefix(ref, "refs/remotes/")
+			name = strings.TrimPrefix(ref, "refs/remotes/")
 			isRemote = true
 
 			// skip symbolic remote HEAD pointers (refs/remotes/origin/HEAD)

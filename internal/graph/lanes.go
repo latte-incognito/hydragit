@@ -85,8 +85,8 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 		rowOf[c.Hash] = i
 	}
 
-	tracker  := &laneTracker{}
-	result   := make([]*LaidOutCommit, len(commits))
+	tracker := &laneTracker{}
+	result := make([]*LaidOutCommit, len(commits))
 	// rows where the straight path to parent should NOT be emitted
 	// because the opening curve replaces it
 	skipStraight := make(map[int]bool)
@@ -98,8 +98,8 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 			result[i] = &LaidOutCommit{}
 		}
 		result[i].Commit = c
-		result[i].Lane   = myLane
-		result[i].Color  = laneColor(myLane)
+		result[i].Lane = myLane
+		result[i].Color = laneColor(myLane)
 
 		if len(c.Parents) == 0 {
 			tracker.free(myLane)
@@ -182,8 +182,8 @@ func pathTo(fromRow int, rowOf map[string]int, fromLane, toLane int, parentHash 
 	}
 	return Path{
 		FromLane: fromLane, ToLane: toLane,
-		FromRow:  fromRow, ToRow: toRow,
-		Color:    laneColor(toLane),
-		Type:     pathType,
+		FromRow: fromRow, ToRow: toRow,
+		Color: laneColor(toLane),
+		Type:  pathType,
 	}
 }

@@ -22,7 +22,7 @@ func Log(repoPath, branch string, limit int) ([]Commit, error) {
 
 	args := []string{
 		"log",
-		"--topo-order",  // ← add this
+		"--topo-order", // ← add this
 		"--format=" + format,
 		"--date=iso-strict",
 	}

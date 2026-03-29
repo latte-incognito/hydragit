@@ -93,7 +93,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, entries)
 
 	case "stash.pop":
-		var p struct{ Index int `json:"index"` }
+		var p struct {
+			Index int `json:"index"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.StashPop(repoPath, p.Index); err != nil {
 			return fail(id, err)
@@ -101,7 +103,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "stash.apply":
-		var p struct{ Index int `json:"index"` }
+		var p struct {
+			Index int `json:"index"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.StashApply(repoPath, p.Index); err != nil {
 			return fail(id, err)
@@ -109,7 +113,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "stash.drop":
-		var p struct{ Index int `json:"index"` }
+		var p struct {
+			Index int `json:"index"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.StashDrop(repoPath, p.Index); err != nil {
 			return fail(id, err)
@@ -117,7 +123,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "stash.show":
-		var p struct{ Index int `json:"index"` }
+		var p struct {
+			Index int `json:"index"`
+		}
 		json.Unmarshal(req.Params, &p)
 		hunks, err := git.StashShow(repoPath, p.Index)
 		if err != nil {
@@ -126,7 +134,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, hunks)
 
 	case "stash.save":
-		var p struct{ Message string `json:"message"` }
+		var p struct {
+			Message string `json:"message"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.StashSave(repoPath, p.Message); err != nil {
 			return fail(id, err)
@@ -134,7 +144,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "checkout":
-		var p struct{ Branch string `json:"branch"` }
+		var p struct {
+			Branch string `json:"branch"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Checkout(repoPath, p.Branch); err != nil {
 			return fail(id, err)
@@ -175,7 +187,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "merge":
-		var p struct{ Branch string `json:"branch"` }
+		var p struct {
+			Branch string `json:"branch"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Merge(repoPath, p.Branch); err != nil {
 			return fail(id, err)
@@ -183,7 +197,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "rebase":
-		var p struct{ Onto string `json:"onto"` }
+		var p struct {
+			Onto string `json:"onto"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Rebase(repoPath, p.Onto); err != nil {
 			return fail(id, err)
@@ -203,7 +219,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "push":
-		var p struct{ Branch string `json:"branch"` }
+		var p struct {
+			Branch string `json:"branch"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Push(repoPath, p.Branch); err != nil {
 			return fail(id, err)
@@ -211,7 +229,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "cherrypick":
-		var p struct{ Commit string `json:"commit"` }
+		var p struct {
+			Commit string `json:"commit"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.CherryPick(repoPath, p.Commit); err != nil {
 			return fail(id, err)
@@ -219,7 +239,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "revert":
-		var p struct{ Commit string `json:"commit"` }
+		var p struct {
+			Commit string `json:"commit"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Revert(repoPath, p.Commit); err != nil {
 			return fail(id, err)
