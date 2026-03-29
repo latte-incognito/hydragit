@@ -85,18 +85,21 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 		rowOf[c.Hash] = i
 	}
 
-	tracker := &laneTracker{}
-	result := make([]*LaidOutCommit, len(commits))
+	tracker  := &laneTracker{}
+	result   := make([]*LaidOutCommit, len(commits))
+	// rows where the straight path to parent should NOT be emitted
+	// because the opening curve replaces it
+	skipStraight := make(map[int]bool)
 
 	for i, c := range commits {
 		myLane := tracker.claim(c.Hash)
 
-	if result[i] == nil {
-    result[i] = &LaidOutCommit{}
-}
-result[i].Commit = c
-result[i].Lane   = myLane
-result[i].Color  = laneColor(myLane)
+		if result[i] == nil {
+			result[i] = &LaidOutCommit{}
+		}
+		result[i].Commit = c
+		result[i].Lane   = myLane
+		result[i].Color  = laneColor(myLane)
 
 		if len(c.Parents) == 0 {
 			tracker.free(myLane)
@@ -104,8 +107,12 @@ result[i].Color  = laneColor(myLane)
 		}
 
 		// first parent inherits current lane
+		// skip straight if this commit is the last on a branch
+		// (opening curve handles the connection instead)
 		tracker.set(myLane, c.Parents[0])
-		result[i].Paths = append(result[i].Paths, pathTo(i, rowOf, myLane, myLane, c.Parents[0]))
+		if !skipStraight[i] {
+			result[i].Paths = append(result[i].Paths, pathTo(i, rowOf, myLane, myLane, c.Parents[0]))
+		}
 
 		// additional parents (merges) get their own lane
 		for _, parent := range c.Parents[1:] {
@@ -132,7 +139,11 @@ result[i].Color  = laneColor(myLane)
 				}
 				if mainLane[nextHash] {
 					nextRow := rowOf[nextHash]
-					// initialize if not yet processed by main loop
+
+					// mark last branch commit — don't emit straight path for it
+					skipStraight[row] = true
+
+					// initialize divergence point if not yet processed
 					if result[nextRow] == nil {
 						result[nextRow] = &LaidOutCommit{
 							Commit: commits[nextRow],
@@ -140,6 +151,8 @@ result[i].Color  = laneColor(myLane)
 							Color:  laneColor(myLane),
 						}
 					}
+
+					// emit opening curve from divergence point up to last branch commit
 					result[nextRow].Paths = append(result[nextRow].Paths, Path{
 						FromLane: myLane,
 						ToLane:   branchLane,
