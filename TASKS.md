@@ -9,150 +9,55 @@ Check off items as they're completed and verified working.
 
 ## v0.1.0
 
-### Step 1 — Go IPC skeleton
+### Step 1 — Go IPC skeleton ✅
 
-- [x] `cmd/hydragit/main.go`
-  - bufio.Scanner on stdin
-  - unmarshal JSON request
-  - route to handler
-  - marshal + println response
-  - reads `HYDRAGIT_REPO` env var
-  - **verify:** `echo '{"id":"1","cmd":"ping","params":{}}' | ./hydragit-server` responds
+- [x] `cmd/hydragit/main.go` — bufio.Scanner, JSON loop, HYDRAGIT_REPO env var
+- [x] `internal/ipc/handler.go` — stub routing, returns not-implemented for all cmds
 
-- [x] `internal/ipc/handler.go` — stub
-  - `Handle(req Request) Response` switch statement
-  - returns `{ok:false, error:"not implemented"}` for all cmds for now
-  - **verify:** binary compiles and returns stub responses
+### Step 2 — Git operations ✅
 
----
+- [x] `internal/git/repo.go` — `run()` helper, captures stdout/stderr, sets cmd.Dir
+- [x] `internal/git/log.go` — `Status()`, `Log()`
+- [x] `internal/git/branches.go` — `Branches()`, `Checkout()`, `CreateBranch()`, `DeleteBranch()`, `RenameBranch()`, `Merge()`, `Rebase()`, `Push()`, `Fetch()`, `Pull()`
+- [x] `internal/git/diff.go` — `DiffCommit()`, `DiffFile()`
+- [x] `internal/git/stash.go` — `StashList()`, `StashPop()`, `StashApply()`, `StashDrop()`, `StashShow()`, `StashSave()`
+- [x] `internal/graph/lanes.go` — `AssignLanes()` with lane/color/paths
 
-### Step 2 — Git operations
+### Step 2.5 — Test foundations ✅
 
-- [x] `internal/git/repo.go`
-  - `run(repoPath string, args ...string) (string, error)` helper
-  - captures stdout, stderr on exit error
-  - sets `cmd.Dir = repoPath`
-  - **verify:** unit test — `run(".", "rev-parse", "--abbrev-ref", "HEAD")` returns branch name
+- [x] `internal/git/repo_test.go` — `TestRun` against real tmp repo
+- [x] `internal/graph/lanes_test.go` — `TestSingleBranch`, `TestSimpleMerge`
 
-- [x] `internal/git/log.go`
-  - `Status()` — branch, ahead, behind, modified count
-  - `Log(branch string, limit int)` — commits with hash, message, author, date, refs
-  - **verify:** test against real repo, returns >0 commits
+### Step 3 — Full IPC handler ✅
 
-- [x] `internal/git/branches.go`
-  - `Branches()` — local + remote, isCurrent, upstream
-  - `Checkout(branch string) error`
-  - `CreateBranch(name, from string) error`
-  - `DeleteBranch(name string, force bool) error`
-  - `RenameBranch(from, to string) error`
-  - `Merge(branch string) error`
-  - `Rebase(onto string) error`
-  - `Push(branch string) error`
-  - `Fetch() error`
-  - `Pull() error`
-  - **verify:** `Branches()` returns correct local+remote list on a multi-branch repo
+- [x] `internal/ipc/handler.go` — all v0.1 commands wired to git.* functions
+- [x] `internal/logger/logger.go` — daily rotating JSON-lines log, 7-day retention
+- [x] Logging wired into handler (timing, IPC request/response)
 
-- [x] `internal/git/diff.go`
-  - `DiffCommit(commit string)` — file list with status + additions/deletions
-  - `DiffFile(commit, file string)` — hunks with line type + content
-  - **verify:** returns file list for a known commit hash
+### Step 4 — TypeScript shell ✅
 
-- [x] `internal/git/stash.go`
-  - `StashList()` — index, message, time, additions, deletions
-  - `StashPop(index int) error`
-  - `StashApply(index int) error`
-  - `StashDrop(index int) error`
-  - `StashShow(index int)` — diff hunks
-  - `StashSave(message string) error`
-  - **verify:** list returns correct count, pop removes entry
+- [x] `extension/src/goProcess.ts` — spawn, readline, pending map, dispose()
+- [x] `extension/src/extension.ts` — activate/deactivate, binary path resolution, commands
+- [x] `extension/src/Logger.ts` — Output Channel singleton
+- [x] `extension/src/HydraStatusService.ts` — 3s poll, onDidChange
+- [x] `extension/src/panel.ts` — HydraViewProvider, HydraSidebarProvider, HydraBadgeTreeProvider
 
-- [x] `internal/graph/lanes.go`
-  - `AssignLanes(commits []RawCommit) []LaidOutCommit`
-  - see `docs/graph_algorithm.md` for full spec
-  - **verify:** single branch → all lane 0, straight paths. merge commit → curve path to second parent.
+### Step 5 — Webview (Svelte) ✅
 
-### Step 2.5 — Test foundations (one per package, extend yourself)
+- [x] Sidebar panel: file list, per-file checkboxes, master checkbox, staged count, CommitArea
+- [x] Main panel: branch pane, log pane with graph, detail pane, toolbar
+- [x] messageBus.ts send/on with id-based pending map
+- [x] Status polling wired (`send('status', {})` on mount)
+- [x] `send('getStatus')` bug fixed → `send('status', {})`
 
-- [x] `internal/git/repo_test.go`
-  - `TestRun` — run `git rev-parse --abbrev-ref HEAD` against a real tmp repo, assert non-empty string returned
-  - sets the pattern: `git.Init()` a temp dir, make commits, run assertions, cleanup
-  - **this is the template all other git tests follow**
+### Step 6 — Build system ✅
 
-- [x] `internal/graph/lanes_test.go`
-  - `TestSingleBranch` — 3 commits, 1 parent chain → all lane 0, all paths straight
-  - `TestSimpleMerge` — merge commit + two parents → merge commit on lane 0, branch on lane 1, one curve path
-  - pure function, no git needed, fast
+- [x] `Makefile` — build-go, build-all (4 platforms), build-ts, build, package, publish
+- [x] `.vscodeignore` — correct includes/excludes for .vsix
 
 ---
 
-- [x] `internal/ipc/handler.go` — full implementation
-  - wire all v0.1 commands to git.* functions
-  - `status`, `branches`, `log`, `diff`, `stash`, `stash.pop`, `stash.apply`, `stash.drop`, `stash.show`, `stash.save`
-  - `checkout`, `branch.create`, `branch.delete`, `branch.rename`
-  - `merge`, `rebase`, `fetch`, `pull`, `push`
-  - `cherrypick`, `revert`
-  - **verify:** each command returns real data from a test repo
-
----
-
-### Step 4 — TypeScript shell
-
-- [x] `extension/src/goProcess.ts`
-  - spawn binary with `HYDRAGIT_REPO` env var
-  - readline on stdout, pending promise map
-  - `send(cmd, params)` → Promise
-  - stderr → console.log with `[HydraGit]` prefix
-  - `dispose()` kills process
-  - **verify:** `goProcess.send('status', {})` resolves with real data
-
-- [x] `extension/src/extension.ts`
-  - `activate()` — resolve workspace root, spawn GoProcess, register `hydragit.open`
-  - `deactivate()` — goProcess.dispose()
-  - binary path from `ctx.extensionPath/bin/hydragit-server-<platform>-<arch>`
-  - **verify:** F5 in VS Code, command palette shows "HydraGit: Open"
-
-- [x] `extension/src/panel.ts`
-  - create WebviewPanel, load `webview/index.html`
-  - `onDidReceiveMessage` → `goProcess.send()` → `panel.webview.postMessage()`
-  - `.git/` file watcher → `{type:'refresh'}` to webview
-  - CSP: `default-src 'none'; script-src 'nonce-<x>'; style-src 'unsafe-inline'; img-src data:`
-  - **verify:** panel opens in VS Code, shows the UI
-
----
-
-### Step 5 — Webview wiring
-
-- [x] `webview/index.html` — replace mock data with real postMessage calls
-  - replace hardcoded `commits`, `branches`, `stashes` arrays with `send()` calls
-  - `send(cmd, params)` helper using `vscode.postMessage` + `window.addEventListener('message')`
-  - on load: `send('status')`, `send('branches')`, `send('log', {branch, limit:100})`
-  - on branch click: `send('log', {branch})`
-  - on commit click: `send('diff', {commit: hash})`
-  - on stash load: `send('stash')`
-  - all branch context menu actions wired
-  - all stash actions wired
-  - `{type:'refresh'}` message → re-fetch status + branches + log
-  - **verify:** all panels show real git data from an actual repo
-
----
-
-### Step 6 — Build system
-
-- [x] `Makefile`
-  - `build-go` — current platform
-  - `build-all` — all 4 platforms (darwin-x64, darwin-arm64, linux-x64, win32-x64)
-  - `build-ts` — `cd extension && npm run compile`
-  - `build` — build-all + build-ts
-  - `package` — build + vsce package
-  - `publish` — build + vsce publish
-
-- [x] `.vscodeignore`
-  - exclude: `cmd/`, `internal/`, `go.*`, `extension/src/`, `Makefile`, `*.ts`
-  - include: `extension/out/`, `webview/`, `bin/`, `images/`, `package.json`, `README.md`
-
----
-
-### Step 7 — Pre-publish QA
+### Step 7 — Pre-publish QA 🚧
 
 - [ ] Test on repo with 1 branch, no remotes
 - [ ] Test on repo with 5+ branches, 2 remotes
@@ -161,7 +66,7 @@ Check off items as they're completed and verified working.
 - [ ] Test on repo with merge commits (graph renders correctly)
 - [ ] Test on Windows (binary naming, path separators)
 - [ ] `vsce package` produces valid .vsix
-- [ ] Install .vsix locally with `code --install-extension`
+- [ ] Install .vsix locally: `code --install-extension hydragit-0.1.0.vsix`
 - [ ] Use installed extension on own repos for 3+ days
 
 ---
@@ -172,7 +77,7 @@ Check off items as they're completed and verified working.
 - [ ] GIF recorded (15s: open → branches → click commit → diff → right-click → context menu)
 - [ ] `CHANGELOG.md` written
 - [ ] `package.json` has `repository`, `bugs`, `homepage` fields
-- [ ] GitHub repo created and pushed
+- [ ] GitHub repo created and code pushed
 - [ ] Azure PAT created (scope: Marketplace → Manage)
 - [ ] `vsce create-publisher vkushnarenko` done
 - [ ] `vsce publish` run successfully
@@ -181,17 +86,29 @@ Check off items as they're completed and verified working.
 
 ---
 
-## v0.2.0 (future — do not start until v0.1 is shipped)
+## Post-v0.1 backlog (do not start until v0.1 is shipped)
 
-- [ ] Staged diff view
-- [ ] Split webview into index.html + index.js, use asWebviewUri, proper nonce CSP
-- [ ] Unstaged diff view  
-- [ ] Stage / unstage files
-- [ ] Commit from extension
-- [ ] Infinite scroll (load more commits)
+### v0.2.0 — "See Your Changes"
+- [ ] Wire `commit` command — staged paths + message → Go, implement in handler.go
+- [ ] Diff view when file row is clicked in sidebar (`// TODO: open diff view` in Sidebar.svelte)
+- [ ] Stage / unstage files from sidebar
+- [ ] Staged diff view in main panel
+- [ ] Unstaged diff view
+- [ ] Push / Pull buttons with error display
+- [ ] Infinite scroll (load more commits on demand)
+- [ ] Split `panel.ts` into separate files per panel
 
-## v0.3.0 (future)
-
+### v0.3.0 — "Power Features"
+- [ ] Stash UI in sidebar (all IPC commands exist, Svelte UI missing)
+- [ ] VS Code StatusBarItem: `branch ↑2 ↓1` using `ahead`/`behind`
 - [ ] Interactive rebase UI
 - [ ] Branch compare / PR diff
-- [ ] Conflict resolution hints
+- [ ] Conflict resolution hints in statusbar
+
+### Cleanup (anytime)
+- [ ] Remove `ContextMenu.svelte` dead code
+- [ ] Add `.prettierrc`
+- [ ] Downgrade no-upstream `rev-list` log from error → warn
+- [ ] Relative date display in commit log (log.go returns RFC3339, UI needs human format)
+- [ ] Playwright tests (after UI stabilises)
+- [ ] GitHub Actions CI (when repo goes public)
