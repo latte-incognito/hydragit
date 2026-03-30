@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { GoProcess } from './goProcess';
+import { Logger } from './Logger';
 
 type HydraStatusFile = {
   path: string;
@@ -55,7 +56,7 @@ export class HydraStatusService implements vscode.Disposable {
 
       this._onDidChange.fire(this.snapshot);
     } catch (err) {
-      // Optional: log to output channel if you want
+      Logger.error('status', `poll failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

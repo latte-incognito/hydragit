@@ -42,7 +42,7 @@
   async function loadChanges() {
     loading = true;
     try {
-      const status = await send<GitStatus>('getStatus');
+      const status = await send<GitStatus>('status');
       applyStatus(status);
     } catch {
       loading = false;
