@@ -13,7 +13,6 @@
 - **Version info somewhere in UI** — Important for bug reports and user trust. A corner label is fine.
 - **Meaningful tests (unit/integration)** — Cover the staging logic and the filename bug area first.
 - **Prepare repo with crazy paths** — Edge case harness — do this alongside writing tests.
-- ** loging and observabiliry** -
 
 ## 🟡 Do Later — Lower urgency or higher effort
 

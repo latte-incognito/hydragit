@@ -4,15 +4,19 @@ import { buildInfo } from './generated/buildInfo';
 import { GoProcess } from './goProcess';
 import { HydraBadgeTreeProvider, HydraSidebarProvider, HydraViewProvider } from './panel';
 import { HydraStatusService } from './HydraStatusService';
+import { Logger } from './Logger';
 
 let goProcess: GoProcess | undefined;
-let output: vscode.OutputChannel;
 
 export function activate(ctx: vscode.ExtensionContext): void {
-  output = vscode.window.createOutputChannel('HydraGit');
-  output.appendLine(
-    `[HydraGit] version=${buildInfo.version} commit=${buildInfo.commit} built=${buildInfo.buildTime} dirty=${buildInfo.dirty}`
-  );
+  const output = vscode.window.createOutputChannel('HydraGit');
+  ctx.subscriptions.push(output);
+
+  // Logger must be initialised before anything else so GoProcess
+  // and HydraStatusService can use it immediately.
+  Logger.init(output);
+
+  Logger.info('extension', `activating version=${buildInfo.version} commit=${buildInfo.commit} built=${buildInfo.buildTime} dirty=${buildInfo.dirty}`);
 
   const logDir = ctx.logUri.fsPath;
 
@@ -39,11 +43,10 @@ export function activate(ctx: vscode.ExtensionContext): void {
     })
   );
 
-  ctx.subscriptions.push(output);
-
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspaceRoot) {
     vscode.window.showErrorMessage('HydraGit: no workspace folder open.');
+    Logger.error('extension', 'no workspace folder open');
     return;
   }
 
@@ -109,9 +112,12 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
   statusService.start();
   updateBadge();
+
+  Logger.info('extension', 'activated');
 }
 
 export function deactivate(): void {
+  Logger.info('extension', 'deactivating');
   goProcess?.dispose();
   goProcess = undefined;
 }
