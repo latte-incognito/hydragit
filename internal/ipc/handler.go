@@ -2,9 +2,11 @@ package ipc
 
 import (
 	"encoding/json"
+	"time"
 
 	"hydragit/internal/git"
 	"hydragit/internal/graph"
+	"hydragit/internal/logger"
 )
 
 type Request struct {
@@ -29,6 +31,26 @@ func fail(id string, err error) Response {
 }
 
 func Handle(repoPath string, req Request) Response {
+	id := req.ID
+	start := time.Now()
+
+	logger.IPCRequest(id, req.Cmd)
+
+	resp := handle(repoPath, req)
+
+	durationMs := time.Since(start).Milliseconds()
+	errMsg := ""
+	if !resp.OK {
+		errMsg = resp.Error
+	}
+	logger.IPCResponse(id, req.Cmd, resp.OK, durationMs, errMsg)
+
+	return resp
+}
+
+// handle contains the actual dispatch logic, kept separate so Handle() can
+// wrap it cleanly with timing and logging.
+func handle(repoPath string, req Request) Response {
 	id := req.ID
 
 	switch req.Cmd {

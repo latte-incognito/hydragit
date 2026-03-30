@@ -33,7 +33,6 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(webviewView.webview, nonce, iconUri);
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
-      console.log('[HydraGit] received:', msg.cmd);
       try {
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
         webviewView.webview.postMessage({ id: msg.id, ok: true, data });

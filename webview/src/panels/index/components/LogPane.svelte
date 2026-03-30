@@ -49,9 +49,7 @@
           color: p.color,
         }))
     );
-    console.log('[graph] all curves:', JSON.stringify(allCurves, null, 2));
-    console.log('[graph] curveSourceRows:', [...curveSourceRows]);
-    console.log('[graph] curveTargetRows:', [...curveTargetRows]);
+   
 
     // log which commits get + dots
     for (let i = 0; i < commits.length; i++) {
@@ -59,11 +57,6 @@
       const isMerge = (c.parents ?? []).length > 1;
       const isBranchStart = curveTargetRows.has(i);
       const isBranchSource = curveSourceRows.has(i);
-      if (isMerge || isBranchStart || isBranchSource) {
-        console.log(
-          `[graph] + dot at row ${i}: "${c.message ?? c.msg ?? ''}" isMerge=${isMerge} isBranchStart=${isBranchStart} isBranchSource=${isBranchSource}`
-        );
-      }
     }
 
     // Pass 1: edges
@@ -115,13 +108,6 @@
 
   $: maxLane = commits.reduce((m, c) => Math.max(m, c.lane ?? 0), 0);
   $: laneCount = maxLane + 1;
-  $: {
-    commits.forEach((c, i) => {
-      if ((c.paths ?? []).length > 0) {
-        console.log(`[paths] row ${i} "${c.message}":`, JSON.stringify(c.paths));
-      }
-    });
-  }
   $: graphSVG = buildGraphSVG(commits, laneCount);
   $: graphW = Math.max(28, laneCount * LANE_W + PAD * 2);
 </script>

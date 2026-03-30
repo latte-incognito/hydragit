@@ -26,7 +26,11 @@
       {
         "command": "hydragit.showVersionInfo",
         "title": "HydraGit: Show Version Info"
-      }
+      },
+      {
+  "command": "hydragit.openLogs",
+  "title": "HydraGit: Open Logs Folder"
+}
     ],
     "viewsContainers": {
       "activitybar": [

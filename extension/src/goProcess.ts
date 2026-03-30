@@ -7,9 +7,13 @@ export class GoProcess {
   private proc: cp.ChildProcess;
   private pending = new Map<string, Pending>();
 
-  constructor(binaryPath: string, repoPath: string) {
+constructor(binaryPath: string, repoPath: string, logDir: string) {
     this.proc = cp.spawn(binaryPath, [], {
-      env: { ...process.env, HYDRAGIT_REPO: repoPath },
+     env: { 
+  ...process.env, 
+  HYDRAGIT_REPO: repoPath,
+  HYDRAGIT_LOG_DIR: logDir,
+},
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
