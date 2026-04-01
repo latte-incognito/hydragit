@@ -60,7 +60,7 @@ test: test-go test-ts
 
 ## Run Go tests
 test-go:
-	go test ./...
+	gotestsum --format testname -- -v $(shell go list ./... | grep -v 'hydragit/cmd/hydragit' | grep -v 'node_modules')
 
 ## Run TS/Svelte tests
 test-ts:

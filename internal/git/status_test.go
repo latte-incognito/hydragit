@@ -2,6 +2,7 @@ package git
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -21,17 +22,18 @@ func TestStatus(t *testing.T) {
 func TestStatusModifiedFile(t *testing.T) {
 	dir := initRepo(t)
 
-	// write a file and stage it
+	// write and stage a file — staged files count as Modified, untracked don't
 	if err := os.WriteFile(filepath.Join(dir, "file.txt"), []byte("hello\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
+	exec.Command("git", "-C", dir, "add", ".").Run()
 
 	s, err := Status(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if s.Modified == 0 {
-		t.Fatal("expected Modified > 0 with untracked file")
+		t.Fatal("expected Modified > 0 with staged file")
 	}
 	if len(s.Files) == 0 {
 		t.Fatal("expected files in status")

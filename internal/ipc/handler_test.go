@@ -2,28 +2,42 @@ package ipc
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 )
 
-// makeRepo creates a real git repo with enough history to exercise all commands.
-// Returns the repo path.
+// makeRepo creates a real git repo with two real file commits.
+// Real files are needed for cherry-pick and revert to work correctly.
 func makeRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 
-	cmds := [][]string{
+	for _, c := range [][]string{
 		{"git", "-C", dir, "init"},
 		{"git", "-C", dir, "config", "user.email", "test@test.com"},
 		{"git", "-C", dir, "config", "user.name", "Test"},
-		{"git", "-C", dir, "commit", "--allow-empty", "-m", "first commit"},
-		{"git", "-C", dir, "commit", "--allow-empty", "-m", "second commit"},
-	}
-	for _, c := range cmds {
+	} {
 		if err := exec.Command(c[0], c[1:]...).Run(); err != nil {
 			t.Fatalf("setup cmd %v failed: %v", c, err)
 		}
 	}
+
+	// first commit — real file
+	if err := os.WriteFile(filepath.Join(dir, "file-a.txt"), []byte("content a\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	exec.Command("git", "-C", dir, "add", ".").Run()
+	exec.Command("git", "-C", dir, "commit", "-m", "first commit").Run()
+
+	// second commit — different file
+	if err := os.WriteFile(filepath.Join(dir, "file-b.txt"), []byte("content b\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	exec.Command("git", "-C", dir, "add", ".").Run()
+	exec.Command("git", "-C", dir, "commit", "-m", "second commit").Run()
+
 	return dir
 }
 
@@ -275,7 +289,7 @@ func TestHandleStashLifecycle(t *testing.T) {
 func TestHandleCherrypickRevert(t *testing.T) {
 	dir := makeRepo(t)
 
-	// get second commit hash (cherry-pick it onto a new branch)
+	// log returns newest first: commits[0]=second, commits[1]=first
 	logResp := Handle(dir, req("log", params(map[string]any{"limit": 10})))
 	b, _ := json.Marshal(logResp.Data)
 	var commits []struct {
@@ -285,20 +299,21 @@ func TestHandleCherrypickRevert(t *testing.T) {
 	if len(commits) < 2 {
 		t.Skip("need at least 2 commits")
 	}
-	targetHash := commits[1].Hash // older commit
 
-	// create a branch from the first commit only
-	Handle(dir, req("branch.create", params(map[string]any{"name": "cp-test", "from": commits[0].Hash})))
+	newestHash := commits[0].Hash // second commit (file-b.txt)
+	oldestHash := commits[1].Hash // first commit (file-a.txt)
+
+	// create a branch from the oldest commit — newest commit not present here
+	Handle(dir, req("branch.create", params(map[string]any{"name": "cp-test", "from": oldestHash})))
 	Handle(dir, req("checkout", params(map[string]any{"branch": "cp-test"})))
 
-	// cherry-pick the older commit onto this branch
-	resp := Handle(dir, req("cherrypick", params(map[string]any{"commit": targetHash})))
+	// cherry-pick the newest commit (file-b.txt) — unique content, won't be empty
+	resp := Handle(dir, req("cherrypick", params(map[string]any{"commit": newestHash})))
 	if !resp.OK {
 		t.Fatalf("cherrypick failed: %s", resp.Error)
 	}
 
-	// revert it
-	// get the new HEAD
+	// revert the cherry-picked commit (now HEAD)
 	logResp2 := Handle(dir, req("log", params(map[string]any{"limit": 1})))
 	b2, _ := json.Marshal(logResp2.Data)
 	var newCommits []struct {
