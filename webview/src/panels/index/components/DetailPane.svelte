@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { Commit, DiffFile, DiffHunk } from '../types';
+  import { send } from '$shared/messageBus';
+  import type { Commit, DiffFile } from '../types';
 
   export let commit: Commit | null = null;
   export let files: DiffFile[] = [];
-  export let hunks: DiffHunk[] = [];
   export let selFile: string | null = null;
   export let loading: boolean = false;
   export let iconUri: string = '';
@@ -17,6 +17,15 @@
 
   $: additions = files.reduce((a, f) => a + (f.additions ?? 0), 0);
   $: deletions = files.reduce((a, f) => a + (f.deletions ?? 0), 0);
+
+  function openDiff(filePath: string) {
+    if (!commit) return;
+    send('openDiff', {
+      commit: commit.hash,
+      parent: (commit.parents ?? [])[0] ?? '',
+      file: filePath,
+    });
+  }
 </script>
 
 <div class="pane-detail">
@@ -39,6 +48,7 @@
               class="dfile"
               class:on={selFile === f.path}
               on:click={() => onSelectFile(f.path)}
+              on:dblclick={() => openDiff(f.path)}
               role="option"
               aria-selected={selFile === f.path}
               tabindex="0"
@@ -124,7 +134,6 @@
     opacity: 0.78;
   }
 
-  /* detail-content fills the pane, stacks meta/files/diff vertically */
   .detail-content {
     flex: 1;
     display: flex;
@@ -194,13 +203,13 @@
     color: var(--vscode-foreground, #ccc);
   }
 
-  /* ── Files ── max-height cap, own scroll */
+  /* ── Files ── */
   .detail-files {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
-    max-height: none; /* remove the old 160px cap */
+    max-height: none;
   }
   .df-msg {
     padding: 10px;
