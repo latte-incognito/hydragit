@@ -13,7 +13,7 @@ export default defineConfig(() => ({
     globals: true,
     environment: 'happy-dom',
     setupFiles: ['./webview/src/test/setup.ts'],
-    include: ['webview/src/**/*.test.ts'],
+    include: ['webview/src/**/*.test.ts', 'extension/src/**/*.test.ts'],
     exclude: ['**/node_modules/**'],
     server: {
       deps: {
