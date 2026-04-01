@@ -17,8 +17,6 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ): void {
-    const nonce = Math.random().toString(36).slice(2);
-
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [
@@ -30,7 +28,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     const iconUri = webviewView.webview.asWebviewUri(
       vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon.png'))
     );
-    webviewView.webview.html = this.getHtml(webviewView.webview, nonce, iconUri);
+    webviewView.webview.html = this.getHtml(webviewView.webview, iconUri);
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       // openDiff is handled entirely in the extension host — no Go call needed
@@ -92,7 +90,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     vscode.commands.executeCommand('hydragit.mainView.focus');
   }
 
-  private getHtml(webview: vscode.Webview, nonce: string, iconUri: vscode.Uri): string {
+  private getHtml(webview: vscode.Webview, iconUri: vscode.Uri): string {
     const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'index.html');
     let html = fs.readFileSync(htmlPath, 'utf8');
 

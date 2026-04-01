@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { HydraStatusService } from './HydraStatusService';
 
 vi.mock('vscode', () => {
   class EventEmitter {
@@ -14,7 +15,9 @@ vi.mock('vscode', () => {
   return { EventEmitter };
 });
 
-const { HydraStatusService } = await import('./HydraStatusService');
+vi.mock('./Logger', () => ({
+  Logger: { error: vi.fn() },
+}));
 
 function makeGoProcess(resolveWith: unknown) {
   return { send: vi.fn().mockResolvedValue(resolveWith) };
@@ -25,17 +28,13 @@ const snapshot2 = { branch: 'main', files: [{ path: 'b.ts', status: 'A' }] };
 const snapshot1b = { branch: 'main', files: [{ path: 'a.ts', status: 'M' }] };
 
 beforeEach(() => vi.useFakeTimers());
-afterEach(() => { vi.useRealTimers(); vi.resetModules(); });
-
-// ── refresh ───────────────────────────────────────────────────────────────────
+afterEach(() => vi.useRealTimers());
 
 describe('HydraStatusService — refresh', () => {
   it('calls goProcess.send with status command', async () => {
     const goProcess = makeGoProcess(snapshot1);
     const svc = new HydraStatusService(goProcess as never, 3000);
-
     await svc.refresh();
-
     expect(goProcess.send).toHaveBeenCalledWith('status', {});
   });
 
@@ -44,9 +43,7 @@ describe('HydraStatusService — refresh', () => {
     const svc = new HydraStatusService(goProcess as never, 3000);
     const handler = vi.fn();
     svc.onDidChange(handler);
-
     await svc.refresh();
-
     expect(handler).toHaveBeenCalledOnce();
   });
 
@@ -55,13 +52,10 @@ describe('HydraStatusService — refresh', () => {
     const svc = new HydraStatusService(goProcess as never, 3000);
     const handler = vi.fn();
     svc.onDidChange(handler);
-
     await svc.refresh();
     handler.mockClear();
-
     goProcess.send.mockResolvedValue(snapshot1b);
     await svc.refresh();
-
     expect(handler).not.toHaveBeenCalled();
   });
 
@@ -70,13 +64,10 @@ describe('HydraStatusService — refresh', () => {
     const svc = new HydraStatusService(goProcess as never, 3000);
     const handler = vi.fn();
     svc.onDidChange(handler);
-
     await svc.refresh();
     handler.mockClear();
-
     goProcess.send.mockResolvedValue({ branch: 'feature', files: snapshot1.files });
     await svc.refresh();
-
     expect(handler).toHaveBeenCalledOnce();
   });
 
@@ -85,18 +76,13 @@ describe('HydraStatusService — refresh', () => {
     const svc = new HydraStatusService(goProcess as never, 3000);
     const handler = vi.fn();
     svc.onDidChange(handler);
-
     await svc.refresh();
     handler.mockClear();
-
     goProcess.send.mockResolvedValue(snapshot2);
     await svc.refresh();
-
     expect(handler).toHaveBeenCalledOnce();
   });
 });
-
-// ── getSnapshot ───────────────────────────────────────────────────────────────
 
 describe('HydraStatusService — getSnapshot', () => {
   it('returns empty snapshot before first refresh', () => {
@@ -115,30 +101,23 @@ describe('HydraStatusService — getSnapshot', () => {
   });
 });
 
-// ── start / stop ──────────────────────────────────────────────────────────────
-
 describe('HydraStatusService — start/stop', () => {
   it('calls refresh multiple times after start', async () => {
     const goProcess = makeGoProcess(snapshot1);
     const svc = new HydraStatusService(goProcess as never, 1000);
-
     svc.start();
-    await vi.advanceTimersByTimeAsync(3500); // 3 ticks
+    await vi.advanceTimersByTimeAsync(3500);
     svc.stop();
-
-    // initial call + 3 interval ticks
     expect(goProcess.send.mock.calls.length).toBeGreaterThanOrEqual(3);
   });
 
   it('stop prevents further refreshes', async () => {
     const goProcess = makeGoProcess(snapshot1);
     const svc = new HydraStatusService(goProcess as never, 1000);
-
     svc.start();
     await vi.advanceTimersByTimeAsync(1500);
     svc.stop();
     const callsBefore = goProcess.send.mock.calls.length;
-
     await vi.advanceTimersByTimeAsync(5000);
     expect(goProcess.send.mock.calls.length).toBe(callsBefore);
   });
