@@ -6,10 +6,10 @@ DIRTY := $(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo true |
 LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)
 BUILD_INFO_TS := extension/src/generated/buildInfo.ts
 
-.PHONY: gen-build-info build-go build-all build-extension build package publish build-webview webview-dev webview-check fmt fmt-go fmt-ts fmt-check
+.PHONY: gen-build-info build-go build-all build-extension build package publish build-webview webview-dev webview-check fmt fmt-go fmt-ts fmt-check test test-go test-ts clean-webview
 
 ## Build webview (production, minified)
-build-webview:
+build-webview: clean-webview
 	npm run build
 
 ## Watch mode for development
@@ -41,7 +41,7 @@ package: build
 publish: build
 	vsce publish
 
-install-local: package
+install-local: test package
 	code --install-extension hydragit-*.vsix --force
 
 gen-build-info:
@@ -54,6 +54,17 @@ gen-build-info:
 	'  dirty: $(DIRTY),' \
 	'} as const;' \
 	> $(BUILD_INFO_TS)
+
+## Run all tests (Go + TS)
+test: test-go test-ts
+
+## Run Go tests
+test-go:
+	gotestsum --format testname -- -v $(shell go list ./... | grep -v 'hydragit/cmd/hydragit' | grep -v 'node_modules')
+
+## Run TS/Svelte tests
+test-ts:
+	npm run test
 
 # Format everything
 fmt: fmt-go fmt-ts
@@ -70,3 +81,6 @@ fmt-ts:
 fmt-check:
 	gofmt -l . | grep . && exit 1 || true
 	npx prettier --check .
+
+clean-webview:
+	rm -f webview/*.js webview/*.css

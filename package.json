@@ -28,9 +28,9 @@
         "title": "HydraGit: Show Version Info"
       },
       {
-  "command": "hydragit.openLogs",
-  "title": "HydraGit: Open Logs Folder"
-}
+        "command": "hydragit.openLogs",
+        "title": "HydraGit: Open Logs Folder"
+      }
     ],
     "viewsContainers": {
       "activitybar": [
@@ -75,21 +75,31 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "vitest run --reporter=verbose",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
     "compile": "tsc -p ./extension/tsconfig.json",
     "watch": "tsc -watch -p ./extension/tsconfig.json",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.8.9",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/svelte": "^5.3.1",
     "@types/node": "^25.0.0",
     "@types/vscode": "^1.85.0",
+    "@vitest/ui": "^4.1.2",
+    "happy-dom": "^20.8.9",
+    "jsdom": "^29.0.1",
     "prettier": "^3.8.1",
     "prettier-plugin-svelte": "^3.5.1",
     "svelte": "^5.55.0",
     "svelte-check": "^4.4.5",
     "tslib": "^2.8.1",
     "typescript": "^6.0.2",
-    "vite": "^8.0.3"
+    "vite": "^8.0.3",
+    "vitest": "^4.1.2"
   }
 }
