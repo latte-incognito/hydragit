@@ -4,9 +4,21 @@ import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [svelte()],
+
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./webview/src/test/setup.ts'],
+    include: ['webview/src/**/*.test.ts'],
+    alias: {
+      $shared: resolve(__dirname, 'webview/src/shared'),
+      $styles: resolve(__dirname, 'webview/src/styles'),
+    },
+  },
+
   build: {
     outDir: '.',
-    emptyOutDir: false, // don't nuke dist/index.html etc.
+    emptyOutDir: false,
     rollupOptions: {
       input: {
         sidebar: resolve(__dirname, 'webview/src/panels/sidebar/main.ts'),
@@ -21,6 +33,7 @@ export default defineConfig({
       },
     },
   },
+
   resolve: {
     alias: {
       $shared: resolve(__dirname, 'webview/src/shared'),
