@@ -6,6 +6,9 @@ type Handler = (data: unknown) => void;
 const _pending = new Map<string, Pending>();
 const _handlers = new Map<string, Handler[]>();
 
+// Commands handled entirely by the extension host — no response expected
+const HOST_ONLY_CMDS = new Set(['openDiff']);
+
 // One listener for the entire app lifetime
 window.addEventListener('message', (e: MessageEvent) => {
   const msg = e.data as {
@@ -34,6 +37,12 @@ window.addEventListener('message', (e: MessageEvent) => {
 
 /** Send a command to the extension and await the response. */
 export function send<T = unknown>(cmd: string, params: Record<string, unknown> = {}): Promise<T> {
+  // Fire-and-forget — extension host handles these, no response comes back
+  if (HOST_ONLY_CMDS.has(cmd)) {
+    vscode.postMessage({ cmd, params });
+    return Promise.resolve() as Promise<T>;
+  }
+
   const id = Math.random().toString(36).slice(2, 9);
   return new Promise<T>((resolve, reject) => {
     _pending.set(id, { resolve: resolve as (d: unknown) => void, reject });

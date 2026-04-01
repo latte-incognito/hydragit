@@ -33,6 +33,12 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(webviewView.webview, nonce, iconUri);
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
+      // openDiff is handled entirely in the extension host — no Go call needed
+      if (msg.cmd === 'openDiff') {
+        await this.openDiff(msg.params);
+        return;
+      }
+
       try {
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
         webviewView.webview.postMessage({ id: msg.id, ok: true, data });
@@ -58,6 +64,28 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     }
 
     webviewView.onDidDispose(() => this.watcher?.dispose());
+  }
+
+  private async openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
+    const { commit, parent, file } = params;
+    const title = `${path.basename(file)} (${commit.slice(0, 7)})`;
+
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+    const absPath = path.join(workspaceRoot, file);
+
+    const gitUri = (ref: string) =>
+      vscode.Uri.parse(`git:${absPath}`).with({
+        query: JSON.stringify({ path: absPath, ref }),
+      });
+
+    const after = gitUri(commit);
+
+    // first commit has no parent — diff against empty tree
+    const before = parent
+      ? gitUri(parent)
+      : gitUri('0000000000000000000000000000000000000000');
+
+    await vscode.commands.executeCommand('vscode.diff', before, after, title);
   }
 
   focus(): void {
@@ -154,7 +182,6 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
     this.postStatus(this.statusService.getSnapshot());
 
     vscode.commands.executeCommand('hydragit.revealAll');
-    // and every subsequent time sidebar becomes visible
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) {
         vscode.commands.executeCommand('hydragit.revealAll');
@@ -225,8 +252,6 @@ export class HydraBadgeTreeProvider implements vscode.TreeDataProvider<BadgeTree
     const files = snapshot.files ?? [];
     const branch = snapshot.branch || '—';
 
-    // Minimal placeholder content. You can return [] if you want,
-    // but one tiny row can make the view less broken if it becomes visible.
     return Promise.resolve([
       {
         id: 'status',
