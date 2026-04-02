@@ -8,14 +8,14 @@ Positioning: "The git panel IntelliJ has, inside VS Code. No paywall."
 ## Stack
 
 ```
-TypeScript shell   VS Code extension host, ~150 lines total
+TypeScript shell   VS Code extension host, Svelte 4 webview (compiled via Vite)
 Go binary          stdin/stdout JSON IPC, wraps system git via os/exec
-Webview            hydragit_twopane.html — already built, frozen
+Webview            Two panels: sidebar (staging/commit) + main panel (log/branches/diff)
 ```
 
 ## Architecture in one paragraph
 
-VS Code spawns the Go binary on activation. TypeScript bridges postMessage (Webview ↔ Extension Host) to stdin/stdout (Extension Host ↔ Go). Go reads lines from stdin, runs git CLI commands via os/exec, writes JSON responses to stdout. Webview renders what it receives — no git logic in JS.
+VS Code spawns the Go binary on activation. TypeScript bridges postMessage (Webview ↔ Extension Host) to stdin/stdout (Extension Host ↔ Go). Go reads lines from stdin, runs git CLI commands via os/exec, writes JSON responses to stdout. Webview renders what it receives — no git logic in JS/Svelte.
 
 ---
 
@@ -26,15 +26,19 @@ cmd/hydragit/main.go          IPC loop — bufio.Scanner on stdin, fmt.Println t
 internal/git/repo.go          run() helper — the only place os/exec is called
 internal/git/branches.go      Branches, Checkout, Create, Delete, Rename, Merge, Rebase, Push, Fetch, Pull
 internal/git/log.go           Log, Status (ahead/behind, modified count)
-internal/git/diff.go          Diff — file list + hunks for a commit or stash
-internal/git/stash.go         Stash, StashPop, StashApply, StashDrop, StashShow, StashSave
-internal/graph/lanes.go       Lane assignment algorithm — runs in Go, output sent to Webview
-internal/ipc/handler.go       Routes cmd strings to git.* functions
-extension/src/extension.ts    activate(), spawn Go binary, register command
+internal/git/diff.go          DiffCommit (file list), DiffFile (hunks)
+internal/git/stash.go         StashList, StashPop, StashApply, StashDrop, StashShow, StashSave
+internal/git/cherrypick.go    CherryPick, Revert
+internal/graph/lanes.go       Lane assignment algorithm — output sent to Webview as LaidOutCommit
+internal/ipc/handler.go       Routes cmd strings to git.* functions, timing + logging
+internal/logger/logger.go     Daily rotating JSON-lines log files, package-level singleton
+extension/src/extension.ts    activate(), spawn Go binary, register commands
 extension/src/goProcess.ts    ChildProcess wrapper, pending promise map
-extension/src/panel.ts        WebviewPanel, postMessage relay
-webview/index.html            ⛔ FROZEN — do not read or modify unless task explicitly says so
-images/icon.png               128x128 HydraGit logo
+extension/src/panel.ts        WebviewPanel providers (main + sidebar + badge), postMessage relay
+extension/src/Logger.ts       TS-side Output Channel logger
+extension/src/HydraStatusService.ts  Polls status every 3s, fires onDidChange
+webview/src/panels/sidebar/   Svelte sidebar: file list, staging, commit area
+webview/src/panels/index/     Svelte main panel: branch tree, log, detail/diff pane
 ```
 
 ---
@@ -44,15 +48,13 @@ images/icon.png               128x128 HydraGit logo
 - **os/exec + git CLI only** — never import go-git or any other git library
 - **stdout = JSON only** — stderr is for Go logs only, never mix them
 - **One run() helper** — all git calls go through `internal/git/repo.go:run()`, nowhere else
-- **Webview is frozen** — `webview/index.html` is the finalized UI, do not touch it unless the task explicitly requires it
 - **No new dependencies** without asking first
 - **Never guess git output format** — verify with `git <cmd> --help` or a test before parsing
+- **No `Co-authored-by: Claude` in commit messages**
 
 ---
 
 ## IPC protocol
-
-Every message is one JSON object per line, newline-terminated.
 
 **Request (TS → Go stdin)**
 ```json
@@ -97,41 +99,23 @@ Every message is one JSON object per line, newline-terminated.
 
 ---
 
-## Key reference docs (read on demand, not by default)
+## Key reference docs (read on demand)
 
 | File | Read when |
 |---|---|
-| `docs/architecture.md` | Working on IPC, TypeScript shell, binary bundling |
-| `docs/requirements.md` | Implementing any feature — has full REQ specs |
-| `docs/graph_algorithm.md` | Working on `internal/graph/lanes.go` |
-| `docs/build_plan.md` | Checking v0.1 vs v0.2 scope boundaries |
-| `docs/release_plan.md` | Packaging, publishing, Marketplace |
-
----
-
-## Design tokens (webview colors — reference only)
-
-```
-Teal accent:    #56c8e8   active branch, selected row border, primary btn
-Teal bg:        #0e2030   selected row background
-Green:          #4ec94e   added lines, feature branches
-Red:            #f07070   removed lines, danger actions
-Amber:          #e3b341   modified badge, warnings
-Purple:         #9a7ae8   stash selection
-Hash blue:      #3e6aa0   monospace commit hashes
-Background:     #1e1e1e / #252526 / #222 / #2d2d2d
-```
+| `PROJECT_CONTEXT.md` | Full architecture, data types, known issues |
+| `TASKS.md` | Checking what's done and what's next |
+| `RELEASE.md` | Packaging, publishing, Marketplace |
 
 ---
 
 ## Testing approach
 
-**One test file per package. One real test each. You extend the rest.**
+**One test file per package. One real test each. Extend as needed.**
 
-`internal/git/repo_test.go` — the template for all git tests:
+Template (`internal/git/repo_test.go`):
 ```go
 func TestRun(t *testing.T) {
-    // init a real tmp repo
     dir := t.TempDir()
     exec.Command("git", "-C", dir, "init").Run()
     exec.Command("git", "-C", dir, "commit", "--allow-empty", "-m", "init").Run()
@@ -151,14 +135,8 @@ func TestRun(t *testing.T) {
 
 ## How to start a session
 
-Tell Claude which task you're working on and which doc section to read:
+State what you're working on and which doc to read first:
 
-> "Working on internal/git/stash.go — read docs/requirements.md section F-03b before starting."
-> "Working on internal/graph/lanes.go — read docs/graph_algorithm.md before starting."
-> "Working on extension/src/goProcess.ts — read docs/architecture.md IPC section before starting."
-
-Do not ask Claude to read all docs at once — read only what's relevant to the current task.
-
-## Work with GIT
-
-don't add Co-authored-by: Claude <claude@anthropic.com> to commit messages
+> "Working on internal/git/stash.go — read PROJECT_CONTEXT.md IPC section before starting."
+> "Working on internal/graph/lanes.go — read PROJECT_CONTEXT.md data types section."
+> "Continuing from TASKS.md — next unchecked item is Step 7 QA."

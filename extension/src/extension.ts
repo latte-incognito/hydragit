@@ -4,44 +4,59 @@ import { buildInfo } from './generated/buildInfo';
 import { GoProcess } from './goProcess';
 import { HydraBadgeTreeProvider, HydraSidebarProvider, HydraViewProvider } from './panel';
 import { HydraStatusService } from './HydraStatusService';
+import { Logger } from './Logger';
 
 let goProcess: GoProcess | undefined;
-let output: vscode.OutputChannel;
 
 export function activate(ctx: vscode.ExtensionContext): void {
-  output = vscode.window.createOutputChannel('HydraGit');
-  output.appendLine(
-    `[HydraGit] version=${buildInfo.version} commit=${buildInfo.commit} built=${buildInfo.buildTime} dirty=${buildInfo.dirty}`
+  const output = vscode.window.createOutputChannel('HydraGit');
+  ctx.subscriptions.push(output);
+
+  // Logger must be initialised before anything else so GoProcess
+  // and HydraStatusService can use it immediately.
+  Logger.init(output);
+
+  Logger.info('extension', `activating version=${buildInfo.version} commit=${buildInfo.commit} built=${buildInfo.buildTime} dirty=${buildInfo.dirty}`);
+
+  const logDir = ctx.logUri.fsPath;
+
+  ctx.subscriptions.push(
+    vscode.commands.registerCommand('hydragit.showVersionInfo', async () => {
+      const message =
+        `HydraGit ${buildInfo.version}\n` +
+        `commit: ${buildInfo.commit}\n` +
+        `built: ${buildInfo.buildTime}\n` +
+        `dirty: ${buildInfo.dirty}`;
+
+      output.show(true);
+      output.appendLine(message);
+      await vscode.window.showInformationMessage(
+        `HydraGit ${buildInfo.version} (${buildInfo.commit})`
+      );
+    }),
+
+    vscode.commands.registerCommand('hydragit.openLogs', async () => {
+      await vscode.commands.executeCommand(
+        'revealFileInOS',
+        vscode.Uri.file(logDir)
+      );
+    })
   );
-
-  const disposable = vscode.commands.registerCommand('hydragit.showVersionInfo', async () => {
-    const message =
-      `HydraGit ${buildInfo.version}\n` +
-      `commit: ${buildInfo.commit}\n` +
-      `built: ${buildInfo.buildTime}\n` +
-      `dirty: ${buildInfo.dirty}`;
-
-    output.show(true);
-    output.appendLine(message);
-    await vscode.window.showInformationMessage(`HydraGit ${buildInfo.version} (${buildInfo.commit})`);
-  });
-
-  ctx.subscriptions.push(output, disposable);
 
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspaceRoot) {
     vscode.window.showErrorMessage('HydraGit: no workspace folder open.');
+    Logger.error('extension', 'no workspace folder open');
     return;
   }
 
   const platform = process.platform;
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-  const binName = platform === 'win32'
-    ? `hydragit-server-win32-x64.exe`
-    : `hydragit-server-${platform}-${arch}`;
+  const binName =
+    platform === 'win32' ? `hydragit-server-win32-x64.exe` : `hydragit-server-${platform}-${arch}`;
   const binaryPath = path.join(ctx.extensionPath, 'bin', binName);
 
-  goProcess = new GoProcess(binaryPath, workspaceRoot);
+  goProcess = new GoProcess(binaryPath, workspaceRoot, logDir);
 
   const statusService = new HydraStatusService(goProcess, 3000);
   ctx.subscriptions.push(statusService);
@@ -50,23 +65,23 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const sidebarProvider = new HydraSidebarProvider(ctx, goProcess, statusService);
   const badgeTreeProvider = new HydraBadgeTreeProvider(statusService);
 
-ctx.subscriptions.push(
-  vscode.commands.registerCommand('hydragit.revealAll', async () => {
-    await vscode.commands.executeCommand('workbench.view.extension.hydragit');
-    await vscode.commands.executeCommand('hydragit.mainView.focus');
-  }),
-);
+  ctx.subscriptions.push(
+    vscode.commands.registerCommand('hydragit.revealAll', async () => {
+      await vscode.commands.executeCommand('workbench.view.extension.hydragit');
+      await vscode.commands.executeCommand('hydragit.mainView.focus');
+    })
+  );
 
   ctx.subscriptions.push(
     vscode.window.registerWebviewViewProvider('hydragit.mainView', mainProvider, {
       webviewOptions: { retainContextWhenHidden: true },
-    }),
+    })
   );
 
   ctx.subscriptions.push(
     vscode.window.registerWebviewViewProvider('hydragit.sidebarView', sidebarProvider, {
       webviewOptions: { retainContextWhenHidden: true },
-    }),
+    })
   );
 
   const badgeTree = vscode.window.createTreeView('hydragit.badgeCarrier', {
@@ -79,26 +94,30 @@ ctx.subscriptions.push(
     const snapshot = statusService.getSnapshot();
     const count = snapshot.files?.length ?? 0;
 
-    badgeTree.badge = count > 0
-      ? {
-          value: count,
-          tooltip: count === 1 ? '1 changed file' : `${count} changed files`,
-        }
-      : undefined;
+    badgeTree.badge =
+      count > 0
+        ? {
+            value: count,
+            tooltip: count === 1 ? '1 changed file' : `${count} changed files`,
+          }
+        : undefined;
   };
 
   ctx.subscriptions.push(
     statusService.onDidChange(() => {
       updateBadge();
       badgeTreeProvider.refresh();
-    }),
+    })
   );
 
   statusService.start();
   updateBadge();
+
+  Logger.info('extension', 'activated');
 }
 
 export function deactivate(): void {
+  Logger.info('extension', 'deactivating');
   goProcess?.dispose();
   goProcess = undefined;
 }

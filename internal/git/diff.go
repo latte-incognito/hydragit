@@ -13,8 +13,8 @@ type FileStat struct {
 }
 
 type Hunk struct {
-	Header  string     `json:"header"`
-	Lines   []HunkLine `json:"lines"`
+	Header string     `json:"header"`
+	Lines  []HunkLine `json:"lines"`
 }
 
 type HunkLine struct {
