@@ -38,10 +38,3 @@ dist/
 
 #idea
 .idea/
-
-webview/index.js
-webview/sidebar.js
-webview/sidebar.css
-webview/messageBus.css
-webview/messageBus*
-webview/index.css

@@ -1,55 +1,39 @@
 package git
 
 import (
-	"sort"
 	"strings"
 )
 
 type Branch struct {
-	Name       string `json:"name"`
-	IsCurrent  bool   `json:"isCurrent"`
-	IsRemote   bool   `json:"isRemote"`
-	Upstream   string `json:"upstream,omitempty"`
-	TrackShort string `json:"trackShort,omitempty"` // "[ahead 2]", "[behind 1]", "[gone]"
-	Gone       bool   `json:"gone,omitempty"`
+	Name      string `json:"name"`
+	IsCurrent bool   `json:"isCurrent"`
+	IsRemote  bool   `json:"isRemote"`
+	Upstream  string `json:"upstream,omitempty"`
 }
 
 func Branches(repoPath string) ([]Branch, error) {
 	out, err := run(
 		repoPath,
-		"for-each-ref",
-		"--format=%(refname)\t%(HEAD)\t%(upstream:short)\t%(upstream:trackshort)\t%(objecttype)",
-		"refs/heads/",
-		"refs/remotes/",
+		"branch", "--all", "--format=%(refname)\t%(HEAD)\t%(upstream:short)",
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	var branches []Branch
-
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 
-		parts := strings.SplitN(line, "\t", 5)
-		if len(parts) < 5 {
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) < 3 {
 			continue
 		}
 
-		ref := parts[0]
-		isCurrent := parts[1] == "*"
-		upstream := parts[2]
-		trackShort := parts[3] // e.g. "[ahead 1]", "[behind 3]", ""
-		gone := trackShort == "[gone]"
-		objType := parts[4]
-
-		// skip tag objects that sneak into the range, and symbolic refs (HEAD pointers)
-		if objType == "tag" {
-			continue
-		}
+		ref := strings.TrimSpace(parts[0])
+		isCurrent := strings.TrimSpace(parts[1]) == "*"
+		upstream := strings.TrimSpace(parts[2])
 
 		var name string
 		var isRemote bool
@@ -63,8 +47,7 @@ func Branches(repoPath string) ([]Branch, error) {
 			name = strings.TrimPrefix(ref, "refs/remotes/")
 			isRemote = true
 
-			// skip symbolic remote HEAD pointers (refs/remotes/origin/HEAD)
-			// for-each-ref with objecttype=commit won't catch these, check by name
+			// skip symbolic remote HEAD entry
 			if strings.HasSuffix(name, "/HEAD") {
 				continue
 			}
@@ -74,23 +57,12 @@ func Branches(repoPath string) ([]Branch, error) {
 		}
 
 		branches = append(branches, Branch{
-			Name:       name,
-			IsCurrent:  isCurrent,
-			IsRemote:   isRemote,
-			Upstream:   upstream,
-			TrackShort: trackShort,
-			Gone:       gone,
+			Name:      name,
+			IsCurrent: isCurrent,
+			IsRemote:  isRemote,
+			Upstream:  upstream,
 		})
 	}
-
-	// stable sort: local branches first, then remotes; alphabetical within each group
-	sort.SliceStable(branches, func(i, j int) bool {
-		bi, bj := branches[i], branches[j]
-		if bi.IsRemote != bj.IsRemote {
-			return !bi.IsRemote // locals first
-		}
-		return bi.Name < bj.Name
-	})
 
 	return branches, nil
 }

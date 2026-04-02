@@ -1,19 +1,14 @@
 {
   "compilerOptions": {
+    "module": "commonjs",
     "target": "ES2020",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "outDir": "out",
-    "rootDir": "src",
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
+    "outDir": "./out",
+    "rootDir": "./src",
     "lib": ["ES2020"],
     "sourceMap": true,
-    "resolveJsonModule": true,
-    "types": ["node", "vscode"]
+    "strict": true,
+    "esModuleInterop": true
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts", "node_modules"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
 }

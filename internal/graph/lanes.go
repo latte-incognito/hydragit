@@ -3,7 +3,7 @@ package graph
 import "hydragit/internal/git"
 
 var LaneColors = []string{
-	"#56c8e8", // teal
+	"#56c8e8", // teal   — lane 0
 	"#4ec94e", // green
 	"#9a7ae8", // purple
 	"#e3b341", // amber
@@ -23,7 +23,7 @@ type Path struct {
 	FromRow  int    `json:"fromRow"`
 	ToRow    int    `json:"toRow"`
 	Color    string `json:"color"`
-	Type     string `json:"type"` // "straight" | "curve"
+	Type     string `json:"type"` // "straight" or "curve"
 }
 
 type LaidOutCommit struct {
@@ -33,157 +33,102 @@ type LaidOutCommit struct {
 	Paths []Path `json:"paths"`
 }
 
-type laneTracker struct {
-	owners []string
-}
-
-func (t *laneTracker) claim(hash string) int {
-	for i, h := range t.owners {
-		if h == hash {
-			return i
-		}
-	}
-	return t.alloc(hash)
-}
-
-func (t *laneTracker) alloc(hash string) int {
-	for i, h := range t.owners {
-		if h == "" {
-			t.owners[i] = hash
-			return i
-		}
-	}
-	t.owners = append(t.owners, hash)
-	return len(t.owners) - 1
-}
-
-func (t *laneTracker) free(lane int)             { t.owners[lane] = "" }
-func (t *laneTracker) set(lane int, hash string) { t.owners[lane] = hash }
-
-// mainLaneSet builds the set of hashes reachable via first-parent from startHash.
-func mainLaneSet(startHash string, rowOf map[string]int, commits []git.Commit) map[string]bool {
-	seen := make(map[string]bool)
-	hash := startHash
-	for {
-		seen[hash] = true
-		row, ok := rowOf[hash]
-		if !ok {
-			break
-		}
-		c := commits[row]
-		if len(c.Parents) == 0 {
-			break
-		}
-		hash = c.Parents[0]
-	}
-	return seen
-}
-
-func AssignLanes(commits []git.Commit) []*LaidOutCommit {
+func AssignLanes(commits []git.Commit) []LaidOutCommit {
 	rowOf := make(map[string]int, len(commits))
 	for i, c := range commits {
 		rowOf[c.Hash] = i
 	}
 
-	tracker := &laneTracker{}
-	result := make([]*LaidOutCommit, len(commits))
-	// rows where the straight path to parent should NOT be emitted
-	// because the opening curve replaces it
-	skipStraight := make(map[int]bool)
+	lanes := []string{} // lanes[i] = hash waiting for lane i, "" = free
+
+	result := make([]LaidOutCommit, len(commits))
+
+	freeLane := func() int {
+		for i, h := range lanes {
+			if h == "" {
+				return i
+			}
+		}
+		lanes = append(lanes, "")
+		return len(lanes) - 1
+	}
 
 	for i, c := range commits {
-		myLane := tracker.claim(c.Hash)
-
-		if result[i] == nil {
-			result[i] = &LaidOutCommit{}
+		// Step 1: find or claim a lane
+		myLane := -1
+		for li, h := range lanes {
+			if h == c.Hash {
+				myLane = li
+				break
+			}
 		}
-		result[i].Commit = c
-		result[i].Lane = myLane
-		result[i].Color = laneColor(myLane)
-
-		if len(c.Parents) == 0 {
-			tracker.free(myLane)
-			continue
+		if myLane == -1 {
+			myLane = freeLane()
 		}
 
-		// first parent inherits current lane
-		// skip straight if this commit is the last on a branch
-		// (opening curve handles the connection instead)
-		tracker.set(myLane, c.Parents[0])
-		if !skipStraight[i] {
-			result[i].Paths = append(result[i].Paths, pathTo(i, rowOf, myLane, myLane, c.Parents[0]))
+		result[i] = LaidOutCommit{
+			Commit: c,
+			Lane:   myLane,
+			Color:  laneColor(myLane),
 		}
 
-		// additional parents (merges) get their own lane
-		for _, parent := range c.Parents[1:] {
-			branchLane := tracker.claim(parent)
+		// Step 2: set up lanes for parents
+		switch len(c.Parents) {
 
-			// closing curve: merge commit → branch tip
-			result[i].Paths = append(result[i].Paths, pathTo(i, rowOf, myLane, branchLane, parent))
+		case 0:
+			// Root commit — free the lane
+			lanes[myLane] = ""
 
-			// opening curve: walk branch down to find divergence point
-			mainLane := mainLaneSet(c.Parents[0], rowOf, commits)
-			currentHash := parent
-			for {
-				row, ok := rowOf[currentHash]
-				if !ok {
+		case 1:
+			// Normal commit — pass lane straight down to parent
+			lanes[myLane] = c.Parents[0]
+
+			if parentRow, ok := rowOf[c.Parents[0]]; ok {
+				result[i].Paths = append(result[i].Paths, Path{
+					FromLane: myLane, ToLane: myLane,
+					FromRow: i, ToRow: parentRow,
+					Color: laneColor(myLane),
+					Type:  "straight",
+				})
+			}
+
+		default:
+			// Merge commit — first parent keeps lane, second spawns new lane
+			lanes[myLane] = c.Parents[0]
+
+			// straight line to first parent
+			if parentRow, ok := rowOf[c.Parents[0]]; ok {
+				result[i].Paths = append(result[i].Paths, Path{
+					FromLane: myLane, ToLane: myLane,
+					FromRow: i, ToRow: parentRow,
+					Color: laneColor(myLane),
+					Type:  "straight",
+				})
+			}
+
+			// curved line to second parent
+			branchLane := -1
+			for li, h := range lanes {
+				if h == c.Parents[1] {
+					branchLane = li
 					break
 				}
-				commit := commits[row]
-				if len(commit.Parents) == 0 {
-					break
-				}
-				nextHash := commit.Parents[0]
-				if _, ok := rowOf[nextHash]; !ok {
-					break
-				}
-				if mainLane[nextHash] {
-					nextRow := rowOf[nextHash]
+			}
+			if branchLane == -1 {
+				branchLane = freeLane()
+				lanes[branchLane] = c.Parents[1]
+			}
 
-					// mark last branch commit — don't emit straight path for it
-					skipStraight[row] = true
-
-					// initialize divergence point if not yet processed
-					if result[nextRow] == nil {
-						result[nextRow] = &LaidOutCommit{
-							Commit: commits[nextRow],
-							Lane:   myLane,
-							Color:  laneColor(myLane),
-						}
-					}
-
-					// emit opening curve from divergence point up to last branch commit
-					result[nextRow].Paths = append(result[nextRow].Paths, Path{
-						FromLane: myLane,
-						ToLane:   branchLane,
-						FromRow:  nextRow,
-						ToRow:    row,
-						Color:    laneColor(branchLane),
-						Type:     "curve",
-					})
-					break
-				}
-				currentHash = nextHash
+			if parentRow, ok := rowOf[c.Parents[1]]; ok {
+				result[i].Paths = append(result[i].Paths, Path{
+					FromLane: myLane, ToLane: branchLane,
+					FromRow: i, ToRow: parentRow,
+					Color: laneColor(branchLane),
+					Type:  "curve",
+				})
 			}
 		}
 	}
 
 	return result
-}
-
-func pathTo(fromRow int, rowOf map[string]int, fromLane, toLane int, parentHash string) Path {
-	toRow, ok := rowOf[parentHash]
-	if !ok {
-		return Path{}
-	}
-	pathType := "straight"
-	if fromLane != toLane {
-		pathType = "curve"
-	}
-	return Path{
-		FromLane: fromLane, ToLane: toLane,
-		FromRow: fromRow, ToRow: toRow,
-		Color: laneColor(toLane),
-		Type:  pathType,
-	}
 }

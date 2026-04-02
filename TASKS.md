@@ -88,15 +88,14 @@ Check off items as they're completed and verified working.
 
 ## Post-v0.1 backlog (do not start until v0.1 is shipped)
 
-### v0.2.0 — "See Your Changes"
-- [ ] Wire `commit` command — staged paths + message → Go, implement in handler.go
-- [ ] Diff view when file row is clicked in sidebar (`// TODO: open diff view` in Sidebar.svelte)
-- [ ] Stage / unstage files from sidebar
-- [ ] Staged diff view in main panel
-- [ ] Unstaged diff view
-- [ ] Push / Pull buttons with error display
-- [ ] Infinite scroll (load more commits on demand)
-- [ ] Split `panel.ts` into separate files per panel
+- [ ] Staged diff view
+- [ ] Split webview into index.html + index.js, use asWebviewUri, proper nonce CSP
+- [ ] Unstaged diff view  
+- [ ] Stage / unstage files
+- [ ] Commit from extension
+- [ ] Infinite scroll (load more commits)
+
+## v0.3.0 (future)
 
 ### v0.3.0 — "Power Features"
 - [ ] Stash UI in sidebar (all IPC commands exist, Svelte UI missing)
