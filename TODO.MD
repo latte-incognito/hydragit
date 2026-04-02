@@ -6,6 +6,7 @@
 - **Clean up TODOs from code** — Before anything goes public. Dead comments erode trust in the codebase.
 - **Remove top panel (HydraGit logo, fetch/pull/push)** — Visual noise reduction. Easy delete.
 - **Move bottom panel data to VS Code-style status bar** — Follows a known mental model, cleans up layout.
+- **Check the gitgraph** after merging master into develop and then back, important one compare with pycharm graph for correctness.
 
 ## 🔵 Do Soon — Important, moderate effort
 
