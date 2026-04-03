@@ -7,7 +7,7 @@
 - **Remove top panel (HydraGit logo, fetch/pull/push)** — Visual noise reduction. Easy delete.
 - **Move bottom panel data to VS Code-style status bar** — Follows a known mental model, cleans up layout.
 - **Check the gitgraph** after merging master into develop and then back, important one compare with pycharm graph for correctness.
-- **he editor could not be opened because the file was not found.** fix the bug wher editor can't find inital file, just show empty editor for previous version or only final version
+
 
 ## 🔵 Do Soon — Important, moderate effort
 

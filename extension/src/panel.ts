@@ -64,27 +64,59 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     webviewView.onDidDispose(() => this.watcher?.dispose());
   }
 
-  private async openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
-    const { commit, parent, file } = params;
-    const title = `${path.basename(file)} (${commit.slice(0, 7)})`;
-
+ private async fileExistsAtRef(absPath: string, ref: string): Promise<boolean> {
+  try {
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const exec = promisify(execFile);
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-    const absPath = path.join(workspaceRoot, file);
-
-    const gitUri = (ref: string) =>
-      vscode.Uri.parse(`git:${absPath}`).with({
-        query: JSON.stringify({ path: absPath, ref }),
-      });
-
-    const after = gitUri(commit);
-
-    // first commit has no parent — diff against empty tree
-    const before = parent
-      ? gitUri(parent)
-      : gitUri('0000000000000000000000000000000000000000');
-
-    await vscode.commands.executeCommand('vscode.diff', before, after, title);
+    // git cat-file -e <ref>:<relative-path> exits 0 if exists, non-zero if not
+    const relPath = path.relative(workspaceRoot, absPath);
+    await exec('git', ['cat-file', '-e', `${ref}:${relPath}`], { cwd: workspaceRoot });
+    return true;
+  } catch {
+    return false;
   }
+}
+
+private async openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
+  const { commit, parent, file } = params;
+  const title = `${path.basename(file)} (${commit.slice(0, 7)})`;
+
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const absPath = path.join(workspaceRoot, file);
+
+  const gitUri = (ref: string) =>
+    vscode.Uri.parse(`git:${absPath}`).with({
+      query: JSON.stringify({ path: absPath, ref }),
+    });
+
+  const [existsInParent, existsInCommit] = await Promise.all([
+    parent ? this.fileExistsAtRef(absPath, parent) : Promise.resolve(false),
+    this.fileExistsAtRef(absPath, commit),
+  ]);
+
+  if (!existsInParent && !existsInCommit) {
+    // Shouldn't happen, but guard anyway
+    vscode.window.showWarningMessage(`Cannot show diff: file not found at either ref.`);
+    return;
+  }
+
+  if (!existsInParent) {
+    // File was added — show read-only view of the new file
+    await vscode.commands.executeCommand('vscode.open', gitUri(commit), { preview: true }, title);
+    return;
+  }
+
+  if (!existsInCommit) {
+    // File was deleted — show read-only view of what was there before
+    await vscode.commands.executeCommand('vscode.open', gitUri(parent), { preview: true }, `${title} (deleted)`);
+    return;
+  }
+
+  // Normal case — both sides exist
+  await vscode.commands.executeCommand('vscode.diff', gitUri(parent), gitUri(commit), title);
+}
 
   focus(): void {
     vscode.commands.executeCommand('hydragit.mainView.focus');
