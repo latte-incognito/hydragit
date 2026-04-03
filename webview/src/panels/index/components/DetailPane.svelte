@@ -80,6 +80,22 @@
     }
     compress(root);
 
+    // Sort every folder: sub-folders first (alpha), then files (alpha)
+    function sortChildren(node: TreeFolder): void {
+      node.children.sort((a, b) => {
+        const aIsFolder = a.kind === 'folder';
+        const bIsFolder = b.kind === 'folder';
+        if (aIsFolder !== bIsFolder) return aIsFolder ? -1 : 1;
+        const aName = a.kind === 'folder' ? a.label : a.file.path.split('/').pop() ?? a.file.path;
+        const bName = b.kind === 'folder' ? b.label : b.file.path.split('/').pop() ?? b.file.path;
+        return aName.localeCompare(bName);
+      });
+      for (const c of node.children) {
+        if (c.kind === 'folder') sortChildren(c);
+      }
+    }
+    sortChildren(root);
+
     return root;
   }
 
@@ -101,11 +117,9 @@
   function collapseAll() {
     const keys = new Set<string>();
     function walk(node: TreeFolder) {
+      if (node.fullPath !== '') keys.add(node.fullPath); // add every folder including root
       for (const c of node.children) {
-        if (c.kind === 'folder') {
-          if (c.fullPath !== '__root__') keys.add(c.fullPath);
-          walk(c);
-        }
+        if (c.kind === 'folder') walk(c);
       }
     }
     walk(tree);
@@ -166,6 +180,27 @@
     });
   }
 
+  // ── Tooltip ───────────────────────────────────────────────────────────────
+  let tipText = '';
+  let tipX = 0;
+  let tipY = 0;
+  let tipVisible = false;
+  let tipTimer: ReturnType<typeof setTimeout>;
+
+  function showTip(e: MouseEvent, text: string) {
+    clearTimeout(tipTimer);
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    tipText = text;
+    tipX = rect.left + rect.width / 2;
+    tipY = rect.top - 6;
+    tipTimer = setTimeout(() => { tipVisible = true; }, 400);
+  }
+
+  function hideTip() {
+    clearTimeout(tipTimer);
+    tipVisible = false;
+  }
+
   // ── Context menu ──────────────────────────────────────────────────────────
   let ctxVisible = false;
   let ctxX = 0;
@@ -189,6 +224,11 @@
 </script>
 
 <svelte:window on:keydown={onKeyDown} />
+
+<!-- Fixed tooltip -->
+{#if tipVisible}
+  <div class="hg-tooltip" style="left:{tipX}px;top:{tipY}px">{tipText}</div>
+{/if}
 
 <!-- Context menu overlay -->
 {#if ctxVisible}
@@ -232,16 +272,32 @@
             <span class="tree-count">
               {files.length} file{files.length !== 1 ? 's' : ''} changed
             </span>
-            <button class="tt-btn" title="Expand all" on:click={expandAll}>
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                <path d="M2 3h8M2 6h8M2 9h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-              </svg>
-            </button>
-            <button class="tt-btn" title="Collapse all" on:click={collapseAll}>
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                <path d="M2 6h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-              </svg>
-            </button>
+            <div class="tt-wrap">
+              <button
+                class="tt-btn"
+                aria-label="Expand all"
+                on:click={expandAll}
+                on:mouseenter={e => showTip(e, 'Expand all')}
+                on:mouseleave={hideTip}
+              >
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 3h8M2 6h8M2 9h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div class="tt-wrap">
+              <button
+                class="tt-btn"
+                aria-label="Collapse all"
+                on:click={collapseAll}
+                on:mouseenter={e => showTip(e, 'Collapse all')}
+                on:mouseleave={hideTip}
+              >
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <!-- Tree -->
@@ -408,25 +464,44 @@
   .tree-toolbar {
     display: flex;
     align-items: center;
-    padding: 4px 8px;
-    border-bottom: 0.5px solid var(--vscode-panel-border, #2a2a2a);
-    background: var(--vscode-sideBarSectionHeader-background, #1e3a3a);
+    height: 22px;
+    padding: 0 8px;
+    border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
+    background: var(--vscode-sideBarSectionHeader-background, #222);
     flex-shrink: 0;
     gap: 2px;
   }
   .tree-count {
     flex: 1;
     font-size: var(--hg-font-xxs);
-    color: var(--vscode-descriptionForeground, #888);
+    color: var(--vscode-disabledForeground, #3a3a3a);
     font-family: var(--hg-font-family);
+  }
+  .tt-wrap {
+    display: flex;
+    align-items: center;
+  }
+  .hg-tooltip {
+    position: fixed;
+    transform: translate(-50%, -100%);
+    background: var(--vscode-editorHoverWidget-background, #252526);
+    border: 0.5px solid var(--vscode-editorHoverWidget-border, #454545);
+    color: var(--vscode-editorHoverWidget-foreground, #ccc);
+    font-size: var(--hg-font-xxs);
+    font-family: var(--hg-font-family);
+    white-space: nowrap;
+    padding: 3px 7px;
+    border-radius: 3px;
+    pointer-events: none;
+    z-index: 200;
   }
   .tt-btn {
     background: none;
     border: none;
-    padding: 3px 4px;
+    padding: 2px 4px;
     border-radius: 3px;
     cursor: pointer;
-    color: var(--vscode-descriptionForeground, #888);
+    color: var(--vscode-disabledForeground, #3a3a3a);
     display: flex;
     align-items: center;
     line-height: 1;
