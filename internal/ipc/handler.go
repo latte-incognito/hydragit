@@ -1,6 +1,8 @@
 package ipc
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"time"
 
@@ -30,20 +32,38 @@ func fail(id string, err error) Response {
 	return Response{ID: id, OK: false, Error: err.Error()}
 }
 
+// logSilentCmds suppresses IPC request/response logging for high-frequency
+// commands. Errors are always logged regardless of this map.
+var logSilentCmds = map[string]bool{
+	"status": true,
+}
+
+// lastStatusHash tracks the last seen status payload to log only on change.
+var lastStatusHash string
+
 func Handle(repoPath string, req Request) Response {
 	id := req.ID
 	start := time.Now()
+	silent := logSilentCmds[req.Cmd]
 
-	logger.IPCRequest(id, req.Cmd)
+	if !silent {
+		logger.IPCRequest(id, req.Cmd)
+	}
 
 	resp := handle(repoPath, req)
 
 	durationMs := time.Since(start).Milliseconds()
-	errMsg := ""
-	if !resp.OK {
-		errMsg = resp.Error
+
+	if !silent {
+		errMsg := ""
+		if !resp.OK {
+			errMsg = resp.Error
+		}
+		logger.IPCResponse(id, req.Cmd, resp.OK, durationMs, errMsg)
+	} else if !resp.OK {
+		// silent cmd errored — always surface errors
+		logger.IPCResponse(id, req.Cmd, false, durationMs, resp.Error)
 	}
-	logger.IPCResponse(id, req.Cmd, resp.OK, durationMs, errMsg)
 
 	return resp
 }
@@ -63,6 +83,15 @@ func handle(repoPath string, req Request) Response {
 		if err != nil {
 			return fail(id, err)
 		}
+		// Only log when status actually changes
+		b, _ := json.Marshal(s)
+		sum := sha256.Sum256(b)
+		h := hex.EncodeToString(sum[:8])
+		if h != lastStatusHash {
+			lastStatusHash = h
+			logger.Info("status", "status changed")
+		}
+
 		return ok(id, s)
 
 	case "branches":
