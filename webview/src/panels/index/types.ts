@@ -21,6 +21,7 @@ export interface Commit {
 
 export interface DiffFile {
   path: string;
+  oldPath?: string;  // set for R (renamed) and C (copied) — the previous path
   status: string;
   additions: number;
   deletions: number;
