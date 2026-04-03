@@ -247,31 +247,30 @@
           <!-- Tree -->
           <div class="tree-body" on:contextmenu={showCtx}>
             {#snippet renderFolder(node, depth)}
-              {#if node.fullPath !== '__root__'}
-                <!-- Folder row -->
-                <!-- svelte-ignore a11y-click-events-have-key-events -->
-                <!-- svelte-ignore a11y-no-static-element-interactions -->
-                <div
-                  class="tree-row tree-row--folder"
-                  style="padding-left:{8 + depth * 14}px"
-                  on:click={() => toggleFolder(node.fullPath)}
-                  on:contextmenu={showCtx}
-                >
-                  <svg class="chevron" class:open={!collapsed.has(node.fullPath)} width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path d="M3 2l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                  <svg class="folder-icon" width="13" height="12" viewBox="0 0 14 13" fill="none">
-                    <path d="M1 4a1 1 0 011-1h3l1 1.5H12a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1V4z" stroke="currentColor" stroke-width="1.1"/>
-                  </svg>
-                  <span class="folder-label">{node.label}</span>
-                  <span class="folder-count">{countFiles(node)}</span>
-                </div>
-              {/if}
+              <!-- Folder row — always render, including root -->
+              <!-- svelte-ignore a11y-click-events-have-key-events -->
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <div
+                class="tree-row tree-row--folder"
+                class:tree-row--root={node.fullPath === '__root__'}
+                style="padding-left:{8 + depth * 14}px"
+                on:click={() => toggleFolder(node.fullPath)}
+                on:contextmenu={showCtx}
+              >
+                <svg class="chevron" class:open={!collapsed.has(node.fullPath)} width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M3 2l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <svg class="folder-icon" width="13" height="12" viewBox="0 0 14 13" fill="none">
+                  <path d="M1 4a1 1 0 011-1h3l1 1.5H12a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1V4z" stroke="currentColor" stroke-width="1.1"/>
+                </svg>
+                <span class="folder-label">{node.label}</span>
+                <span class="folder-count">{countFiles(node)}</span>
+              </div>
 
-              {#if node.fullPath === '__root__' || !collapsed.has(node.fullPath)}
+              {#if !collapsed.has(node.fullPath)}
                 {#each node.children as child}
                   {#if child.kind === 'folder'}
-                    {@render renderFolder(child, node.fullPath === '__root__' ? 0 : depth + 1)}
+                    {@render renderFolder(child, depth + 1)}
                   {:else}
                     <!-- File row -->
                     {@const f = child.file}
@@ -284,7 +283,7 @@
                     <div
                       class="tree-row tree-row--file"
                       class:selected={selFile === f.path}
-                      style="padding-left:{8 + (node.fullPath === '__root__' ? 0 : depth + 1) * 14}px"
+                      style="padding-left:{8 + (depth + 1) * 14}px"
                       on:click={() => onSelectFile(f.path)}
                       on:dblclick={() => openDiff(f.path)}
                       on:contextmenu={showCtx}
@@ -411,7 +410,7 @@
     align-items: center;
     padding: 4px 8px;
     border-bottom: 0.5px solid var(--vscode-panel-border, #2a2a2a);
-    background: var(--vscode-sideBar-background, #252526);
+    background: var(--vscode-sideBarSectionHeader-background, #1e3a3a);
     flex-shrink: 0;
     gap: 2px;
   }
