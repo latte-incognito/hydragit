@@ -81,6 +81,15 @@
     </svg>
   </button>
 
+  <button class="rail-btn danger" on:click={() => onAction('branch.delete')}
+          on:mouseenter={(e) => showTip(e, 'Delete branch')} on:mouseleave={hideTip}>
+    <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
+      <path d="M3 3h8M5 3V2h4v1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M5.5 6v4M8.5 6v4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      <path d="M4 3l.7 8h4.6L10 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </button>
+
   <div class="rail-sep"></div>
 
   <!-- Group 3: stash / tag -->
@@ -133,6 +142,15 @@
   .rail-btn:hover {
     background: var(--vscode-list-hoverBackground, #2a2d2e);
     color: var(--vscode-foreground, #ccc);
+  }
+  .rail-btn.danger {
+    color: var(--vscode-errorForeground, #f07070);
+    opacity: 0.5;
+  }
+  .rail-btn.danger:hover {
+    background: rgba(240, 112, 112, 0.1);
+    color: var(--vscode-errorForeground, #f07070);
+    opacity: 1;
   }
   .rail-btn.pending {
     color: #56c8e8;

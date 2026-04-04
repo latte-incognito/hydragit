@@ -15,21 +15,53 @@ type Commit struct {
 	Refs    []string `json:"refs"`
 }
 
-// LogFile returns all commits that touched the given file path, following
-// renames across history. Equivalent to: git log --follow -- <path>
+// LogFile returns all commits that touched the given file path or pattern.
+//
+// Exact paths (no wildcards, has extension dot): uses --follow to track renames.
+// Partial names / globs (e.g. "DetailPane", "*.md", "*.go"): uses --all with
+// git's built-in glob matching via the pathspec magic prefix :(glob).
 func LogFile(repoPath, filePath string) ([]Commit, error) {
 	sep := "\x1f"
 	format := strings.Join([]string{"%H", "%P", "%an", "%aI", "%s", "%D"}, sep)
 
-	out, err := run(repoPath,
-		"log",
-		"--topo-order",
-		"--follow",
-		"--format="+format,
-		"--date=iso-strict",
-		"--",
-		filePath,
-	)
+	// Detect whether this looks like a glob/partial pattern.
+	// Treat it as a glob if it contains * or ? or has no path separator and no dot
+	// (e.g. "DetailPane" → partial name match across all extensions).
+	isGlob := strings.ContainsAny(filePath, "*?") ||
+		(!strings.Contains(filePath, "/") && !strings.Contains(filePath, "."))
+
+	var args []string
+	if isGlob {
+		// Glob / partial: no --follow (incompatible), search all history,
+		// wrap in :(glob)*pattern* so git matches anywhere in the path.
+		pattern := filePath
+		if !strings.ContainsAny(filePath, "*?") {
+			// Plain partial name like "DetailPane" → match anywhere in path
+			pattern = "*" + filePath + "*"
+		}
+		args = []string{
+			"log",
+			"--all",
+			"--topo-order",
+			"--format=" + format,
+			"--date=iso-strict",
+			"--",
+			":(glob)" + pattern,
+		}
+	} else {
+		// Exact path: use --follow to track renames across history.
+		args = []string{
+			"log",
+			"--topo-order",
+			"--follow",
+			"--format=" + format,
+			"--date=iso-strict",
+			"--",
+			filePath,
+		}
+	}
+
+	out, err := run(repoPath, args...)
 	if err != nil {
 		return nil, err
 	}

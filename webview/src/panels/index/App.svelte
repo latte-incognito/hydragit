@@ -261,6 +261,45 @@
       }
       return;
     }
+    if (a === 'branch.delete') {
+      // Use VS Code's showWarningMessage for a native confirmation dialog
+      // We can't call VS Code APIs directly from the webview, so we send a
+      // special command to the extension host which shows the dialog and
+      // only deletes if confirmed.
+      const name = prompt(`Delete branch — enter branch name (cannot delete current branch):`);
+      if (!name) return;
+      if (name === activeBranch) {
+        flash(`Cannot delete the current branch: ${name}`, '#f07070');
+        return;
+      }
+      // Two-step confirmation: native confirm() as the webview-accessible fallback
+      const confirmed = confirm(
+        `Delete branch "${name}"?\n\nThis cannot be undone. The branch will be deleted locally.`
+      );
+      if (!confirmed) return;
+      flash(`Deleting ${name}…`);
+      try {
+        await send('branch.delete', { name, force: false });
+        flash(`Deleted ${name}`, '#4ec94e');
+        loadAll();
+      } catch (e: unknown) {
+        // Likely "not fully merged" — offer force delete
+        const msg = e instanceof Error ? e.message : String(e);
+        const force = confirm(
+          `Could not delete "${name}":\n${msg}\n\nForce delete? (data may be lost)`
+        );
+        if (force) {
+          try {
+            await send('branch.delete', { name, force: true });
+            flash(`Force deleted ${name}`, '#4ec94e');
+            loadAll();
+          } catch (e2: unknown) {
+            flash('Force delete failed: ' + (e2 instanceof Error ? e2.message : String(e2)), '#f07070');
+          }
+        }
+      }
+      return;
+    }
     if (a === 'merge') {
       const target = prompt('Merge branch into current — branch name:');
       if (target) {
@@ -377,6 +416,7 @@
     {repoName}
     {iconUri}
     {activeBranch}
+    {branches}
     {hasPending}
     {allBranches}
     {searchMode}
@@ -385,6 +425,7 @@
     onSearch={handleSearch}
     onModeChange={handleModeChange}
     onAllBranches={handleAllBranches}
+    onSelectBranch={selectBranch}
   />
 
   <div class="main">
