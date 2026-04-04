@@ -1,0 +1,10 @@
+node_modules/
+extension/node_modules/
+out/
+dist/
+*.vsix
+*.go
+.vscode-test/
+docs/
+*.md
+*.MD

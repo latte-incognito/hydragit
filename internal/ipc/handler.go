@@ -1,10 +1,14 @@
 package ipc
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"time"
 
 	"hydragit/internal/git"
 	"hydragit/internal/graph"
+	"hydragit/internal/logger"
 )
 
 type Request struct {
@@ -28,7 +32,45 @@ func fail(id string, err error) Response {
 	return Response{ID: id, OK: false, Error: err.Error()}
 }
 
+// logSilentCmds suppresses IPC request/response logging for high-frequency
+// commands. Errors are always logged regardless of this map.
+var logSilentCmds = map[string]bool{
+	"status": true,
+}
+
+// lastStatusHash tracks the last seen status payload to log only on change.
+var lastStatusHash string
+
 func Handle(repoPath string, req Request) Response {
+	id := req.ID
+	start := time.Now()
+	silent := logSilentCmds[req.Cmd]
+
+	if !silent {
+		logger.IPCRequest(id, req.Cmd)
+	}
+
+	resp := handle(repoPath, req)
+
+	durationMs := time.Since(start).Milliseconds()
+
+	if !silent {
+		errMsg := ""
+		if !resp.OK {
+			errMsg = resp.Error
+		}
+		logger.IPCResponse(id, req.Cmd, resp.OK, durationMs, errMsg)
+	} else if !resp.OK {
+		// silent cmd errored — always surface errors
+		logger.IPCResponse(id, req.Cmd, false, durationMs, resp.Error)
+	}
+
+	return resp
+}
+
+// handle contains the actual dispatch logic, kept separate so Handle() can
+// wrap it cleanly with timing and logging.
+func handle(repoPath string, req Request) Response {
 	id := req.ID
 
 	switch req.Cmd {
@@ -41,6 +83,15 @@ func Handle(repoPath string, req Request) Response {
 		if err != nil {
 			return fail(id, err)
 		}
+		// Only log when status actually changes
+		b, _ := json.Marshal(s)
+		sum := sha256.Sum256(b)
+		h := hex.EncodeToString(sum[:8])
+		if h != lastStatusHash {
+			lastStatusHash = h
+			logger.Info("status", "status changed")
+		}
+
 		return ok(id, s)
 
 	case "branches":
@@ -93,7 +144,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, entries)
 
 	case "stash.pop":
-		var p struct{ Index int `json:"index"` }
+		var p struct {
+			Index int `json:"index"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.StashPop(repoPath, p.Index); err != nil {
 			return fail(id, err)
@@ -101,7 +154,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "stash.apply":
-		var p struct{ Index int `json:"index"` }
+		var p struct {
+			Index int `json:"index"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.StashApply(repoPath, p.Index); err != nil {
 			return fail(id, err)
@@ -109,7 +164,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "stash.drop":
-		var p struct{ Index int `json:"index"` }
+		var p struct {
+			Index int `json:"index"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.StashDrop(repoPath, p.Index); err != nil {
 			return fail(id, err)
@@ -117,7 +174,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "stash.show":
-		var p struct{ Index int `json:"index"` }
+		var p struct {
+			Index int `json:"index"`
+		}
 		json.Unmarshal(req.Params, &p)
 		hunks, err := git.StashShow(repoPath, p.Index)
 		if err != nil {
@@ -126,7 +185,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, hunks)
 
 	case "stash.save":
-		var p struct{ Message string `json:"message"` }
+		var p struct {
+			Message string `json:"message"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.StashSave(repoPath, p.Message); err != nil {
 			return fail(id, err)
@@ -134,7 +195,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "checkout":
-		var p struct{ Branch string `json:"branch"` }
+		var p struct {
+			Branch string `json:"branch"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Checkout(repoPath, p.Branch); err != nil {
 			return fail(id, err)
@@ -175,7 +238,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "merge":
-		var p struct{ Branch string `json:"branch"` }
+		var p struct {
+			Branch string `json:"branch"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Merge(repoPath, p.Branch); err != nil {
 			return fail(id, err)
@@ -183,7 +248,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "rebase":
-		var p struct{ Onto string `json:"onto"` }
+		var p struct {
+			Onto string `json:"onto"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Rebase(repoPath, p.Onto); err != nil {
 			return fail(id, err)
@@ -203,7 +270,9 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "push":
-		var p struct{ Branch string `json:"branch"` }
+		var p struct {
+			Branch string `json:"branch"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Push(repoPath, p.Branch); err != nil {
 			return fail(id, err)
@@ -211,15 +280,43 @@ func Handle(repoPath string, req Request) Response {
 		return ok(id, nil)
 
 	case "cherrypick":
-		var p struct{ Commit string `json:"commit"` }
+		var p struct {
+			Commit string `json:"commit"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.CherryPick(repoPath, p.Commit); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)
 
+	case "commit":
+		var p struct {
+			Message string   `json:"message"`
+			Paths   []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		result, err := git.CreateCommit(repoPath, p.Message, p.Paths)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, result)
+
+	case "commit.push":
+		var p struct {
+			Message string   `json:"message"`
+			Paths   []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		result, err := git.CommitAndPush(repoPath, p.Message, p.Paths)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, result)
+
 	case "revert":
-		var p struct{ Commit string `json:"commit"` }
+		var p struct {
+			Commit string `json:"commit"`
+		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Revert(repoPath, p.Commit); err != nil {
 			return fail(id, err)

@@ -1,12 +1,44 @@
+# ── Source & dev files ────────────────────────────────────────────
+.claude/
+.idea/
+.gitignore
+.prettierignore
+.prettierrc
+
+# Docs / notes
+CLAUDE.md
+TODO.md
+TODO.MD
+TASKS.md
+SECURITY.md
+DISTRIBUTION.md
+docs/
+
+# Go source
 cmd/
 internal/
 go.mod
 go.sum
-extension/src/
-extension/node_modules/
+tools/
+
+# Build config
 Makefile
+tsconfig.json
+tsconfig.node.json
+vite.config.ts
+svelte.config.js
+svelte.config.mjs
+
+# ── TypeScript source (keep only compiled output) ──────────────────
+extension/src/
+extension/tsconfig.json
+extension/node_modules/
 **/*.ts
 !extension/out/**
-**/.git
-docs/
-TASKS.md
+
+# ── Webview source (keep only compiled output) ─────────────────────
+webview/src/
+webview/node_modules/
+
+# ── Node modules ───────────────────────────────────────────────────
+node_modules/

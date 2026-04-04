@@ -2,29 +2,104 @@
   "name": "hydragit",
   "displayName": "HydraGit",
   "description": "The git panel IntelliJ has, inside VS Code. No paywall.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "vkushnarenko",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/latte-incognito/hydragit.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["SCM Providers"],
-  "activationEvents": [],
+  "categories": [
+    "SCM Providers"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onStartupFinished"
+  ],
   "main": "./extension/out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "hydragit.open",
-        "title": "HydraGit: Open"
+        "command": "hydragit.showVersionInfo",
+        "title": "HydraGit: Show Version Info"
+      },
+      {
+        "command": "hydragit.openLogs",
+        "title": "HydraGit: Open Logs Folder"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "hydragit",
+          "title": "HydraGit",
+          "icon": "images/icon-tight.png",
+          "command": "hydragit.revealAll"
+        }
+      ],
+      "panel": [
+        {
+          "id": "hydragit-panel",
+          "title": "HydraGit",
+          "icon": "images/icon-tight.png"
+        }
+      ]
+    },
+    "views": {
+      "hydragit": [
+        {
+          "id": "hydragit.sidebarView",
+          "name": "HydraGit",
+          "type": "webview"
+        },
+        {
+          "id": "hydragit.badgeCarrier",
+          "name": "Status",
+          "when": "false"
+        }
+      ],
+      "hydragit-panel": [
+        {
+          "id": "hydragit.mainView",
+          "name": "HydraGit",
+          "type": "webview"
+        }
+      ]
+    }
   },
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run --reporter=verbose",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
     "compile": "tsc -p ./extension/tsconfig.json",
-    "watch": "tsc -watch -p ./extension/tsconfig.json"
+    "watch": "tsc -watch -p ./extension/tsconfig.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@happy-dom/global-registrator": "^20.8.9",
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/svelte": "^5.3.1",
+    "@types/node": "^25.0.0",
     "@types/vscode": "^1.85.0",
-    "typescript": "^5.3.0"
+    "@vitest/ui": "^4.1.2",
+    "happy-dom": "^20.8.9",
+    "jsdom": "^29.0.1",
+    "prettier": "^3.8.1",
+    "prettier-plugin-svelte": "^3.5.1",
+    "svelte": "^5.55.0",
+    "svelte-check": "^4.4.5",
+    "tslib": "^2.8.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.2"
   }
 }

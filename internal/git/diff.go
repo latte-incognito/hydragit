@@ -7,14 +7,15 @@ import (
 
 type FileStat struct {
 	Path      string `json:"path"`
+	OldPath   string `json:"oldPath,omitempty"` // set for renames: the previous path
 	Status    string `json:"status"`
 	Additions int    `json:"additions"`
 	Deletions int    `json:"deletions"`
 }
 
 type Hunk struct {
-	Header  string     `json:"header"`
-	Lines   []HunkLine `json:"lines"`
+	Header string     `json:"header"`
+	Lines  []HunkLine `json:"lines"`
 }
 
 type HunkLine struct {
@@ -27,32 +28,100 @@ type DiffResult struct {
 	Hunks []Hunk     `json:"hunks"`
 }
 
-// DiffCommit returns file stats for a commit.
+// DiffCommit returns file stats for a commit with correct status letters.
+//
+// Strategy: run diff-tree twice in one shot using NUL-delimited output isn't
+// straightforward, so we run two passes and zip by index — both flags produce
+// output in the same order for the same commit.
+//
+//  1. --name-status  → status letter (M/A/D/R/C/T) + path(s)
+//  2. --numstat      → additions + deletions + path(s)
 func DiffCommit(repoPath, commit string) ([]FileStat, error) {
-	out, err := run(repoPath, "diff-tree", "--no-commit-id", "-r", "--numstat", commit)
+	// Pass 1: name-status gives us the status letter and paths.
+	// Renamed/copied files produce two tab-separated paths.
+	nsOut, err := run(repoPath, "diff-tree", "--no-commit-id", "-r",
+		"-M", // detect renames
+		"-C", // detect copies
+		"--name-status", commit)
 	if err != nil {
 		return nil, err
 	}
-	if out == "" {
-		return []FileStat{}, nil
+
+	// Pass 2: numstat gives us addition/deletion counts.
+	// Renamed files appear as "N\tM\told\tnew" (two path columns).
+	numOut, err := run(repoPath, "diff-tree", "--no-commit-id", "-r",
+		"-M",
+		"-C",
+		"--numstat", commit)
+	if err != nil {
+		return nil, err
 	}
 
-	var files []FileStat
-	for _, line := range strings.Split(out, "\n") {
+	// Parse name-status lines into ordered entries.
+	type nsEntry struct {
+		status  string
+		path    string // new path (or only path)
+		oldPath string // only for R/C
+	}
+
+	var nsEntries []nsEntry
+	for _, line := range strings.Split(nsOut, "\n") {
 		if line == "" {
 			continue
 		}
-		parts := strings.Fields(line)
+		parts := strings.Split(line, "\t")
+		if len(parts) < 2 {
+			continue
+		}
+		// Status may have a similarity score suffix: "R95" → "R"
+		status := string(parts[0][0])
+		entry := nsEntry{status: status}
+		if (status == "R" || status == "C") && len(parts) >= 3 {
+			entry.oldPath = parts[1]
+			entry.path = parts[2]
+		} else {
+			entry.path = parts[1]
+		}
+		nsEntries = append(nsEntries, entry)
+	}
+
+	// Parse numstat lines — order matches name-status exactly.
+	type numEntry struct {
+		add int
+		del int
+	}
+	var numEntries []numEntry
+	for _, line := range strings.Split(numOut, "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "\t")
 		if len(parts) < 3 {
 			continue
 		}
+		// Binary files show "-" for counts.
 		add, _ := strconv.Atoi(parts[0])
 		del, _ := strconv.Atoi(parts[1])
+		numEntries = append(numEntries, numEntry{add: add, del: del})
+	}
+
+	// Zip the two slices. They must have the same length for a given commit;
+	// guard defensively in case of unexpected output.
+	count := len(nsEntries)
+	if len(numEntries) < count {
+		count = len(numEntries)
+	}
+
+	files := make([]FileStat, 0, count)
+	for i := 0; i < count; i++ {
+		ns := nsEntries[i]
+		num := numEntries[i]
 		files = append(files, FileStat{
-			Path:      parts[2],
-			Status:    "M",
-			Additions: add,
-			Deletions: del,
+			Path:      ns.path,
+			OldPath:   ns.oldPath,
+			Status:    ns.status,
+			Additions: num.add,
+			Deletions: num.del,
 		})
 	}
 	return files, nil

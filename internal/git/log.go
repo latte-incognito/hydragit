@@ -6,13 +6,6 @@ import (
 	"time"
 )
 
-type StatusResult struct {
-	Branch   string `json:"branch"`
-	Ahead    int    `json:"ahead"`
-	Behind   int    `json:"behind"`
-	Modified int    `json:"modified"`
-}
-
 type Commit struct {
 	Hash    string   `json:"hash"`
 	Parents []string `json:"parents"`
@@ -22,44 +15,93 @@ type Commit struct {
 	Refs    []string `json:"refs"`
 }
 
-func Status(repoPath string) (StatusResult, error) {
-	var res StatusResult
+// LogFile returns all commits that touched the given file path or pattern.
+//
+// Three cases:
+//  1. Path with directory separator (e.g. "webview/src/App.svelte"):
+//     uses --follow to track renames across history.
+//  2. Plain filename or extension with dot (e.g. "README.md", "DetailPane.svelte"):
+//     prepends "**/" so git matches the name anywhere in the tree.
+//  3. Explicit glob (contains * or ?): e.g. "*.md" becomes "**/*.md".
+func LogFile(repoPath, filePath string) ([]Commit, error) {
+	sep := "\x1f"
+	format := strings.Join([]string{"%H", "%P", "%an", "%aI", "%s", "%D"}, sep)
 
-	branch, err := run(repoPath, "rev-parse", "--abbrev-ref", "HEAD")
-	if err != nil {
-		return res, err
-	}
-	res.Branch = branch
+	hasGlob := strings.ContainsAny(filePath, "*?")
+	hasSlash := strings.ContainsAny(filePath, "/\\")
 
-	// ahead/behind vs upstream
-	ab, err := run(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD")
-	if err == nil {
-		parts := strings.Fields(ab)
-		if len(parts) == 2 {
-			res.Behind, _ = strconv.Atoi(parts[0])
-			res.Ahead, _ = strconv.Atoi(parts[1])
+	var args []string
+	if hasSlash && !hasGlob {
+		// Exact path — use --follow to track renames
+		args = []string{
+			"log", "--all", "--topo-order",
+			"--format=" + format, "--date=iso-strict",
+			"--follow", "--", filePath,
+		}
+	} else {
+		// Filename or glob — match anywhere in the tree via **/ prefix
+		pattern := filePath
+		if !hasGlob {
+			pattern = "**/" + filePath
+		} else if !hasSlash {
+			pattern = "**/" + filePath
+		}
+		args = []string{
+			"log", "--all", "--topo-order",
+			"--format=" + format, "--date=iso-strict",
+			"--", pattern,
 		}
 	}
 
-	// modified count (working tree + index, exclude untracked)
-	out, err := run(repoPath, "status", "--porcelain")
+	out, err := run(repoPath, args...)
 	if err != nil {
-		return res, err
+		return nil, err
 	}
-	if out != "" {
-		res.Modified = len(strings.Split(strings.TrimRight(out, "\n"), "\n"))
+	if out == "" {
+		return []Commit{}, nil
 	}
 
-	return res, nil
+	lines := strings.Split(out, "\n")
+	commits := make([]Commit, 0, len(lines))
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, sep, 6)
+		if len(parts) < 6 {
+			continue
+		}
+		c := Commit{
+			Hash:    parts[0],
+			Author:  parts[2],
+			Message: parts[4],
+		}
+		if t, err := time.Parse(time.RFC3339, parts[3]); err == nil {
+			c.Date = t.UTC().Format(time.RFC3339)
+		} else {
+			c.Date = parts[3]
+		}
+		if parts[1] != "" {
+			c.Parents = strings.Fields(parts[1])
+		}
+		if parts[5] != "" {
+			for _, ref := range strings.Split(parts[5], ",") {
+				if r := strings.TrimSpace(ref); r != "" {
+					c.Refs = append(c.Refs, r)
+				}
+			}
+		}
+		commits = append(commits, c)
+	}
+	return commits, nil
 }
-
-// Log returns up to limit commits on the given branch (all branches if branch=="").
 func Log(repoPath, branch string, limit int) ([]Commit, error) {
 	sep := "\x1f"
 	format := strings.Join([]string{"%H", "%P", "%an", "%aI", "%s", "%D"}, sep)
 
 	args := []string{
 		"log",
+		"--topo-order", // ← add this
 		"--format=" + format,
 		"--date=iso-strict",
 	}
