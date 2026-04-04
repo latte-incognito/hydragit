@@ -100,12 +100,28 @@
   }
 
   // ── Commit ─────────────────────────────────────────────────────────────────
+  let commitError = '';
+
   async function handleCommit(msg: string) {
-    // TODO: await send('commit', { message: msg, paths: [...stagedPaths] })
+    commitError = '';
+    try {
+      await send('commit', { message: msg, paths: [...stagedPaths] });
+      stagedPaths = new Set();
+      loadChanges();
+    } catch (e: unknown) {
+      commitError = e instanceof Error ? e.message : String(e);
+    }
   }
 
   async function handleCommitPush(msg: string) {
-    // TODO: await send('commit', { message: msg, paths: [...stagedPaths], push: true })
+    commitError = '';
+    try {
+      await send('commit.push', { message: msg, paths: [...stagedPaths] });
+      stagedPaths = new Set();
+      loadChanges();
+    } catch (e: unknown) {
+      commitError = e instanceof Error ? e.message : String(e);
+    }
   }
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -142,6 +158,7 @@
 <CommitArea
   hasFiles={files.length > 0}
   {stagedCount}
+  error={commitError}
   onCommit={handleCommit}
   onCommitPush={handleCommitPush}
 />

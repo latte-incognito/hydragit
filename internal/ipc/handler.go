@@ -289,6 +289,30 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "commit":
+		var p struct {
+			Message string   `json:"message"`
+			Paths   []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		result, err := git.CreateCommit(repoPath, p.Message, p.Paths)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, result)
+
+	case "commit.push":
+		var p struct {
+			Message string   `json:"message"`
+			Paths   []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		result, err := git.CommitAndPush(repoPath, p.Message, p.Paths)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, result)
+
 	case "revert":
 		var p struct {
 			Commit string `json:"commit"`
@@ -298,21 +322,6 @@ func handle(repoPath string, req Request) Response {
 			return fail(id, err)
 		}
 		return ok(id, nil)
-
-	case "log.file":
-		var p struct {
-			Path string `json:"path"`
-		}
-		json.Unmarshal(req.Params, &p)
-		if p.Path == "" {
-			return Response{ID: id, OK: false, Error: "log.file: missing path param"}
-		}
-		commits, err := git.LogFile(repoPath, p.Path)
-		if err != nil {
-			return fail(id, err)
-		}
-		laid := graph.AssignLanes(commits)
-		return ok(id, laid)
 
 	default:
 		return Response{ID: id, OK: false, Error: "unknown command: " + req.Cmd}
