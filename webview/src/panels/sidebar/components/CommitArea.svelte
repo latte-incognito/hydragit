@@ -1,6 +1,7 @@
 <script lang="ts">
   export let hasFiles: boolean = false;
   export let stagedCount: number = 0;
+  export let error: string = '';
 
   export let onCommit: (msg: string) => void = () => {};
   export let onCommitPush: (msg: string) => void = () => {};
@@ -31,6 +32,10 @@
   <div class="hint" class:warn={hasFiles && stagedCount === 0}>
     {hintText}
   </div>
+
+  {#if error}
+    <div class="error-msg">{error}</div>
+  {/if}
 
   <textarea
     class="commit-input"
@@ -68,6 +73,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .error-msg {
+    font-size: var(--hg-font-xxs, 10px);
+    color: var(--vscode-errorForeground, #f48771);
+    padding: 0 2px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
   .hint.warn {
     color: var(--vscode-editorWarning-foreground, #cca700);
   }
