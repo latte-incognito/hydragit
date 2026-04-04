@@ -409,7 +409,13 @@
     commits, err := git.LogFile(repoPath, files)
 -->
 
-<svelte:window on:click={closeMenus} on:keydown={(e) => e.key === 'Escape' && closeMenus()} />
+<svelte:window
+  on:click={closeMenus}
+  on:keydown={(e) => {
+    if (e.key === 'Escape') closeMenus();
+    if (e.key === 'Enter') handleSearchKey(e);
+  }}
+/>
 
 <div class="app-root">
   <Toolbar

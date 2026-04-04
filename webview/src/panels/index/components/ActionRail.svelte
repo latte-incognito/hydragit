@@ -29,8 +29,8 @@
   <button class="rail-btn" on:click={() => onAction('fetch')}
           on:mouseenter={(e) => showTip(e, 'Fetch')} on:mouseleave={hideTip}>
     <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-      <path d="M7 2v7M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M2 12h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      <path d="M2 7a5 5 0 109-2.5M11 1v3.5H7.5"
+            stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   </button>
 

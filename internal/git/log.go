@@ -17,47 +17,39 @@ type Commit struct {
 
 // LogFile returns all commits that touched the given file path or pattern.
 //
-// Exact paths (no wildcards, has extension dot): uses --follow to track renames.
-// Partial names / globs (e.g. "DetailPane", "*.md", "*.go"): uses --all with
-// git's built-in glob matching via the pathspec magic prefix :(glob).
+// Three cases:
+//  1. Path with directory separator (e.g. "webview/src/App.svelte"):
+//     uses --follow to track renames across history.
+//  2. Plain filename or extension with dot (e.g. "README.md", "DetailPane.svelte"):
+//     prepends "**/" so git matches the name anywhere in the tree.
+//  3. Explicit glob (contains * or ?): e.g. "*.md" becomes "**/*.md".
 func LogFile(repoPath, filePath string) ([]Commit, error) {
 	sep := "\x1f"
 	format := strings.Join([]string{"%H", "%P", "%an", "%aI", "%s", "%D"}, sep)
 
-	// Detect whether this looks like a glob/partial pattern.
-	// Treat it as a glob if it contains * or ? or has no path separator and no dot
-	// (e.g. "DetailPane" → partial name match across all extensions).
-	isGlob := strings.ContainsAny(filePath, "*?") ||
-		(!strings.Contains(filePath, "/") && !strings.Contains(filePath, "."))
+	hasGlob := strings.ContainsAny(filePath, "*?")
+	hasSlash := strings.ContainsAny(filePath, "/\\")
 
 	var args []string
-	if isGlob {
-		// Glob / partial: no --follow (incompatible), search all history,
-		// wrap in :(glob)*pattern* so git matches anywhere in the path.
-		pattern := filePath
-		if !strings.ContainsAny(filePath, "*?") {
-			// Plain partial name like "DetailPane" → match anywhere in path
-			pattern = "*" + filePath + "*"
-		}
+	if hasSlash && !hasGlob {
+		// Exact path — use --follow to track renames
 		args = []string{
-			"log",
-			"--all",
-			"--topo-order",
-			"--format=" + format,
-			"--date=iso-strict",
-			"--",
-			":(glob)" + pattern,
+			"log", "--all", "--topo-order",
+			"--format=" + format, "--date=iso-strict",
+			"--follow", "--", filePath,
 		}
 	} else {
-		// Exact path: use --follow to track renames across history.
+		// Filename or glob — match anywhere in the tree via **/ prefix
+		pattern := filePath
+		if !hasGlob {
+			pattern = "**/" + filePath
+		} else if !hasSlash {
+			pattern = "**/" + filePath
+		}
 		args = []string{
-			"log",
-			"--topo-order",
-			"--follow",
-			"--format=" + format,
-			"--date=iso-strict",
-			"--",
-			filePath,
+			"log", "--all", "--topo-order",
+			"--format=" + format, "--date=iso-strict",
+			"--", pattern,
 		}
 	}
 
