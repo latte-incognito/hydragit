@@ -99,7 +99,11 @@
     loadChanges();
   }
 
-  // ── Commit ─────────────────────────────────────────────────────────────────
+  // ── Diff ───────────────────────────────────────────────────────────────────
+  function handleOpenDiff(path: string) {
+    // Working tree diff: HEAD as the commit ref, empty parent means working tree
+    send('openDiff', { commit: 'HEAD', parent: '', file: path });
+  }
   let commitError = '';
 
   async function handleCommit(msg: string) {
@@ -152,6 +156,7 @@
     onToggleStage={handleToggleStage}
     onToggleFolder={handleToggleFolder}
     onStageFolder={handleStageFolder}
+    onOpenDiff={handleOpenDiff}
   />
 {/if}
 

@@ -9,6 +9,7 @@
   export let onToggleStage:     (path: string) => void          = () => {};
   export let onToggleFolder:    (key: string) => void            = () => {};
   export let onStageFolder:     (paths: string[], stage: boolean) => void = () => {};
+  export let onOpenDiff:        (path: string) => void           = () => {};
 
   // ── Types ─────────────────────────────────────────────────────────────────
   interface TreeFolder {
@@ -54,18 +55,26 @@
       parent.children.push({ kind: 'file', file: f });
     }
 
-    // Compress single-child folder chains
+    // Compress single-child folder chains — creates new objects to avoid
+    // mutating nodes that are still referenced by folderMap keys
     function compress(node: TreeFolder): void {
       for (let i = 0; i < node.children.length; i++) {
         const child = node.children[i];
-        if (child.kind === 'folder') {
-          compress(child);
-          while (child.children.length === 1 && child.children[0].kind === 'folder') {
-            const only = child.children[0] as TreeFolder;
-            child.label    = child.label + '/' + only.label;
-            child.fullPath = only.fullPath;
-            child.children = only.children;
-          }
+        if (child.kind !== 'folder') continue;
+        compress(child);
+        // Merge downward while there is exactly one folder child and no files
+        let cur = child;
+        while (cur.children.length === 1 && cur.children[0].kind === 'folder') {
+          const only = cur.children[0] as TreeFolder;
+          // Replace in parent's children array with a fresh merged node
+          const merged: TreeFolder = {
+            kind:     'folder',
+            label:    cur.label + '/' + only.label,
+            fullPath: only.fullPath,
+            children: only.children,
+          };
+          node.children[i] = merged;
+          cur = merged;
         }
       }
     }
@@ -225,7 +234,7 @@
               class="file-row"
               class:staged
               style="padding-left:{indent}px"
-              on:click|stopPropagation={() => onToggleStage(f.path)}
+              on:click={() => onOpenDiff(f.path)}
               role="option"
               aria-selected={staged}
               tabindex="0"
@@ -315,6 +324,7 @@
   }
   .folder-label {
     flex: 1;
+    min-width: 0;
     font-size: var(--hg-font-xs);
     color: var(--vscode-foreground, #ccc);
     white-space: nowrap;

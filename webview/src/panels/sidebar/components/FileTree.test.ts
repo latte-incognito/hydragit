@@ -110,12 +110,12 @@ describe('FileTree — per-file staging', () => {
     expect(staged_cb?.checked).toBe(true);
   });
 
-  it('calls onToggleStage with file path when file row is clicked', async () => {
-    const onToggleStage = vi.fn();
-    const { getByText } = render(FileTree, { files, onToggleStage });
+  it('calls onOpenDiff with file path when file row is clicked', async () => {
+    const onOpenDiff = vi.fn();
+    const { getByText } = render(FileTree, { files, onOpenDiff });
 
     await fireEvent.click(getByText('main.ts'));
-    expect(onToggleStage).toHaveBeenCalledWith('src/main.ts');
+    expect(onOpenDiff).toHaveBeenCalledWith('src/main.ts');
   });
 
   it('calls onToggleStage when checkbox is changed', async () => {
@@ -128,6 +128,14 @@ describe('FileTree — per-file staging', () => {
 
     await fireEvent.change(cb);
     expect(onToggleStage).toHaveBeenCalledWith('src/main.ts');
+  });
+
+  it('does not call onToggleStage when file row is clicked', async () => {
+    const onToggleStage = vi.fn();
+    const { getByText } = render(FileTree, { files, onToggleStage });
+
+    await fireEvent.click(getByText('main.ts'));
+    expect(onToggleStage).not.toHaveBeenCalled();
   });
 
   it('applies staged border class to staged file rows', () => {

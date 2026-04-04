@@ -4,6 +4,77 @@ import * as fs from 'fs';
 import { GoProcess } from './goProcess';
 import { HydraStatusService, HydraStatusSnapshot } from './HydraStatusService';
 
+// ── Shared diff helpers ───────────────────────────────────────────────────────
+
+async function fileExistsAtRef(absPath: string, ref: string): Promise<boolean> {
+  try {
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const exec = promisify(execFile);
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+    const relPath = path.relative(workspaceRoot, absPath);
+    await exec('git', ['cat-file', '-e', `${ref}:${relPath}`], { cwd: workspaceRoot });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
+  const { commit, parent, file } = params;
+
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const absPath = path.join(workspaceRoot, file);
+
+  // ── Working tree diff (sidebar) ──────────────────────────────────────────
+  if (commit === 'HEAD' && !parent) {
+    const title = `${path.basename(file)} (working tree)`;
+    const workingTreeUri = vscode.Uri.file(absPath);
+    const headExists = await fileExistsAtRef(absPath, 'HEAD');
+
+    if (!headExists) {
+      await vscode.commands.executeCommand('vscode.open', workingTreeUri, { preview: true }, title);
+      return;
+    }
+
+    const headUri = vscode.Uri.parse(`git:${absPath}`).with({
+      query: JSON.stringify({ path: absPath, ref: 'HEAD' }),
+    });
+    await vscode.commands.executeCommand('vscode.diff', headUri, workingTreeUri, title);
+    return;
+  }
+
+  // ── Commit diff (main panel) ─────────────────────────────────────────────
+  const title = `${path.basename(file)} (${commit.slice(0, 7)})`;
+
+  const gitUri = (ref: string) =>
+    vscode.Uri.parse(`git:${absPath}`).with({
+      query: JSON.stringify({ path: absPath, ref }),
+    });
+
+  const [existsInParent, existsInCommit] = await Promise.all([
+    parent ? fileExistsAtRef(absPath, parent) : Promise.resolve(false),
+    fileExistsAtRef(absPath, commit),
+  ]);
+
+  if (!existsInParent && !existsInCommit) {
+    vscode.window.showWarningMessage(`Cannot show diff: file not found at either ref.`);
+    return;
+  }
+
+  if (!existsInParent) {
+    await vscode.commands.executeCommand('vscode.open', gitUri(commit), { preview: true }, title);
+    return;
+  }
+
+  if (!existsInCommit) {
+    await vscode.commands.executeCommand('vscode.open', gitUri(parent), { preview: true }, `${title} (deleted)`);
+    return;
+  }
+
+  await vscode.commands.executeCommand('vscode.diff', gitUri(parent), gitUri(commit), title);
+}
+
 export class HydraViewProvider implements vscode.WebviewViewProvider {
   private watcher: vscode.FileSystemWatcher | undefined;
 
@@ -33,7 +104,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       // openDiff is handled entirely in the extension host — no Go call needed
       if (msg.cmd === 'openDiff') {
-        await this.openDiff(msg.params);
+        await openDiff(msg.params);
         return;
       }
 
@@ -63,60 +134,6 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.onDidDispose(() => this.watcher?.dispose());
   }
-
- private async fileExistsAtRef(absPath: string, ref: string): Promise<boolean> {
-  try {
-    const { execFile } = await import('child_process');
-    const { promisify } = await import('util');
-    const exec = promisify(execFile);
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-    // git cat-file -e <ref>:<relative-path> exits 0 if exists, non-zero if not
-    const relPath = path.relative(workspaceRoot, absPath);
-    await exec('git', ['cat-file', '-e', `${ref}:${relPath}`], { cwd: workspaceRoot });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-private async openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
-  const { commit, parent, file } = params;
-  const title = `${path.basename(file)} (${commit.slice(0, 7)})`;
-
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-  const absPath = path.join(workspaceRoot, file);
-
-  const gitUri = (ref: string) =>
-    vscode.Uri.parse(`git:${absPath}`).with({
-      query: JSON.stringify({ path: absPath, ref }),
-    });
-
-  const [existsInParent, existsInCommit] = await Promise.all([
-    parent ? this.fileExistsAtRef(absPath, parent) : Promise.resolve(false),
-    this.fileExistsAtRef(absPath, commit),
-  ]);
-
-  if (!existsInParent && !existsInCommit) {
-    // Shouldn't happen, but guard anyway
-    vscode.window.showWarningMessage(`Cannot show diff: file not found at either ref.`);
-    return;
-  }
-
-  if (!existsInParent) {
-    // File was added — show read-only view of the new file
-    await vscode.commands.executeCommand('vscode.open', gitUri(commit), { preview: true }, title);
-    return;
-  }
-
-  if (!existsInCommit) {
-    // File was deleted — show read-only view of what was there before
-    await vscode.commands.executeCommand('vscode.open', gitUri(parent), { preview: true }, `${title} (deleted)`);
-    return;
-  }
-
-  // Normal case — both sides exist
-  await vscode.commands.executeCommand('vscode.diff', gitUri(parent), gitUri(commit), title);
-}
 
   focus(): void {
     vscode.commands.executeCommand('hydragit.mainView.focus');
@@ -192,6 +209,12 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
+      // openDiff is handled in the extension host — same as main panel
+      if (msg.cmd === 'openDiff') {
+        await openDiff(msg.params);
+        return;
+      }
+
       try {
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
         webviewView.webview.postMessage({ id: msg.id, ok: true, data });
