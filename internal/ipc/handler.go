@@ -299,6 +299,21 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "log.file":
+		var p struct {
+			Path string `json:"path"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if p.Path == "" {
+			return Response{ID: id, OK: false, Error: "log.file: missing path param"}
+		}
+		commits, err := git.LogFile(repoPath, p.Path)
+		if err != nil {
+			return fail(id, err)
+		}
+		laid := graph.AssignLanes(commits)
+		return ok(id, laid)
+
 	default:
 		return Response{ID: id, OK: false, Error: "unknown command: " + req.Cmd}
 	}
