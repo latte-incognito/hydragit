@@ -103,19 +103,40 @@
   }
 
   // ── Resizable columns ─────────────────────────────────────────────────────
-  let authorW = 110;
-  let dateW   = 140;
+  // subjectW is derived: it fills whatever space author+date don't use.
+  // We measure the rows-col container width reactively.
+  let containerW = 0;   // bound via clientWidth
+  let authorW    = 110;
+  let dateW      = 140;
+  const HANDLE_W = 5;   // width of each spacer/handle
+  const MIN_W    = 60;
 
-  function startResize(e: MouseEvent, col: 'author' | 'date') {
+  // subject gets the remainder after author, date, and two handles
+  $: subjectW = Math.max(MIN_W, containerW - authorW - dateW - HANDLE_W * 2);
+
+  function startResize(e: MouseEvent, left: 'subject' | 'author', right: 'author' | 'date') {
     e.preventDefault();
     const startX = e.clientX;
-    const startW = col === 'author' ? authorW : dateW;
+    const startAuthor = authorW;
+    const startDate   = dateW;
 
     function onMove(ev: MouseEvent) {
       const delta = ev.clientX - startX;
-      const next  = Math.max(60, startW + (col === 'date' ? delta : -delta));
-      if (col === 'author') authorW = next;
-      else dateW = next;
+
+      if (left === 'subject' && right === 'author') {
+        // Dragging right: author shrinks (its left edge moves right), subject grows via reactive remainder
+        // Dragging left: author grows, subject shrinks
+        const newAuthor = Math.max(MIN_W, startAuthor - delta);
+        // Also clamp so subjectW doesn't go below MIN_W
+        const wouldBeSubject = containerW - newAuthor - dateW - HANDLE_W * 2;
+        if (wouldBeSubject >= MIN_W) authorW = newAuthor;
+      } else {
+        // author ↔ date: trade width between them, total (author+date) stays fixed
+        const total = startAuthor + startDate;
+        const newAuthor = Math.max(MIN_W, Math.min(startAuthor + delta, total - MIN_W));
+        authorW = newAuthor;
+        dateW   = total - newAuthor;
+      }
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove);
@@ -195,29 +216,13 @@
 
 <div class="pane-log">
   <!-- Column headers -->
-  <div class="log-col-hdr" style="--author-w:{authorW}px;--date-w:{dateW}px">
-    <div class="lch-graph" style="width:{graphW}px"></div>
-    <div class="lch-subject">Commit</div>
-
-    <!-- Resize handle before Author -->
-    <div
-      class="col-resize"
-      on:mousedown={(e) => startResize(e, 'author')}
-      on:mouseenter={(e) => showTip(e, 'Drag to resize')}
-      on:mouseleave={hideTip}
-    ></div>
-
-    <div class="lch-author">Author</div>
-
-    <!-- Resize handle before Date -->
-    <div
-      class="col-resize"
-      on:mousedown={(e) => startResize(e, 'date')}
-      on:mouseenter={(e) => showTip(e, 'Drag to resize')}
-      on:mouseleave={hideTip}
-    ></div>
-
-    <div class="lch-date">Date</div>
+  <div class="log-col-hdr">
+    <div class="lch-graph" style="width:{graphW}px;flex-shrink:0"></div>
+    <div class="lch-col" style="width:{subjectW}px">Commit</div>
+    <div class="col-resize" on:mousedown={(e) => startResize(e, 'subject', 'author')} on:mouseenter={(e) => showTip(e, 'Drag to resize')} on:mouseleave={hideTip}></div>
+    <div class="lch-col" style="width:{authorW}px">Author</div>
+    <div class="col-resize" on:mousedown={(e) => startResize(e, 'author', 'date')} on:mouseenter={(e) => showTip(e, 'Drag to resize')} on:mouseleave={hideTip}></div>
+    <div class="lch-col" style="width:{dateW}px">Date</div>
   </div>
 
   <div class="log-scroll">
@@ -229,7 +234,7 @@
           {@html graphSVG}
         </div>
 
-        <div class="rows-col" style="--author-w:{authorW}px;--date-w:{dateW}px">
+        <div class="rows-col" bind:clientWidth={containerW}>
           {#each commits as c, i}
             {@const isMerge = (c.parents ?? []).length > 1}
             <div
@@ -241,7 +246,7 @@
               aria-selected={selectedIdx === i}
               tabindex="0"
             >
-              <div class="csubject">
+              <div class="csubject" style="width:{subjectW}px">
                 {#each c.refs ?? [] as r}
                   <span class={pillClass(r)}>{pillLabel(r)}</span>
                 {/each}
@@ -251,8 +256,10 @@
                   {c.message ?? c.msg ?? ''}
                 {/if}
               </div>
-              <div class="cauthor">{c.author ?? ''}</div>
-              <div class="cdate">{formatDate(c.date ?? '')}</div>
+              <div class="col-spacer"></div>
+              <div class="cauthor" style="width:{authorW}px">{c.author ?? ''}</div>
+              <div class="col-spacer"></div>
+              <div class="cdate" style="width:{dateW}px">{formatDate(c.date ?? '')}</div>
             </div>
           {/each}
         </div>
@@ -284,9 +291,13 @@
     user-select: none;
   }
   .lch-graph   { flex-shrink: 0; padding-left: 4px; }
-  .lch-subject { flex: 1; padding-left: 4px; min-width: 0; }
-  .lch-author  { width: var(--author-w); flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .lch-date    { width: var(--date-w); flex-shrink: 0; text-align: right; padding-right: 10px; overflow: hidden; }
+  .lch-col {
+    flex-shrink: 0;
+    padding-left: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   /* ── Resize handle ── */
   .col-resize {
@@ -361,14 +372,17 @@
   .crow:hover { background: var(--vscode-list-hoverBackground, #2a2a2a); }
   .crow.sel   { background: #0e2030; border-left-color: #56c8e8; }
 
+  .col-spacer {
+    width: 5px;
+    flex-shrink: 0;
+  }
   .csubject {
-    flex: 1;
+    flex-shrink: 0;
     font-size: var(--hg-font-sm);
     color: var(--vscode-foreground, #bbb);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    min-width: 0;
     padding-left: 4px;
   }
   .merge-msg {
@@ -376,22 +390,22 @@
     font-style: italic;
   }
   .cauthor {
-    width: var(--author-w);
     flex-shrink: 0;
     font-size: var(--hg-font-xs);
     color: var(--vscode-descriptionForeground, #555);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    padding-left: 4px;
   }
   .cdate {
-    width: var(--date-w);
     flex-shrink: 0;
     font-size: var(--hg-font-xs);
     color: var(--vscode-disabledForeground, #3a3a3a);
-    text-align: right;
     white-space: nowrap;
-    padding-right: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 4px;
   }
 
   /* ── Pills ── */
