@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { on, send } from '$shared/messageBus';
-  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus } from './types';
+  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag } from './types';
 
   import Toolbar     from './components/Toolbar.svelte';
   import ActionRail  from './components/ActionRail.svelte';
@@ -17,6 +17,7 @@
   let commits:     Commit[]   = [];
   let filtered:    Commit[]   = [];
   let stashes:     Stash[]    = [];
+  let tags:        Tag[]      = [];
   let activeBranch = 'master';
   let selCommitIdx: number | null = null;
   let selStashIdx:  number | null = null;
@@ -47,6 +48,7 @@
   // ── Context menus ─────────────────────────────────────────────────────────
   let branchMenu  = { visible: false, x: 0, y: 0, branch: '', isCurrent: false };
   let stashMenu   = { visible: false, x: 0, y: 0, label: '' };
+  let tagMenu     = { visible: false, x: 0, y: 0, name: '' };
   let ctxBranch   = '';
   let ctxStashIdx: number | null = null;
 
@@ -70,11 +72,12 @@
   // ── Load everything ───────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [status, brs, rawCommits, rawStashes] = await Promise.all([
+      const [status, brs, rawCommits, rawStashes, rawTags] = await Promise.all([
         send<GitStatus>('status'),
         send<Branch[]>('branches'),
         send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 200 }),
         send<Stash[]>('stash'),
+        send<Tag[]>('tags'),
       ]);
       sbBranch    = status.branch || activeBranch;
       sbInfo      = status.ahead || status.behind ? ` · ↑${status.ahead} ↓${status.behind}` : '';
@@ -82,6 +85,7 @@
       branches    = brs;
       commits     = rawCommits;
       stashes     = rawStashes;
+      tags        = rawTags ?? [];
       sbCounts    = `${commits.length} commits · ${branches.filter(b => !b.isRemote).length} branches`;
       const current = branches.find(b => b.isCurrent);
       if (current) activeBranch = current.name;
@@ -392,9 +396,41 @@
     await stashAction(a);
   }
 
+  // ── Tag context menu ──────────────────────────────────────────────────────
+  function showTagCtx(e: MouseEvent, name: string) {
+    e.preventDefault(); e.stopPropagation();
+    tagMenu = {
+      visible: true, name,
+      x: Math.min(e.clientX, window.innerWidth - 180),
+      y: Math.min(e.clientY, window.innerHeight - 120),
+    };
+  }
+
+  async function tagCtxAction(a: string) {
+    const name = tagMenu.name;
+    tagMenu = { ...tagMenu, visible: false };
+    if (a === 'checkout') {
+      flash(`Checking out tag ${name}…`);
+      try { await send('checkout', { branch: name }); flash(`Checked out ${name}`, '#4ec94e'); loadAll(); }
+      catch (e: unknown) { flash('Checkout failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
+    }
+    if (a === 'copy-hash') {
+      const tag = tags.find(t => t.name === name);
+      if (tag?.hash) { await navigator.clipboard.writeText(tag.hash); flash(`Copied: ${tag.hash}`, '#4ec94e'); }
+    }
+    if (a === 'new-branch') {
+      const branchName = prompt(`Create branch from tag ${name}:`);
+      if (branchName) {
+        try { await send('branch.create', { name: branchName, from: name }); flash(`Created ${branchName}`, '#4ec94e'); loadAll(); }
+        catch (e: unknown) { flash('Create failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
+      }
+    }
+  }
+
   function closeMenus() {
     branchMenu = { ...branchMenu, visible: false };
     stashMenu  = { ...stashMenu,  visible: false };
+    tagMenu    = { ...tagMenu,    visible: false };
   }
 </script>
 
@@ -441,6 +477,7 @@
       <BranchPane
         {branches}
         {stashes}
+        {tags}
         {activeBranch}
         {selStashIdx}
         onSelectBranch={selectBranch}
@@ -449,6 +486,7 @@
         onNewBranch={() => railAction('branch.new')}
         onBranchCtx={showBranchCtx}
         onStashCtx={showStashCtx}
+        onTagCtx={showTagCtx}
       />
     </div>
 
@@ -461,7 +499,6 @@
       onCtx={() => {}}
       {fileSearchActive}
       {fileSearchPath}
-      on:searchkey={handleSearchKey}
     />
 
     <PaneDivider rightEl={detailPaneEl} isRight={true} />
@@ -489,8 +526,10 @@
   <ContextMenu
     {branchMenu}
     {stashMenu}
+    {tagMenu}
     onBranchAction={branchAction}
     onStashAction={stashCtxAction}
+    onTagAction={tagCtxAction}
   />
 </div>
 

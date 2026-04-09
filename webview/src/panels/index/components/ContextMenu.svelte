@@ -21,8 +21,17 @@
     label: '',
   };
 
+  // Tag context menu
+  export let tagMenu: { visible: boolean; x: number; y: number; name: string } = {
+    visible: false,
+    x: 0,
+    y: 0,
+    name: '',
+  };
+
   export let onBranchAction: (a: string) => void = () => {};
   export let onStashAction: (a: string) => void = () => {};
+  export let onTagAction: (a: string) => void = () => {};
 </script>
 
 <!-- Branch context menu -->
@@ -149,6 +158,18 @@
     <div class="ci" on:click={() => onStashAction('show')}>Show diff</div>
     <div class="ctx-sep"></div>
     <div class="ci danger" on:click={() => onStashAction('drop')}>Drop</div>
+  </div>
+{/if}
+
+<!-- Tag context menu -->
+{#if tagMenu.visible}
+  <div class="ctx show" style="left:{tagMenu.x}px;top:{tagMenu.y}px">
+    <div class="ctx-lbl">{tagMenu.name}</div>
+    <div class="ctx-sep"></div>
+    <div class="ci" on:click={() => onTagAction('checkout')}>Checkout</div>
+    <div class="ci" on:click={() => onTagAction('new-branch')}>New branch from tag</div>
+    <div class="ctx-sep"></div>
+    <div class="ci" on:click={() => onTagAction('copy-hash')}>Copy hash</div>
   </div>
 {/if}
 

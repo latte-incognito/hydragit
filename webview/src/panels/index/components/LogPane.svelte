@@ -5,6 +5,8 @@
   export let selectedIdx: number | null = null;
   export let onSelect: (i: number) => void = () => {};
   export let onCtx: (e: MouseEvent, i: number) => void = () => {};
+  export let fileSearchActive: boolean = false;
+  export let fileSearchPath: string = '';
 
   // ── Graph constants ───────────────────────────────────────────────────────
   const ROW_H = 26;
@@ -215,6 +217,9 @@
 {/if}
 
 <div class="pane-log">
+  {#if fileSearchActive}
+    <div class="file-search-bar">⌕ Commits touching: <em>{fileSearchPath}</em></div>
+  {/if}
   <!-- Column headers -->
   <div class="log-col-hdr">
     <div class="lch-graph" style="width:{graphW}px;flex-shrink:0"></div>
@@ -277,6 +282,16 @@
     overflow: hidden;
     border-right: 0.5px solid var(--vscode-panel-border, #1a1a1a);
   }
+
+  .file-search-bar {
+    padding: 4px 10px;
+    font-size: var(--hg-font-xs);
+    color: var(--vscode-descriptionForeground, #888);
+    background: var(--vscode-editor-background, #1e1e1e);
+    border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
+    flex-shrink: 0;
+  }
+  .file-search-bar em { color: #56c8e8; font-style: normal; }
 
   /* ── Header ── */
   .log-col-hdr {

@@ -323,6 +323,13 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "tags":
+		t, err := git.Tags(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, t)
+
 	default:
 		return Response{ID: id, OK: false, Error: "unknown command: " + req.Cmd}
 	}
