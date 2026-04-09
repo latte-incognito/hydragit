@@ -7,6 +7,15 @@ export interface Branch {
   gone?: boolean;
 }
 
+export interface GraphPath {
+  fromLane: number;
+  toLane: number;
+  fromRow: number;
+  toRow: number;
+  color: string;
+  type: 'straight' | 'curve';
+}
+
 export interface Commit {
   hash: string;
   message: string;
@@ -17,6 +26,7 @@ export interface Commit {
   parents: string[];
   lane?: number;
   color?: string;
+  paths?: GraphPath[];
 }
 
 export interface DiffFile {

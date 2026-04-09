@@ -1,9 +1,10 @@
 <script lang="ts">
   import { send } from '$shared/messageBus';
-  import type { Commit, DiffFile } from '../types';
+  import type { Commit, DiffFile, DiffHunk } from '../types';
 
   export let commit: Commit | null = null;
   export let files: DiffFile[] = [];
+  export let hunks: DiffHunk[] = [];
   export let selFile: string | null = null;
   export let loading: boolean = false;
   export let iconUri: string = '';
@@ -248,7 +249,18 @@
 {/if}
 
 <div class="pane-detail">
-  {#if !commit}
+  {#if !commit && hunks.length > 0}
+    <!-- ── Stash diff ── -->
+    <div class="stash-diff">
+      {#each hunks as hunk}
+        <div class="hunk-header">{hunk.header}</div>
+        {#each hunk.lines as line}
+          <div class="hunk-line hunk-line--{line.type}">{line.content}</div>
+        {/each}
+      {/each}
+    </div>
+
+  {:else if !commit}
     <!-- ── Empty state ── -->
     <div class="detail-empty">
       {#if iconUri}<img class="detail-empty-icon" src={iconUri} alt="" />{/if}
@@ -302,7 +314,7 @@
 
           <!-- Tree -->
           <div class="tree-body" on:contextmenu={showCtx}>
-            {#snippet renderFolder(node, depth)}
+            {#snippet renderFolder(node: TreeFolder, depth: number)}
               <!-- Folder row — always render, including root -->
               <!-- svelte-ignore a11y-click-events-have-key-events -->
               <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -424,6 +436,23 @@
   }
 
   /* ── Empty state ── */
+  .stash-diff {
+    flex: 1;
+    overflow-y: auto;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: var(--hg-font-xs);
+  }
+  .hunk-header {
+    padding: 2px 8px;
+    background: #1a2535;
+    color: #56c8e8;
+    white-space: pre;
+  }
+  .hunk-line { padding: 0 8px; white-space: pre; }
+  .hunk-line--add { background: #0d2410; color: #4ec94e; }
+  .hunk-line--del { background: #2a0d0d; color: #f07070; }
+  .hunk-line--ctx { color: var(--vscode-descriptionForeground, #888); }
+
   .detail-empty {
     flex: 1;
     display: flex;

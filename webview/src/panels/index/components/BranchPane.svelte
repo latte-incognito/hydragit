@@ -157,7 +157,7 @@
     node.open = !node.open;
     localTree = localTree;
   }
-  function toggleRemote(origin: string, node: FolderNode) {
+  function toggleRemote(_origin: string, node: FolderNode) {
     node.open = !node.open;
     remoteTrees = remoteTrees;
   }

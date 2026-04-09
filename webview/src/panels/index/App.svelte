@@ -499,7 +499,6 @@
       onCtx={() => {}}
       {fileSearchActive}
       {fileSearchPath}
-      on:searchkey={handleSearchKey}
     />
 
     <PaneDivider rightEl={detailPaneEl} isRight={true} />
