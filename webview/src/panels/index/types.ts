@@ -55,3 +55,9 @@ export interface GitStatus {
   behind: number;
   modified: number;
 }
+
+export interface Tag {
+  name: string;   // e.g. "v0.1.0"
+  hash: string;   // short commit hash
+  date?: string;  // ISO date string (git creatordate:short)
+}
