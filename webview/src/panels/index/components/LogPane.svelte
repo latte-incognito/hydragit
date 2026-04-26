@@ -10,7 +10,7 @@
   export let fileSearchPath: string = '';
 
   // ── Graph constants ───────────────────────────────────────────────────────
-  const ROW_H = 26;
+  const ROW_H = 22;
   const LANE_W = 16;
   const PAD = 4;
 
@@ -54,11 +54,16 @@
       const color = c.color ?? '#56c8e8';
       const x     = cx(c.lane ?? 0);
       const y     = cy(i);
-      const isMerge      = (c.parents ?? []).length > 1;
+      const isMerge       = (c.parents ?? []).length > 1;
       const isBranchStart = curveTargetRows.has(i);
       const isBranchSource = curveSourceRows.has(i);
 
-      if (isMerge || isBranchStart || isBranchSource) {
+      if (isMerge) {
+        // Merge commit: hollow diamond with filled center
+        dotStr += `<polygon points="${x},${y-5} ${x+5},${y} ${x},${y+5} ${x-5},${y}" fill="#1e1e1e" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+          <circle cx="${x}" cy="${y}" r="1.6" fill="${color}"/>`;
+      } else if (isBranchStart || isBranchSource) {
+        // Fork or source point: hollow circle with cross
         dotStr += `<circle cx="${x}" cy="${y}" r="4.5" fill="#1e1e1e" stroke="${color}" stroke-width="1.5"/>
           <line x1="${x-3}" y1="${y}" x2="${x+3}" y2="${y}" stroke="${color}" stroke-width="1.2"/>
           <line x1="${x}" y1="${y-3}" x2="${x}" y2="${y+3}" stroke="${color}" stroke-width="1.2"/>`;
@@ -488,9 +493,9 @@
   .crow {
     display: flex;
     align-items: center;
-    height: 26px;
-    min-height: 26px;
-    max-height: 26px;
+    height: 22px;
+    min-height: 22px;
+    max-height: 22px;
     cursor: pointer;
     border-bottom: 0.5px solid var(--vscode-editorGroup-border, #1f1f1f);
     border-left: 2px solid transparent;
