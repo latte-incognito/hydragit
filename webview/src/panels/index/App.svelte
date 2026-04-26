@@ -46,7 +46,7 @@
   let fileSearchPath   = '';
 
   // ── Context menus ─────────────────────────────────────────────────────────
-  let branchMenu  = { visible: false, x: 0, y: 0, branch: '', isCurrent: false };
+  let branchMenu  = { visible: false, x: 0, y: 0, branch: '', isCurrent: false, current: '' };
   let stashMenu   = { visible: false, x: 0, y: 0, label: '' };
   let tagMenu     = { visible: false, x: 0, y: 0, name: '' };
   let ctxBranch   = '';
@@ -349,9 +349,9 @@
     e.preventDefault(); e.stopPropagation();
     ctxBranch  = name;
     branchMenu = {
-      visible: true, isCurrent, branch: name,
-      x: Math.min(e.clientX, window.innerWidth - 180),
-      y: Math.min(e.clientY, window.innerHeight - 260),
+      visible: true, isCurrent, branch: name, current: activeBranch,
+      x: Math.min(e.clientX, window.innerWidth - 320),
+      y: Math.min(e.clientY, window.innerHeight - 280),
     };
   }
 

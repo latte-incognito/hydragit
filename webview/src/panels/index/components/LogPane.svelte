@@ -203,16 +203,102 @@
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="ctx-overlay" on:click={closeCtx}></div>
   <div class="ctx-menu" style="left:{ctxX}px;top:{ctxY}px">
-    <div class="ctx-header">
-      <span class="ctx-icon">🚧</span>
-      <span class="ctx-label">Under construction</span>
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <rect x="3" y="2" width="7" height="9" rx="1" stroke="currentColor" stroke-width="1.1"/>
+          <rect x="5" y="4" width="7" height="9" rx="1" stroke="currentColor" stroke-width="1.1" fill="var(--vscode-menu-background, #252526)"/>
+        </svg>
+      </span>
+      <span class="ci-text">Copy Revision Number</span>
+      <span class="ci-shortcut">⌥⇧⌘C</span>
     </div>
-    <div class="ctx-item ctx-item--dim">Copy hash</div>
-    <div class="ctx-item ctx-item--dim">Cherry-pick</div>
-    <div class="ctx-item ctx-item--dim">Revert</div>
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <line x1="7" y1="3" x2="7" y2="11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="3" y1="7" x2="11" y2="7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="3" y1="12" x2="11" y2="12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">Create Patch…</span>
+    </div>
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <circle cx="5" cy="10" r="2.2" stroke="currentColor" stroke-width="1.1"/>
+          <circle cx="9.5" cy="10" r="2.2" stroke="currentColor" stroke-width="1.1"/>
+          <path d="M5 8 C 5 4, 9.5 4, 9.5 8" stroke="currentColor" stroke-width="1.1" fill="none"/>
+          <path d="M7 4 L 9 2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">Cherry-Pick</span>
+    </div>
+
     <div class="ctx-divider"></div>
-    <div class="ctx-item ctx-item--dim">Create branch here</div>
-    <div class="ctx-item ctx-item--dim">Create tag here</div>
+
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Checkout Revision</span></div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Show Repository at Revision</span></div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Compare with Local</span></div>
+
+    <div class="ctx-divider"></div>
+
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M3 7 L 6 4 M3 7 L 6 10 M3 7 H 9 a 3 3 0 0 1 0 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </span>
+      <span class="ci-text">Reset Current Branch to Here…</span>
+    </div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Revert Commit</span></div>
+    <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Undo Commit…</span></div>
+
+    <div class="ctx-divider"></div>
+
+    <div class="ctx-item">
+      <span class="ci-icon"></span>
+      <span class="ci-text">Edit Commit Message…</span>
+      <span class="ci-shortcut">F2</span>
+    </div>
+    <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Fixup…</span></div>
+    <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Squash Into…</span></div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Drop Commit</span></div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Interactively Rebase from Here…</span></div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Push All up to Here…</span></div>
+
+    <div class="ctx-divider"></div>
+
+    <div class="ctx-item">
+      <span class="ci-icon"></span>
+      <span class="ci-text">New Branch…</span>
+      <span class="ci-shortcut">⌥⌘N</span>
+    </div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">New Tag…</span></div>
+
+    <div class="ctx-divider"></div>
+
+    <div class="ctx-item">
+      <span class="ci-icon"></span>
+      <span class="ci-text">Go to Child Commit</span>
+      <span class="ci-shortcut">←</span>
+    </div>
+    <div class="ctx-item">
+      <span class="ci-icon"></span>
+      <span class="ci-text">Go to Parent Commit</span>
+      <span class="ci-shortcut">→</span>
+    </div>
+
+    <div class="ctx-divider"></div>
+
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1.3 a5.7 5.7 0 0 0 -1.8 11.1 c0.3 0.05 0.4 -0.13 0.4 -0.3 v-1.05 c-1.6 0.35 -1.95 -0.78 -1.95 -0.78 -0.27 -0.66 -0.65 -0.84 -0.65 -0.84 -0.53 -0.36 0.04 -0.36 0.04 -0.36 0.59 0.04 0.9 0.6 0.9 0.6 0.52 0.9 1.37 0.64 1.7 0.49 0.05 -0.38 0.2 -0.64 0.37 -0.79 -1.28 -0.14 -2.62 -0.64 -2.62 -2.85 0 -0.63 0.22 -1.14 0.59 -1.55 -0.06 -0.14 -0.26 -0.73 0.06 -1.52 0 0 0.49 -0.16 1.6 0.59 a5.55 5.55 0 0 1 1.45 -0.2 c0.5 0 1 0.07 1.45 0.2 1.1 -0.75 1.6 -0.59 1.6 -0.59 0.32 0.79 0.12 1.38 0.06 1.52 0.37 0.4 0.59 0.92 0.59 1.55 0 2.22 -1.34 2.7 -2.62 2.85 0.21 0.18 0.39 0.53 0.39 1.07 v1.59 c0 0.17 0.1 0.36 0.4 0.3 A5.7 5.7 0 0 0 7 1.3 z" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="ci-text">View in browser</span>
+    </div>
   </div>
 {/if}
 
@@ -467,24 +553,56 @@
     z-index: 100;
     background: var(--vscode-menu-background, #252526);
     border: 0.5px solid var(--vscode-menu-border, #3a3a3a);
-    border-radius: 4px;
+    border-radius: 5px;
     padding: 4px 0;
-    min-width: 190px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    min-width: 280px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
     font-family: var(--hg-font-family);
     font-size: var(--hg-font-xs);
   }
-  .ctx-header {
+  .ctx-item {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 5px 12px;
-    border-bottom: 0.5px solid var(--vscode-panel-border, #2a2a2a);
-    margin-bottom: 3px;
+    gap: 10px;
+    padding: 5px 14px 5px 10px;
+    cursor: default;
+    color: var(--vscode-menu-foreground, #ccc);
+    white-space: nowrap;
   }
-  .ctx-icon  { font-size: 14px; line-height: 1; }
-  .ctx-label { font-size: var(--hg-font-xxs); color: var(--vscode-descriptionForeground, #888); }
-  .ctx-item  { padding: 5px 12px; cursor: default; color: var(--vscode-foreground, #ccc); }
-  .ctx-item--dim { color: var(--vscode-disabledForeground, #555); }
-  .ctx-divider { height: 0.5px; background: var(--vscode-panel-border, #2a2a2a); margin: 3px 0; }
+  .ctx-item:hover {
+    background: var(--vscode-menu-selectionBackground, #094771);
+    color: var(--vscode-menu-selectionForeground, #fff);
+  }
+  .ctx-item--dim {
+    color: var(--vscode-disabledForeground, #555);
+  }
+  .ctx-item--dim:hover {
+    background: transparent;
+    color: var(--vscode-disabledForeground, #555);
+  }
+  .ci-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+  }
+  .ci-text {
+    flex: 1;
+  }
+  .ci-shortcut {
+    color: var(--vscode-descriptionForeground, #888);
+    font-size: var(--hg-font-xxs);
+    margin-left: 24px;
+  }
+  .ctx-item:hover .ci-shortcut {
+    color: var(--vscode-menu-selectionForeground, #ddd);
+  }
+  .ctx-divider {
+    height: 0.5px;
+    background: var(--vscode-panel-border, #3a3a3a);
+    margin: 4px 0;
+  }
 </style>
