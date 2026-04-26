@@ -43,7 +43,7 @@
     <div class="ci" on:click={() => onBranchAction('new-from')}>
       New Branch from '{branchMenu.branch}'…
     </div>
-    <div class="ci">
+    <div class="ci" on:click={() => onBranchAction('checkout-rebase')}>
       Checkout and Rebase onto '{branchMenu.current}'
     </div>
     <div class="ctx-sep"></div>

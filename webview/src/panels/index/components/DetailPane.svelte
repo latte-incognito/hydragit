@@ -206,10 +206,13 @@
   let ctxVisible = false;
   let ctxX = 0;
   let ctxY = 0;
+  let ctxFile: string | null = null;
 
-  function showCtx(e: MouseEvent) {
+  function showCtx(e: MouseEvent, file: string | null = null) {
     e.preventDefault();
     e.stopPropagation();
+    if (!file) return;
+    ctxFile = file;
     ctxX = e.clientX;
     ctxY = e.clientY;
     ctxVisible = true;
@@ -217,6 +220,21 @@
 
   function closeCtx() {
     ctxVisible = false;
+  }
+
+  function ctxShowDiff() {
+    closeCtx();
+    if (ctxFile) onSelectFile(ctxFile);
+  }
+
+  function ctxShowDiffNewTab() {
+    closeCtx();
+    if (ctxFile) openDiff(ctxFile);
+  }
+
+  function ctxEditSource() {
+    closeCtx();
+    if (ctxFile) send('openFile', { file: ctxFile });
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -237,7 +255,7 @@
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="ctx-overlay" on:click={closeCtx}></div>
   <div class="ctx-menu" style="left:{ctxX}px;top:{ctxY}px">
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={ctxShowDiff}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M3 4 L 7 4 M7 4 L 5 2 M7 4 L 5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -247,7 +265,7 @@
       <span class="ci-text">Show Diff</span>
       <span class="ci-shortcut">⌘D</span>
     </div>
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={ctxShowDiffNewTab}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M3 4 L 7 4 M7 4 L 5 2 M7 4 L 5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -258,7 +276,7 @@
     </div>
     <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Compare with Local</span></div>
     <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Compare Before with Local</span></div>
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={ctxEditSource}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M2 12 L 5 11 L 11 5 L 9 3 L 3 9 Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" fill="none"/>
@@ -421,7 +439,7 @@
                       style="padding-left:{8 + (depth + 1) * 14}px"
                       on:click={() => onSelectFile(f.path)}
                       on:dblclick={() => openDiff(f.path)}
-                      on:contextmenu={showCtx}
+                      on:contextmenu={(e) => showCtx(e, f.path)}
                       role="option"
                       aria-selected={selFile === f.path}
                       tabindex="0"

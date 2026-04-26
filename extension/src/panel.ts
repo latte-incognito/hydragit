@@ -20,6 +20,12 @@ async function fileExistsAtRef(absPath: string, ref: string): Promise<boolean> {
   }
 }
 
+async function openFile(params: { file: string }): Promise<void> {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const absPath = path.join(workspaceRoot, params.file);
+  await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(absPath));
+}
+
 async function openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
   const { commit, parent, file } = params;
 
@@ -105,6 +111,10 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       // openDiff is handled entirely in the extension host — no Go call needed
       if (msg.cmd === 'openDiff') {
         await openDiff(msg.params);
+        return;
+      }
+      if (msg.cmd === 'openFile') {
+        await openFile(msg.params);
         return;
       }
 

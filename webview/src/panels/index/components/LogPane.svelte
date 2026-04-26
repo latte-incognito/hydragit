@@ -5,6 +5,7 @@
   export let selectedIdx: number | null = null;
   export let onSelect: (i: number) => void = () => {};
   export let onCtx: (e: MouseEvent, i: number) => void = () => {};
+  export let onCommitAction: (action: string, commit: Commit) => void = () => {};
   export let fileSearchActive: boolean = false;
   export let fileSearchPath: string = '';
 
@@ -152,16 +153,42 @@
   let ctxVisible = false;
   let ctxX = 0;
   let ctxY = 0;
+  let ctxIdx: number | null = null;
 
   function showCtx(e: MouseEvent, i: number) {
     e.preventDefault();
     ctxX = e.clientX;
     ctxY = e.clientY;
+    ctxIdx = i;
     ctxVisible = true;
-    onCtx(e, i); // still propagate to parent for future use
+    onCtx(e, i);
   }
 
   function closeCtx() { ctxVisible = false; }
+
+  function runAction(action: string) {
+    closeCtx();
+    if (ctxIdx === null) return;
+    onCommitAction(action, commits[ctxIdx]);
+  }
+
+  function goToParent() {
+    closeCtx();
+    if (ctxIdx === null) return;
+    const c = commits[ctxIdx];
+    const parentHash = (c.parents ?? [])[0];
+    if (!parentHash) return;
+    const idx = commits.findIndex((x) => x.hash === parentHash);
+    if (idx >= 0) onSelect(idx);
+  }
+
+  function goToChild() {
+    closeCtx();
+    if (ctxIdx === null) return;
+    const hash = commits[ctxIdx].hash;
+    const idx = commits.findIndex((x) => (x.parents ?? []).includes(hash));
+    if (idx >= 0) onSelect(idx);
+  }
 
   function onKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') closeCtx();
@@ -203,7 +230,7 @@
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="ctx-overlay" on:click={closeCtx}></div>
   <div class="ctx-menu" style="left:{ctxX}px;top:{ctxY}px">
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={() => runAction('copy-hash')}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <rect x="3" y="2" width="7" height="9" rx="1" stroke="currentColor" stroke-width="1.1"/>
@@ -223,7 +250,7 @@
       </span>
       <span class="ci-text">Create Patch…</span>
     </div>
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={() => runAction('cherry-pick')}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <circle cx="5" cy="10" r="2.2" stroke="currentColor" stroke-width="1.1"/>
@@ -237,7 +264,7 @@
 
     <div class="ctx-divider"></div>
 
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Checkout Revision</span></div>
+    <div class="ctx-item" on:click={() => runAction('checkout')}><span class="ci-icon"></span><span class="ci-text">Checkout Revision</span></div>
     <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Show Repository at Revision</span></div>
     <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Compare with Local</span></div>
 
@@ -251,7 +278,7 @@
       </span>
       <span class="ci-text">Reset Current Branch to Here…</span>
     </div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Revert Commit</span></div>
+    <div class="ctx-item" on:click={() => runAction('revert')}><span class="ci-icon"></span><span class="ci-text">Revert Commit</span></div>
     <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Undo Commit…</span></div>
 
     <div class="ctx-divider"></div>
@@ -269,7 +296,7 @@
 
     <div class="ctx-divider"></div>
 
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={() => runAction('new-branch')}>
       <span class="ci-icon"></span>
       <span class="ci-text">New Branch…</span>
       <span class="ci-shortcut">⌥⌘N</span>
@@ -278,12 +305,12 @@
 
     <div class="ctx-divider"></div>
 
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={goToChild}>
       <span class="ci-icon"></span>
       <span class="ci-text">Go to Child Commit</span>
       <span class="ci-shortcut">←</span>
     </div>
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={goToParent}>
       <span class="ci-icon"></span>
       <span class="ci-text">Go to Parent Commit</span>
       <span class="ci-shortcut">→</span>

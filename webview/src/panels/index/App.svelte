@@ -344,6 +344,44 @@
     }
   }
 
+  // ── Commit context menu (LogPane) ────────────────────────────────────────
+  async function commitMenuAction(action: string, commit: Commit) {
+    const hash = commit.hash;
+    const acts: Record<string, () => Promise<void>> = {
+      'copy-hash': async () => {
+        await navigator.clipboard.writeText(hash);
+        flash(`Copied: ${hash.slice(0, 7)}`, '#4ec94e');
+      },
+      'cherry-pick': async () => {
+        await send('cherrypick', { commit: hash });
+        flash(`Cherry-picked ${hash.slice(0, 7)}`, '#4ec94e');
+        loadAll();
+      },
+      checkout: async () => {
+        await send('checkout', { branch: hash });
+        flash(`Checked out ${hash.slice(0, 7)} (detached HEAD)`, '#4ec94e');
+        loadAll();
+      },
+      revert: async () => {
+        await send('revert', { commit: hash });
+        flash(`Reverted ${hash.slice(0, 7)}`, '#4ec94e');
+        loadAll();
+      },
+      'new-branch': async () => {
+        const name = prompt('New branch name:');
+        if (!name) return;
+        await send('branch.create', { name, from: hash });
+        flash(`Created ${name}`, '#4ec94e');
+        loadAll();
+      },
+    };
+    try {
+      await acts[action]?.();
+    } catch (e: unknown) {
+      flash(action + ' failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
   // ── Branch context menu ───────────────────────────────────────────────────
   function showBranchCtx(e: MouseEvent, name: string, isCurrent: boolean) {
     e.preventDefault(); e.stopPropagation();
@@ -371,6 +409,13 @@
       'new-from': async () => {
         const name = prompt('Branch name:');
         if (name) { await send('branch.create', { name, from: ctxBranch }); flash(`Created ${name}`, '#4ec94e'); loadAll(); }
+      },
+      'checkout-rebase': async () => {
+        const onto = branchMenu.current;
+        await send('checkout', { branch: ctxBranch });
+        await send('rebase', { onto });
+        flash(`Checked out ${ctxBranch} and rebased onto ${onto}`, '#4ec94e');
+        loadAll();
       },
     };
     try { await acts[a]?.(); }
@@ -497,6 +542,7 @@
       selectedIdx={selCommitIdx}
       onSelect={selectCommit}
       onCtx={() => {}}
+      onCommitAction={commitMenuAction}
       {fileSearchActive}
       {fileSearchPath}
     />
