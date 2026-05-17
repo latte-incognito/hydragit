@@ -206,10 +206,13 @@
   let ctxVisible = false;
   let ctxX = 0;
   let ctxY = 0;
+  let ctxFile: string | null = null;
 
-  function showCtx(e: MouseEvent) {
+  function showCtx(e: MouseEvent, file: string | null = null) {
     e.preventDefault();
     e.stopPropagation();
+    if (!file) return;
+    ctxFile = file;
     ctxX = e.clientX;
     ctxY = e.clientY;
     ctxVisible = true;
@@ -217,6 +220,21 @@
 
   function closeCtx() {
     ctxVisible = false;
+  }
+
+  function ctxShowDiff() {
+    closeCtx();
+    if (ctxFile) onSelectFile(ctxFile);
+  }
+
+  function ctxShowDiffNewTab() {
+    closeCtx();
+    if (ctxFile) openDiff(ctxFile);
+  }
+
+  function ctxEditSource() {
+    closeCtx();
+    if (ctxFile) send('openFile', { file: ctxFile });
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -237,14 +255,81 @@
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="ctx-overlay" on:click={closeCtx}></div>
   <div class="ctx-menu" style="left:{ctxX}px;top:{ctxY}px">
-    <div class="ctx-header">
-      <span class="ctx-icon">🚧</span>
-      <span class="ctx-label">Under construction</span>
+    <div class="ctx-item" on:click={ctxShowDiff}>
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M3 4 L 7 4 M7 4 L 5 2 M7 4 L 5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3 10 L 7 10 M7 10 L 5 8 M7 10 L 5 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">Show Diff</span>
+      <span class="ci-shortcut">⌘D</span>
     </div>
-    <div class="ctx-item ctx-item--dim">Open diff</div>
-    <div class="ctx-item ctx-item--dim">Copy path</div>
+    <div class="ctx-item" on:click={ctxShowDiffNewTab}>
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M3 4 L 7 4 M7 4 L 5 2 M7 4 L 5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3 10 L 7 10 M7 10 L 5 8 M7 10 L 5 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">Show Diff in a New Tab</span>
+    </div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Compare with Local</span></div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Compare Before with Local</span></div>
+    <div class="ctx-item" on:click={ctxEditSource}>
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M2 12 L 5 11 L 11 5 L 9 3 L 3 9 Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" fill="none"/>
+          <line x1="8" y1="4" x2="10" y2="6" stroke="currentColor" stroke-width="1.1"/>
+        </svg>
+      </span>
+      <span class="ci-text">Edit Source</span>
+      <span class="ci-shortcut">⌘↓</span>
+    </div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Open Repository Version</span></div>
+
     <div class="ctx-divider"></div>
-    <div class="ctx-item ctx-item--dim">More actions…</div>
+
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M3 7 L 6 4 M3 7 L 6 10 M3 7 H 9 a 3 3 0 0 1 0 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </span>
+      <span class="ci-text">Revert Selected Changes</span>
+    </div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Cherry-Pick Selected Changes</span></div>
+    <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Extract Selected Changes to Separate Commit…</span></div>
+    <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Drop Selected Changes</span></div>
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <line x1="7" y1="3" x2="7" y2="11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="3" y1="7" x2="11" y2="7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="3" y1="12" x2="11" y2="12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">Create Patch…</span>
+    </div>
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M7 2 V 9 M4 6 L 7 9 L 10 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <line x1="3" y1="12" x2="11" y2="12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">Get from Revision</span>
+    </div>
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.1"/>
+          <path d="M7 4 V 7 L 9 8.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">History Up to Here</span>
+    </div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Show Changes to Parents</span></div>
   </div>
 {/if}
 
@@ -354,7 +439,7 @@
                       style="padding-left:{8 + (depth + 1) * 14}px"
                       on:click={() => onSelectFile(f.path)}
                       on:dblclick={() => openDiff(f.path)}
-                      on:contextmenu={showCtx}
+                      on:contextmenu={(e) => showCtx(e, f.path)}
                       role="option"
                       aria-selected={selFile === f.path}
                       tabindex="0"
@@ -742,37 +827,56 @@
     z-index: 100;
     background: var(--vscode-menu-background, #252526);
     border: 0.5px solid var(--vscode-menu-border, #3a3a3a);
-    border-radius: 4px;
+    border-radius: 5px;
     padding: 4px 0;
-    min-width: 180px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    min-width: 320px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
     font-family: var(--hg-font-family);
     font-size: var(--hg-font-xs);
   }
-  .ctx-header {
+  .ctx-item {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 5px 12px 5px;
-    border-bottom: 0.5px solid var(--vscode-panel-border, #2a2a2a);
-    margin-bottom: 3px;
-  }
-  .ctx-icon { font-size: 14px; line-height: 1; }
-  .ctx-label {
-    font-size: var(--hg-font-xxs);
-    color: var(--vscode-descriptionForeground, #888);
-  }
-  .ctx-item {
-    padding: 5px 12px;
+    gap: 10px;
+    padding: 5px 14px 5px 10px;
     cursor: default;
-    color: var(--vscode-foreground, #ccc);
+    color: var(--vscode-menu-foreground, #ccc);
+    white-space: nowrap;
+  }
+  .ctx-item:hover {
+    background: var(--vscode-menu-selectionBackground, #094771);
+    color: var(--vscode-menu-selectionForeground, #fff);
   }
   .ctx-item--dim {
     color: var(--vscode-disabledForeground, #555);
   }
+  .ctx-item--dim:hover {
+    background: transparent;
+    color: var(--vscode-disabledForeground, #555);
+  }
+  .ci-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+  }
+  .ci-text {
+    flex: 1;
+  }
+  .ci-shortcut {
+    color: var(--vscode-descriptionForeground, #888);
+    font-size: var(--hg-font-xxs);
+    margin-left: 24px;
+  }
+  .ctx-item:hover .ci-shortcut {
+    color: var(--vscode-menu-selectionForeground, #ddd);
+  }
   .ctx-divider {
     height: 0.5px;
-    background: var(--vscode-panel-border, #2a2a2a);
-    margin: 3px 0;
+    background: var(--vscode-panel-border, #3a3a3a);
+    margin: 4px 0;
   }
 </style>

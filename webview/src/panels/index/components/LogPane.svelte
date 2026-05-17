@@ -5,11 +5,12 @@
   export let selectedIdx: number | null = null;
   export let onSelect: (i: number) => void = () => {};
   export let onCtx: (e: MouseEvent, i: number) => void = () => {};
+  export let onCommitAction: (action: string, commit: Commit) => void = () => {};
   export let fileSearchActive: boolean = false;
   export let fileSearchPath: string = '';
 
   // ── Graph constants ───────────────────────────────────────────────────────
-  const ROW_H = 26;
+  const ROW_H = 22;
   const LANE_W = 16;
   const PAD = 4;
 
@@ -53,11 +54,16 @@
       const color = c.color ?? '#56c8e8';
       const x     = cx(c.lane ?? 0);
       const y     = cy(i);
-      const isMerge      = (c.parents ?? []).length > 1;
+      const isMerge       = (c.parents ?? []).length > 1;
       const isBranchStart = curveTargetRows.has(i);
       const isBranchSource = curveSourceRows.has(i);
 
-      if (isMerge || isBranchStart || isBranchSource) {
+      if (isMerge) {
+        // Merge commit: hollow diamond with filled center
+        dotStr += `<polygon points="${x},${y-5} ${x+5},${y} ${x},${y+5} ${x-5},${y}" fill="#1e1e1e" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+          <circle cx="${x}" cy="${y}" r="1.6" fill="${color}"/>`;
+      } else if (isBranchStart || isBranchSource) {
+        // Fork or source point: hollow circle with cross
         dotStr += `<circle cx="${x}" cy="${y}" r="4.5" fill="#1e1e1e" stroke="${color}" stroke-width="1.5"/>
           <line x1="${x-3}" y1="${y}" x2="${x+3}" y2="${y}" stroke="${color}" stroke-width="1.2"/>
           <line x1="${x}" y1="${y-3}" x2="${x}" y2="${y+3}" stroke="${color}" stroke-width="1.2"/>`;
@@ -152,16 +158,42 @@
   let ctxVisible = false;
   let ctxX = 0;
   let ctxY = 0;
+  let ctxIdx: number | null = null;
 
   function showCtx(e: MouseEvent, i: number) {
     e.preventDefault();
     ctxX = e.clientX;
     ctxY = e.clientY;
+    ctxIdx = i;
     ctxVisible = true;
-    onCtx(e, i); // still propagate to parent for future use
+    onCtx(e, i);
   }
 
   function closeCtx() { ctxVisible = false; }
+
+  function runAction(action: string) {
+    closeCtx();
+    if (ctxIdx === null) return;
+    onCommitAction(action, commits[ctxIdx]);
+  }
+
+  function goToParent() {
+    closeCtx();
+    if (ctxIdx === null) return;
+    const c = commits[ctxIdx];
+    const parentHash = (c.parents ?? [])[0];
+    if (!parentHash) return;
+    const idx = commits.findIndex((x) => x.hash === parentHash);
+    if (idx >= 0) onSelect(idx);
+  }
+
+  function goToChild() {
+    closeCtx();
+    if (ctxIdx === null) return;
+    const hash = commits[ctxIdx].hash;
+    const idx = commits.findIndex((x) => (x.parents ?? []).includes(hash));
+    if (idx >= 0) onSelect(idx);
+  }
 
   function onKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') closeCtx();
@@ -203,16 +235,102 @@
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="ctx-overlay" on:click={closeCtx}></div>
   <div class="ctx-menu" style="left:{ctxX}px;top:{ctxY}px">
-    <div class="ctx-header">
-      <span class="ctx-icon">🚧</span>
-      <span class="ctx-label">Under construction</span>
+    <div class="ctx-item" on:click={() => runAction('copy-hash')}>
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <rect x="3" y="2" width="7" height="9" rx="1" stroke="currentColor" stroke-width="1.1"/>
+          <rect x="5" y="4" width="7" height="9" rx="1" stroke="currentColor" stroke-width="1.1" fill="var(--vscode-menu-background, #252526)"/>
+        </svg>
+      </span>
+      <span class="ci-text">Copy Revision Number</span>
+      <span class="ci-shortcut">⌥⇧⌘C</span>
     </div>
-    <div class="ctx-item ctx-item--dim">Copy hash</div>
-    <div class="ctx-item ctx-item--dim">Cherry-pick</div>
-    <div class="ctx-item ctx-item--dim">Revert</div>
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <line x1="7" y1="3" x2="7" y2="11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="3" y1="7" x2="11" y2="7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <line x1="3" y1="12" x2="11" y2="12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">Create Patch…</span>
+    </div>
+    <div class="ctx-item" on:click={() => runAction('cherry-pick')}>
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <circle cx="5" cy="10" r="2.2" stroke="currentColor" stroke-width="1.1"/>
+          <circle cx="9.5" cy="10" r="2.2" stroke="currentColor" stroke-width="1.1"/>
+          <path d="M5 8 C 5 4, 9.5 4, 9.5 8" stroke="currentColor" stroke-width="1.1" fill="none"/>
+          <path d="M7 4 L 9 2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">Cherry-Pick</span>
+    </div>
+
     <div class="ctx-divider"></div>
-    <div class="ctx-item ctx-item--dim">Create branch here</div>
-    <div class="ctx-item ctx-item--dim">Create tag here</div>
+
+    <div class="ctx-item" on:click={() => runAction('checkout')}><span class="ci-icon"></span><span class="ci-text">Checkout Revision</span></div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Show Repository at Revision</span></div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Compare with Local</span></div>
+
+    <div class="ctx-divider"></div>
+
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M3 7 L 6 4 M3 7 L 6 10 M3 7 H 9 a 3 3 0 0 1 0 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </span>
+      <span class="ci-text">Reset Current Branch to Here…</span>
+    </div>
+    <div class="ctx-item" on:click={() => runAction('revert')}><span class="ci-icon"></span><span class="ci-text">Revert Commit</span></div>
+    <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Undo Commit…</span></div>
+
+    <div class="ctx-divider"></div>
+
+    <div class="ctx-item">
+      <span class="ci-icon"></span>
+      <span class="ci-text">Edit Commit Message…</span>
+      <span class="ci-shortcut">F2</span>
+    </div>
+    <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Fixup…</span></div>
+    <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Squash Into…</span></div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Drop Commit</span></div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Interactively Rebase from Here…</span></div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Push All up to Here…</span></div>
+
+    <div class="ctx-divider"></div>
+
+    <div class="ctx-item" on:click={() => runAction('new-branch')}>
+      <span class="ci-icon"></span>
+      <span class="ci-text">New Branch…</span>
+      <span class="ci-shortcut">⌥⌘N</span>
+    </div>
+    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">New Tag…</span></div>
+
+    <div class="ctx-divider"></div>
+
+    <div class="ctx-item" on:click={goToChild}>
+      <span class="ci-icon"></span>
+      <span class="ci-text">Go to Child Commit</span>
+      <span class="ci-shortcut">←</span>
+    </div>
+    <div class="ctx-item" on:click={goToParent}>
+      <span class="ci-icon"></span>
+      <span class="ci-text">Go to Parent Commit</span>
+      <span class="ci-shortcut">→</span>
+    </div>
+
+    <div class="ctx-divider"></div>
+
+    <div class="ctx-item">
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1.3 a5.7 5.7 0 0 0 -1.8 11.1 c0.3 0.05 0.4 -0.13 0.4 -0.3 v-1.05 c-1.6 0.35 -1.95 -0.78 -1.95 -0.78 -0.27 -0.66 -0.65 -0.84 -0.65 -0.84 -0.53 -0.36 0.04 -0.36 0.04 -0.36 0.59 0.04 0.9 0.6 0.9 0.6 0.52 0.9 1.37 0.64 1.7 0.49 0.05 -0.38 0.2 -0.64 0.37 -0.79 -1.28 -0.14 -2.62 -0.64 -2.62 -2.85 0 -0.63 0.22 -1.14 0.59 -1.55 -0.06 -0.14 -0.26 -0.73 0.06 -1.52 0 0 0.49 -0.16 1.6 0.59 a5.55 5.55 0 0 1 1.45 -0.2 c0.5 0 1 0.07 1.45 0.2 1.1 -0.75 1.6 -0.59 1.6 -0.59 0.32 0.79 0.12 1.38 0.06 1.52 0.37 0.4 0.59 0.92 0.59 1.55 0 2.22 -1.34 2.7 -2.62 2.85 0.21 0.18 0.39 0.53 0.39 1.07 v1.59 c0 0.17 0.1 0.36 0.4 0.3 A5.7 5.7 0 0 0 7 1.3 z" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="ci-text">View in browser</span>
+    </div>
   </div>
 {/if}
 
@@ -375,9 +493,9 @@
   .crow {
     display: flex;
     align-items: center;
-    height: 26px;
-    min-height: 26px;
-    max-height: 26px;
+    height: 22px;
+    min-height: 22px;
+    max-height: 22px;
     cursor: pointer;
     border-bottom: 0.5px solid var(--vscode-editorGroup-border, #1f1f1f);
     border-left: 2px solid transparent;
@@ -467,24 +585,56 @@
     z-index: 100;
     background: var(--vscode-menu-background, #252526);
     border: 0.5px solid var(--vscode-menu-border, #3a3a3a);
-    border-radius: 4px;
+    border-radius: 5px;
     padding: 4px 0;
-    min-width: 190px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    min-width: 280px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
     font-family: var(--hg-font-family);
     font-size: var(--hg-font-xs);
   }
-  .ctx-header {
+  .ctx-item {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 5px 12px;
-    border-bottom: 0.5px solid var(--vscode-panel-border, #2a2a2a);
-    margin-bottom: 3px;
+    gap: 10px;
+    padding: 5px 14px 5px 10px;
+    cursor: default;
+    color: var(--vscode-menu-foreground, #ccc);
+    white-space: nowrap;
   }
-  .ctx-icon  { font-size: 14px; line-height: 1; }
-  .ctx-label { font-size: var(--hg-font-xxs); color: var(--vscode-descriptionForeground, #888); }
-  .ctx-item  { padding: 5px 12px; cursor: default; color: var(--vscode-foreground, #ccc); }
-  .ctx-item--dim { color: var(--vscode-disabledForeground, #555); }
-  .ctx-divider { height: 0.5px; background: var(--vscode-panel-border, #2a2a2a); margin: 3px 0; }
+  .ctx-item:hover {
+    background: var(--vscode-menu-selectionBackground, #094771);
+    color: var(--vscode-menu-selectionForeground, #fff);
+  }
+  .ctx-item--dim {
+    color: var(--vscode-disabledForeground, #555);
+  }
+  .ctx-item--dim:hover {
+    background: transparent;
+    color: var(--vscode-disabledForeground, #555);
+  }
+  .ci-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+  }
+  .ci-text {
+    flex: 1;
+  }
+  .ci-shortcut {
+    color: var(--vscode-descriptionForeground, #888);
+    font-size: var(--hg-font-xxs);
+    margin-left: 24px;
+  }
+  .ctx-item:hover .ci-shortcut {
+    color: var(--vscode-menu-selectionForeground, #ddd);
+  }
+  .ctx-divider {
+    height: 0.5px;
+    background: var(--vscode-panel-border, #3a3a3a);
+    margin: 4px 0;
+  }
 </style>
