@@ -10,6 +10,22 @@ type Tag struct {
 	Date string `json:"date,omitempty"`
 }
 
+// CreateTag creates a tag at the given commit (or HEAD if commit is empty).
+// If message is non-empty an annotated tag is created; otherwise lightweight.
+func CreateTag(repoPath, name, commit, message string) error {
+	args := []string{"tag"}
+	if message != "" {
+		args = append(args, "-a", name, "-m", message)
+	} else {
+		args = append(args, name)
+	}
+	if commit != "" {
+		args = append(args, commit)
+	}
+	_, err := run(repoPath, args...)
+	return err
+}
+
 // Tags returns all tags sorted by descending creator date.
 // Format: <refname:short>TAB<objectname:short>TAB<creatordate:short>
 func Tags(repoPath string) ([]Tag, error) {

@@ -26,6 +26,47 @@ async function openFile(params: { file: string }): Promise<void> {
   await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(absPath));
 }
 
+// Normalize a remote URL to its web (HTTPS) form. Supports the SSH and
+// scp-like shorthand used by GitHub/GitLab/Bitbucket; passes through HTTPS.
+function remoteUrlToWeb(raw: string): string | null {
+  let url = raw.trim();
+  if (!url) return null;
+  if (url.endsWith('.git')) url = url.slice(0, -4);
+  // ssh://git@host/owner/repo
+  const ssh = url.match(/^ssh:\/\/[^@]+@([^/:]+)(?::\d+)?\/(.+)$/);
+  if (ssh) return `https://${ssh[1]}/${ssh[2]}`;
+  // scp-like: git@host:owner/repo
+  const scp = url.match(/^[^@]+@([^:]+):(.+)$/);
+  if (scp) return `https://${scp[1]}/${scp[2]}`;
+  // http(s) already
+  if (/^https?:\/\//.test(url)) return url;
+  return null;
+}
+
+async function openCommitUrl(params: { commit: string }): Promise<void> {
+  const { commit } = params;
+  if (!commit) return;
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  try {
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const exec = promisify(execFile);
+    const { stdout } = await exec('git', ['config', '--get', 'remote.origin.url'], {
+      cwd: workspaceRoot,
+    });
+    const web = remoteUrlToWeb(stdout);
+    if (!web) {
+      vscode.window.showWarningMessage(`Could not parse remote URL: ${stdout.trim()}`);
+      return;
+    }
+    await vscode.env.openExternal(vscode.Uri.parse(`${web}/commit/${commit}`));
+  } catch (err) {
+    vscode.window.showWarningMessage(
+      `No remote.origin.url configured: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
+
 async function openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
   const { commit, parent, file } = params;
 
@@ -115,6 +156,10 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       }
       if (msg.cmd === 'openFile') {
         await openFile(msg.params);
+        return;
+      }
+      if (msg.cmd === 'openCommitUrl') {
+        await openCommitUrl(msg.params);
         return;
       }
 

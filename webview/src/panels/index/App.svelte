@@ -159,7 +159,6 @@
     selCommitIdx = null; diffFiles = []; diffHunks = [];
     flash(`Searching commits for: ${fileSearchPath}…`);
     try {
-      // log.file requires a new Go IPC command (see handler.go note below)
       const result = await send<Commit[]>('log.file', { path: fileSearchPath });
       filtered = result;
       flash(`${result.length} commit${result.length !== 1 ? 's' : ''} touched ${fileSearchPath}`, '#4ec94e');
@@ -323,7 +322,16 @@
       return;
     }
     if (a === 'tag') {
-      flash('Tag creation — coming soon', '#febc2e');
+      const name = prompt('New tag name (at HEAD):');
+      if (!name) return;
+      const message = prompt(`Annotation message for "${name}" (leave empty for lightweight tag):`) ?? '';
+      try {
+        await send('tag.create', { name, commit: '', message });
+        flash(`Created tag ${name}`, '#4ec94e');
+        loadAll();
+      } catch (e: unknown) {
+        flash('Tag failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      }
       return;
     }
     // stash.save, fetch, pull, push
@@ -374,6 +382,35 @@
         flash(`Created ${name}`, '#4ec94e');
         loadAll();
       },
+      'new-tag': async () => {
+        const name = prompt(`New tag at ${hash.slice(0, 7)}:`);
+        if (!name) return;
+        const message = prompt(`Annotation message for "${name}" (leave empty for lightweight tag):`) ?? '';
+        await send('tag.create', { name, commit: hash, message });
+        flash(`Created tag ${name}`, '#4ec94e');
+        loadAll();
+      },
+      'view-in-browser': async () => {
+        send('openCommitUrl', { commit: hash });
+      },
+      reset: async () => {
+        const raw = prompt(
+          `Reset current branch to ${hash.slice(0, 7)} — mode (soft / mixed / hard):`,
+          'mixed'
+        );
+        if (!raw) return;
+        const mode = raw.trim().toLowerCase();
+        if (mode !== 'soft' && mode !== 'mixed' && mode !== 'hard') {
+          flash(`Unknown reset mode: ${raw}`, '#f07070');
+          return;
+        }
+        if (mode === 'hard' && !confirm(
+          `Hard reset to ${hash.slice(0, 7)}?\n\nUncommitted changes will be DISCARDED.`
+        )) return;
+        await send('reset', { commit: hash, mode });
+        flash(`Reset (${mode}) to ${hash.slice(0, 7)}`, '#4ec94e');
+        loadAll();
+      },
     };
     try {
       await acts[action]?.();
@@ -415,6 +452,18 @@
         await send('checkout', { branch: ctxBranch });
         await send('rebase', { onto });
         flash(`Checked out ${ctxBranch} and rebased onto ${onto}`, '#4ec94e');
+        loadAll();
+      },
+      'pull-rebase': async () => {
+        flash('Pulling (rebase)…');
+        await send('pull.mode', { mode: 'rebase' });
+        flash('Pulled with rebase', '#4ec94e');
+        loadAll();
+      },
+      'pull-merge': async () => {
+        flash('Pulling (merge)…');
+        await send('pull.mode', { mode: 'merge' });
+        flash('Pulled with merge', '#4ec94e');
         loadAll();
       },
     };
@@ -478,17 +527,6 @@
     tagMenu    = { ...tagMenu,    visible: false };
   }
 </script>
-
-<!--
-  NOTE — Go side: add to internal/git/log.go:
-    func LogFile(repoPath, filePath string) ([]Commit, error) {
-      out, err := run(repoPath, "log", "--follow", "--format=...", "--", filePath)
-      ...
-    }
-  And in internal/ipc/handler.go add case "log.file":
-    files := params["path"].(string)
-    commits, err := git.LogFile(repoPath, files)
--->
 
 <svelte:window
   on:click={closeMenus}

@@ -275,7 +275,7 @@
 
     <div class="ctx-divider"></div>
 
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={() => runAction('reset')}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M3 7 L 6 4 M3 7 L 6 10 M3 7 H 9 a 3 3 0 0 1 0 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
@@ -306,7 +306,7 @@
       <span class="ci-text">New Branch…</span>
       <span class="ci-shortcut">⌥⌘N</span>
     </div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">New Tag…</span></div>
+    <div class="ctx-item" on:click={() => runAction('new-tag')}><span class="ci-icon"></span><span class="ci-text">New Tag…</span></div>
 
     <div class="ctx-divider"></div>
 
@@ -323,7 +323,7 @@
 
     <div class="ctx-divider"></div>
 
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={() => runAction('view-in-browser')}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M7 1.3 a5.7 5.7 0 0 0 -1.8 11.1 c0.3 0.05 0.4 -0.13 0.4 -0.3 v-1.05 c-1.6 0.35 -1.95 -0.78 -1.95 -0.78 -0.27 -0.66 -0.65 -0.84 -0.65 -0.84 -0.53 -0.36 0.04 -0.36 0.04 -0.36 0.59 0.04 0.9 0.6 0.9 0.6 0.52 0.9 1.37 0.64 1.7 0.49 0.05 -0.38 0.2 -0.64 0.37 -0.79 -1.28 -0.14 -2.62 -0.64 -2.62 -2.85 0 -0.63 0.22 -1.14 0.59 -1.55 -0.06 -0.14 -0.26 -0.73 0.06 -1.52 0 0 0.49 -0.16 1.6 0.59 a5.55 5.55 0 0 1 1.45 -0.2 c0.5 0 1 0.07 1.45 0.2 1.1 -0.75 1.6 -0.59 1.6 -0.59 0.32 0.79 0.12 1.38 0.06 1.52 0.37 0.4 0.59 0.92 0.59 1.55 0 2.22 -1.34 2.7 -2.62 2.85 0.21 0.18 0.39 0.53 0.39 1.07 v1.59 c0 0.17 0.1 0.36 0.4 0.3 A5.7 5.7 0 0 0 7 1.3 z" fill="currentColor"/>
