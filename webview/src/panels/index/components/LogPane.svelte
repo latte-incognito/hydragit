@@ -23,7 +23,7 @@
     let edgeStr = '';
     let dotStr  = '';
 
-    // Pass 1: edges (row i → row i+1)
+    // Pass 1: per-row edges (row i → row i+1)
     for (let i = 0; i < commits.length; i++) {
       const c = commits[i];
       for (const e of c.edges ?? []) {
@@ -34,6 +34,23 @@
         } else {
           const third = (y2 - y1) / 3;
           edgeStr += `<path d="M${x1},${y1} C${x1},${y1 + third} ${x2},${y2 - third} ${x2},${y2}" fill="none" stroke="${e.color}" stroke-width="1.5" stroke-linecap="round"/>`;
+        }
+      }
+    }
+
+    // Pass 1b: merge connectors (long curves from merge commit to branch tip)
+    for (let i = 0; i < commits.length; i++) {
+      const c = commits[i];
+      for (const mp of c.mergePaths ?? []) {
+        const x1 = cx(mp.fromLane), y1 = cy(mp.fromRow);
+        const x2 = cx(mp.toLane),   y2 = cy(mp.toRow);
+        if (mp.fromRow === mp.toRow) {
+          // Same-row connector (parent already had a column)
+          const midY = y1 + ROW_H / 2;
+          edgeStr += `<path d="M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}" fill="none" stroke="${mp.color}" stroke-width="1.5" stroke-linecap="round"/>`;
+        } else {
+          const third = (y2 - y1) / 3;
+          edgeStr += `<path d="M${x1},${y1} C${x1},${y1 + third} ${x2},${y2 - third} ${x2},${y2}" fill="none" stroke="${mp.color}" stroke-width="1.5" stroke-linecap="round"/>`;
         }
       }
     }

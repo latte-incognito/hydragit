@@ -13,6 +13,14 @@ export interface GraphEdge {
   color: string;
 }
 
+export interface MergePath {
+  fromLane: number;
+  toLane: number;
+  fromRow: number;
+  toRow: number;
+  color: string;
+}
+
 export interface Commit {
   hash: string;
   message: string;
@@ -24,6 +32,7 @@ export interface Commit {
   lane?: number;
   color?: string;
   edges?: GraphEdge[];
+  mergePaths?: MergePath[];
 }
 
 export interface DiffFile {
