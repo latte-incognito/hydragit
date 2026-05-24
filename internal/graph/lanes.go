@@ -3,13 +3,13 @@ package graph
 import "hydragit/internal/git"
 
 var LaneColors = []string{
+	"#e8873e", // orange
 	"#56c8e8", // teal
+	"#e85680", // pink
 	"#4ec94e", // green
 	"#9a7ae8", // purple
 	"#e3b341", // amber
-	"#e87856", // orange
 	"#56e8c8", // mint
-	"#e85680", // pink
 	"#7898e8", // blue
 }
 
