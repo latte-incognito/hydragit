@@ -1,14 +1,13 @@
 import { defineConfig } from "@playwright/test";
-import path from "path";
 
 const REPO_DIR = "/tmp/hydragit-test-repo";
-const EXTENSION_DIR = path.resolve(__dirname, "..");
+const EXTENSION_DIR = __dirname;
 
 export default defineConfig({
-  testDir: "./e2e",
+  testDir: "./tests/e2e",
   timeout: 60_000,
   retries: 0,
-  workers: 1, // VS Code tests must run serially
+  workers: 1,
 
   use: {
     trace: "on-first-retry",
@@ -18,7 +17,6 @@ export default defineConfig({
     {
       name: "vscode",
       use: {
-        // These are passed to the test fixtures
         extensionPath: EXTENSION_DIR,
         repoPath: REPO_DIR,
       } as any,

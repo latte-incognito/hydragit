@@ -1,6 +1,6 @@
 import { test as base, _electron as electron, ElectronApplication, Page } from "@playwright/test";
-import path from "path";
 import { execSync } from "child_process";
+import fs from "fs";
 
 export type TestFixtures = {
   vscode: ElectronApplication;
@@ -13,19 +13,18 @@ export const test = base.extend<TestFixtures>({
     const repoPath: string = config.repoPath;
     const extensionPath: string = config.extensionPath;
 
-    // Find VS Code binary
-    const vscodePath = getVSCodePath();
+    const vscodePath = process.env.VSCODE_PATH || getVSCodePath();
 
     const app = await electron.launch({
       executablePath: vscodePath,
       args: [
         repoPath,
         `--extensionDevelopmentPath=${extensionPath}`,
-        "--disable-extensions", // disable all other extensions
+        "--disable-other-extensions",
         "--skip-welcome",
         "--skip-release-notes",
         "--disable-workspace-trust",
-        `--user-data-dir=/tmp/hydragit-test-vscode-data`,
+        "--user-data-dir=/tmp/hydragit-test-vscode-data",
       ],
       env: {
         ...process.env,
@@ -39,9 +38,7 @@ export const test = base.extend<TestFixtures>({
 
   mainWindow: async ({ vscode }, use) => {
     const window = await vscode.firstWindow();
-    // Wait for VS Code to fully load
     await window.waitForLoadState("domcontentloaded");
-    // Give extensions time to activate
     await window.waitForTimeout(3000);
     await use(window);
   },
@@ -50,29 +47,25 @@ export const test = base.extend<TestFixtures>({
 export { expect } from "@playwright/test";
 
 function getVSCodePath(): string {
-  const platform = process.platform;
+  const candidates: string[] = [];
 
-  if (platform === "darwin") {
-    const paths = [
+  if (process.platform === "darwin") {
+    candidates.push(
       "/Applications/Visual Studio Code.app/Contents/MacOS/Electron",
       "/Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron",
       `${process.env.HOME}/Applications/Visual Studio Code.app/Contents/MacOS/Electron`,
-    ];
-    for (const p of paths) {
-      try {
-        execSync(`test -f "${p}"`);
-        return p;
-      } catch {}
-    }
-  }
-
-  if (platform === "linux") {
+    );
+  } else if (process.platform === "linux") {
     try {
       return execSync("which code").toString().trim();
     } catch {}
   }
 
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+
   throw new Error(
-    "Could not find VS Code. Install it or set VSCODE_PATH env var."
+    "Could not find VS Code. Set VSCODE_PATH env var to the Electron binary path."
   );
 }
