@@ -41,7 +41,7 @@ func Status(repoPath string) (StatusResult, error) {
 
 	// Parse working tree + index state in a single pass.
 	// Untracked files (??) are included in Files but not in Modified count.
-	out, err := run(repoPath, "status", "--porcelain")
+	out, err := run(repoPath, "status", "--porcelain", "-u")
 	if err != nil {
 		return res, err
 	}

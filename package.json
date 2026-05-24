@@ -78,6 +78,8 @@
     "test": "vitest run --reporter=verbose",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
+    "test:e2e": "bash tests/fixtures/create-test-repo.sh /tmp/hydragit-test-repo && npx playwright test",
+    "test:e2e:headed": "bash tests/fixtures/create-test-repo.sh /tmp/hydragit-test-repo && npx playwright test --headed",
     "compile": "tsc -p ./extension/tsconfig.json",
     "watch": "tsc -watch -p ./extension/tsconfig.json",
     "format": "prettier --write .",
@@ -100,6 +102,7 @@
     "tslib": "^2.8.1",
     "typescript": "^6.0.2",
     "vite": "^8.0.3",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.2",
+    "@playwright/test": "^1.52.0"
   }
 }
