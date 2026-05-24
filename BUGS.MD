@@ -13,3 +13,4 @@ Result of manual testing:
  12. Status pane is kinda usefull but error message there  sometimes way bigger than 1 line so, probably need to handle it .
  13. ADD playwright tests that will cover functionality
  14. Commit and commit & push buttons inside side bar, commit is always hihlighted. And also need to add processing errors inside that side bar. 
+ 15. Deselect Stashes , because Pop Apply Show Drop buttons don't disapper.
