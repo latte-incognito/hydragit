@@ -14,3 +14,5 @@ Result of manual testing:
  13. ADD playwright tests that will cover functionality
  14. Commit and commit & push buttons inside side bar, commit is always hihlighted. And also need to add processing errors inside that side bar. 
  15. Deselect Stashes , because Pop Apply Show Drop buttons don't disapper.
+ 16. Add Hydragit logo inside the status bar of Hydragit near branch name
+ 17. Add hydragit logo near select branch pane
