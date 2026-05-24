@@ -2,43 +2,47 @@ import { test, expect } from "./vscode-fixture";
 
 test.describe("HydraGit Extension", () => {
   test("extension activates and shows sidebar", async ({ mainWindow }) => {
-    // HydraGit should appear in the activity bar
     const activityBar = mainWindow.locator('[id="workbench.parts.activitybar"]');
     await expect(activityBar).toBeVisible();
 
-    // Click on HydraGit icon in activity bar
+    // Click on HydraGit icon — use the <a> tag specifically to avoid badge duplicate
     const hydragitIcon = mainWindow.locator(
-      '[class*="action-item"] [aria-label*="HydraGit"]'
+      'a.action-label[aria-label="HydraGit"]'
     );
-    if (await hydragitIcon.isVisible()) {
-      await hydragitIcon.click();
-      await mainWindow.waitForTimeout(1000);
-    }
+    await expect(hydragitIcon).toBeVisible({ timeout: 10000 });
+    await hydragitIcon.click();
+    await mainWindow.waitForTimeout(1000);
   });
 
-  test("branch list renders", async ({ mainWindow }) => {
-    // Open HydraGit main panel via command palette
+  test("command palette opens and finds HydraGit commands", async ({
+    mainWindow,
+  }) => {
+    // Open command palette
     await mainWindow.keyboard.press("Meta+Shift+P");
+
+    // The command palette input has a specific role
+    const input = mainWindow.locator(".quick-input-box input");
+    await expect(input).toBeVisible({ timeout: 5000 });
+    await input.fill(">HydraGit");
     await mainWindow.waitForTimeout(500);
 
-    const input = mainWindow.locator('[class*="input"]').first();
-    await input.fill("HydraGit");
-    await mainWindow.waitForTimeout(500);
+    // Should see at least one HydraGit command in the list
+    const items = mainWindow.locator('.quick-input-list .label-description', {
+      hasText: 'HydraGit',
+    });
+    await expect(items.first()).toBeVisible({ timeout: 5000 });
+
+    // Close palette
+    await mainWindow.keyboard.press("Escape");
   });
 
   test("commit log shows entries", async ({ mainWindow }) => {
-    // This is a skeleton — once we know the exact webview selectors,
-    // we'll query inside the webview frame for commit rows
     const webviews = mainWindow.locator("iframe.webview");
     const count = await webviews.count();
-
-    // HydraGit should have at least one webview panel
     console.log(`Found ${count} webview frame(s)`);
   });
 
   test("stash list is populated", async ({ mainWindow }) => {
-    // The test repo has 2 stashes — verify they appear
-    // Skeleton: will fill in once we identify webview DOM structure
     const webviews = mainWindow.locator("iframe.webview");
     const count = await webviews.count();
     console.log(`Found ${count} webview frame(s) for stash check`);
