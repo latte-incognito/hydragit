@@ -84,3 +84,18 @@ fmt-check:
 
 clean-webview:
 	rm -f webview/*.js webview/*.css
+
+## E2E: install test dependencies
+test-e2e-install:
+	cd tests && npm install
+
+## E2E: create fresh test git repo in /tmp
+test-e2e-repo:
+	bash tests/fixtures/create-test-repo.sh /tmp/hydragit-test-repo
+
+## E2E: run Playwright tests headed (visible browser)
+test-e2e-headed: test-e2e-repo
+	cd tests && npx playwright test --headed
+
+## Full local test: rebuild extension, install it, then run E2E headed
+test-local: install-local test-e2e-install test-e2e-repo test-e2e-headed
