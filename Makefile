@@ -93,5 +93,9 @@ test-e2e-repo:
 test-e2e-headed: test-e2e-repo
 	npx playwright test --headed
 
+## E2E: open last test report in browser
+test-report:
+	npx playwright show-report
+
 ## Full local test: rebuild extension, install it, then run E2E headed
 test-local: install-local test-e2e-repo test-e2e-headed
