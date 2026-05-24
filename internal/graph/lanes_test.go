@@ -26,9 +26,11 @@ func TestSingleBranch(t *testing.T) {
 	for _, c := range result {
 		assert(t, c.Lane == 0, "expected lane 0 for single branch")
 	}
-	for _, c := range result {
-		for _, p := range c.Paths {
-			assert(t, p.Type == "straight", "expected straight path for single branch")
+	// Each non-root commit should have exactly one edge (straight continuation)
+	for i, c := range result {
+		if i < len(result)-1 {
+			assert(t, len(c.Edges) == 1, "expected one edge per non-root commit")
+			assert(t, c.Edges[0].FromLane == 0 && c.Edges[0].ToLane == 0, "expected straight edge on lane 0")
 		}
 	}
 }
@@ -44,26 +46,22 @@ func TestSimpleMerge(t *testing.T) {
 	}
 	result := AssignLanes(commits)
 
-	// merge commit on lane 0
 	assert(t, result[0].Lane == 0, "merge commit should be on lane 0")
-
-	// feat commit on a different lane than merge
 	assert(t, result[1].Lane != result[0].Lane, "feat should be on a different lane")
 
-	// merge commit should have one curve path
-	curveCount := 0
-	for _, p := range result[0].Paths {
-		if p.Type == "curve" {
-			curveCount++
+	// merge commit should have a curve edge to the feat branch lane
+	hasCurve := false
+	for _, e := range result[0].Edges {
+		if e.FromLane != e.ToLane {
+			hasCurve = true
 		}
 	}
-	assert(t, curveCount == 1, "expected one curve path on merge commit")
+	assert(t, hasCurve, "expected a curve edge on merge commit")
 }
 
 // ── lane colors cycle ─────────────────────────────────────────────────────────
 
 func TestLaneColorCycles(t *testing.T) {
-	// more lanes than colors — should cycle without panic
 	n := len(LaneColors) + 3
 	for i := 0; i < n; i++ {
 		color := laneColor(i)
@@ -71,7 +69,6 @@ func TestLaneColorCycles(t *testing.T) {
 			t.Fatalf("laneColor(%d) returned empty string", i)
 		}
 	}
-	// lane 0 and lane len(LaneColors) should have the same color
 	assert(t, laneColor(0) == laneColor(len(LaneColors)), "expected colors to cycle")
 }
 
@@ -85,13 +82,12 @@ func TestRootCommitOnly(t *testing.T) {
 
 	assert(t, len(result) == 1, "expected one result")
 	assert(t, result[0].Lane == 0, "root should be on lane 0")
-	assert(t, len(result[0].Paths) == 0, "root should have no paths")
+	assert(t, len(result[0].Edges) == 0, "root should have no edges")
 }
 
 // ── two parallel branches, no merge ──────────────────────────────────────────
 
 func TestTwoParallelBranches(t *testing.T) {
-	// a1 → a2 on one branch, b1 → b2 on another, share a common base
 	commits := []git.Commit{
 		{Hash: "a2", Parents: []string{"a1"}},
 		{Hash: "b2", Parents: []string{"b1"}},
@@ -101,13 +97,57 @@ func TestTwoParallelBranches(t *testing.T) {
 	}
 	result := AssignLanes(commits)
 
-	// a2 and b2 should be on different lanes
 	assert(t, result[0].Lane != result[1].Lane, "parallel branch tips should be on different lanes")
-
-	// all commits should have non-negative lanes
 	for _, c := range result {
 		assert(t, c.Lane >= 0, "lane should be non-negative")
 	}
+}
+
+// ── pass-through edges ───────────────────────────────────────────────────────
+
+func TestPassThroughEdges(t *testing.T) {
+	// Merge allocates two lanes; at row 1, the non-commit lane should pass through.
+	commits := []git.Commit{
+		{Hash: "merge", Parents: []string{"a", "b"}},
+		{Hash: "b", Parents: []string{"base"}},
+		{Hash: "a", Parents: []string{"base"}},
+		{Hash: "base", Parents: []string{}},
+	}
+	result := AssignLanes(commits)
+
+	// Row 1 (b) is on lane 1; lane 0 is active (expects "a") and should pass through.
+	hasPassThrough := false
+	for _, e := range result[1].Edges {
+		if e.FromLane == 0 && e.ToLane == 0 {
+			hasPassThrough = true
+		}
+	}
+	assert(t, hasPassThrough, "expected pass-through edge for lane 0 at row 1")
+}
+
+// ── collapse edges ───────────────────────────────────────────────────────────
+
+func TestCollapseEdges(t *testing.T) {
+	// Two children point to the same parent — duplicate columns should collapse
+	commits := []git.Commit{
+		{Hash: "a", Parents: []string{"c"}},
+		{Hash: "b", Parents: []string{"c"}},
+		{Hash: "c", Parents: []string{}},
+	}
+	result := AssignLanes(commits)
+
+	assert(t, result[0].Lane == 0, "a on lane 0")
+	assert(t, result[1].Lane == 1, "b on lane 1")
+	assert(t, result[2].Lane == 0, "c on lane 0 (first match)")
+
+	// Row 1 edges should have a merge curve from lane 1 → lane 0
+	hasMergeCurve := false
+	for _, e := range result[1].Edges {
+		if e.FromLane == 1 && e.ToLane == 0 {
+			hasMergeCurve = true
+		}
+	}
+	assert(t, hasMergeCurve, "expected collapse merge curve from lane 1 to lane 0")
 }
 
 // ── result length matches input ───────────────────────────────────────────────
