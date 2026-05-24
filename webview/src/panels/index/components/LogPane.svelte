@@ -475,6 +475,7 @@
   .crow {
     display: flex;
     align-items: center;
+    box-sizing: border-box;
     height: 22px;
     min-height: 22px;
     max-height: 22px;
