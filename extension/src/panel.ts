@@ -4,6 +4,124 @@ import * as fs from 'fs';
 import { GoProcess } from './goProcess';
 import { HydraStatusService, HydraStatusSnapshot } from './HydraStatusService';
 
+// ── Shared diff helpers ───────────────────────────────────────────────────────
+
+async function fileExistsAtRef(absPath: string, ref: string): Promise<boolean> {
+  try {
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const exec = promisify(execFile);
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+    const relPath = path.relative(workspaceRoot, absPath);
+    await exec('git', ['cat-file', '-e', `${ref}:${relPath}`], { cwd: workspaceRoot });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function openFile(params: { file: string }): Promise<void> {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const absPath = path.join(workspaceRoot, params.file);
+  await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(absPath));
+}
+
+// Normalize a remote URL to its web (HTTPS) form. Supports the SSH and
+// scp-like shorthand used by GitHub/GitLab/Bitbucket; passes through HTTPS.
+function remoteUrlToWeb(raw: string): string | null {
+  let url = raw.trim();
+  if (!url) return null;
+  if (url.endsWith('.git')) url = url.slice(0, -4);
+  // ssh://git@host/owner/repo
+  const ssh = url.match(/^ssh:\/\/[^@]+@([^/:]+)(?::\d+)?\/(.+)$/);
+  if (ssh) return `https://${ssh[1]}/${ssh[2]}`;
+  // scp-like: git@host:owner/repo
+  const scp = url.match(/^[^@]+@([^:]+):(.+)$/);
+  if (scp) return `https://${scp[1]}/${scp[2]}`;
+  // http(s) already
+  if (/^https?:\/\//.test(url)) return url;
+  return null;
+}
+
+async function openCommitUrl(params: { commit: string }): Promise<void> {
+  const { commit } = params;
+  if (!commit) return;
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  try {
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const exec = promisify(execFile);
+    const { stdout } = await exec('git', ['config', '--get', 'remote.origin.url'], {
+      cwd: workspaceRoot,
+    });
+    const web = remoteUrlToWeb(stdout);
+    if (!web) {
+      vscode.window.showWarningMessage(`Could not parse remote URL: ${stdout.trim()}`);
+      return;
+    }
+    await vscode.env.openExternal(vscode.Uri.parse(`${web}/commit/${commit}`));
+  } catch (err) {
+    vscode.window.showWarningMessage(
+      `No remote.origin.url configured: ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+}
+
+async function openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
+  const { commit, parent, file } = params;
+
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const absPath = path.join(workspaceRoot, file);
+
+  // ── Working tree diff (sidebar) ──────────────────────────────────────────
+  if (commit === 'HEAD' && !parent) {
+    const title = `${path.basename(file)} (working tree)`;
+    const workingTreeUri = vscode.Uri.file(absPath);
+    const headExists = await fileExistsAtRef(absPath, 'HEAD');
+
+    if (!headExists) {
+      await vscode.commands.executeCommand('vscode.open', workingTreeUri, { preview: true }, title);
+      return;
+    }
+
+    const headUri = vscode.Uri.parse(`git:${absPath}`).with({
+      query: JSON.stringify({ path: absPath, ref: 'HEAD' }),
+    });
+    await vscode.commands.executeCommand('vscode.diff', headUri, workingTreeUri, title);
+    return;
+  }
+
+  // ── Commit diff (main panel) ─────────────────────────────────────────────
+  const title = `${path.basename(file)} (${commit.slice(0, 7)})`;
+
+  const gitUri = (ref: string) =>
+    vscode.Uri.parse(`git:${absPath}`).with({
+      query: JSON.stringify({ path: absPath, ref }),
+    });
+
+  const [existsInParent, existsInCommit] = await Promise.all([
+    parent ? fileExistsAtRef(absPath, parent) : Promise.resolve(false),
+    fileExistsAtRef(absPath, commit),
+  ]);
+
+  if (!existsInParent && !existsInCommit) {
+    vscode.window.showWarningMessage(`Cannot show diff: file not found at either ref.`);
+    return;
+  }
+
+  if (!existsInParent) {
+    await vscode.commands.executeCommand('vscode.open', gitUri(commit), { preview: true }, title);
+    return;
+  }
+
+  if (!existsInCommit) {
+    await vscode.commands.executeCommand('vscode.open', gitUri(parent), { preview: true }, `${title} (deleted)`);
+    return;
+  }
+
+  await vscode.commands.executeCommand('vscode.diff', gitUri(parent), gitUri(commit), title);
+}
+
 export class HydraViewProvider implements vscode.WebviewViewProvider {
   private watcher: vscode.FileSystemWatcher | undefined;
 
@@ -33,7 +151,15 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       // openDiff is handled entirely in the extension host — no Go call needed
       if (msg.cmd === 'openDiff') {
-        await this.openDiff(msg.params);
+        await openDiff(msg.params);
+        return;
+      }
+      if (msg.cmd === 'openFile') {
+        await openFile(msg.params);
+        return;
+      }
+      if (msg.cmd === 'openCommitUrl') {
+        await openCommitUrl(msg.params);
         return;
       }
 
@@ -62,28 +188,6 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     }
 
     webviewView.onDidDispose(() => this.watcher?.dispose());
-  }
-
-  private async openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
-    const { commit, parent, file } = params;
-    const title = `${path.basename(file)} (${commit.slice(0, 7)})`;
-
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
-    const absPath = path.join(workspaceRoot, file);
-
-    const gitUri = (ref: string) =>
-      vscode.Uri.parse(`git:${absPath}`).with({
-        query: JSON.stringify({ path: absPath, ref }),
-      });
-
-    const after = gitUri(commit);
-
-    // first commit has no parent — diff against empty tree
-    const before = parent
-      ? gitUri(parent)
-      : gitUri('0000000000000000000000000000000000000000');
-
-    await vscode.commands.executeCommand('vscode.diff', before, after, title);
   }
 
   focus(): void {
@@ -160,6 +264,12 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
+      // openDiff is handled in the extension host — same as main panel
+      if (msg.cmd === 'openDiff') {
+        await openDiff(msg.params);
+        return;
+      }
+
       try {
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
         webviewView.webview.postMessage({ id: msg.id, ok: true, data });

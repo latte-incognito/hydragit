@@ -128,6 +128,20 @@ func Merge(repoPath, branch string) error {
 	return err
 }
 
+// Reset moves the current branch tip to the given commit.
+// mode: "soft", "mixed" (default), or "hard". Anything else is treated as mixed.
+func Reset(repoPath, commit, mode string) error {
+	flag := "--mixed"
+	switch mode {
+	case "soft":
+		flag = "--soft"
+	case "hard":
+		flag = "--hard"
+	}
+	_, err := run(repoPath, "reset", flag, commit)
+	return err
+}
+
 func Rebase(repoPath, onto string) error {
 	_, err := run(repoPath, "rebase", onto)
 	return err
@@ -149,5 +163,19 @@ func Fetch(repoPath string) error {
 
 func Pull(repoPath string) error {
 	_, err := run(repoPath, "pull")
+	return err
+}
+
+// PullMode runs `git pull` with an explicit integration strategy.
+// mode: "rebase" → --rebase, "merge" → --no-rebase, anything else → plain pull.
+func PullMode(repoPath, mode string) error {
+	args := []string{"pull"}
+	switch mode {
+	case "rebase":
+		args = append(args, "--rebase")
+	case "merge":
+		args = append(args, "--no-rebase")
+	}
+	_, err := run(repoPath, args...)
 	return err
 }

@@ -10,8 +10,18 @@ import (
 	"hydragit/internal/logger"
 )
 
+// logSilentGitCmds lists git subcommands whose successful executions are not
+// logged — they are called on a tight poll loop and would flood the log.
+// Errors are always logged regardless of this list.
+var logSilentGitCmds = map[string]bool{
+	"rev-parse": true,
+	"rev-list":  true,
+	"status":    true,
+}
+
 // run is the single entry point for all git CLI calls.
-// Every execution is logged via the logger package.
+// Successful executions of commands in logSilentGitCmds are not logged.
+// Errors are always logged.
 func run(repoPath string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = repoPath
@@ -24,7 +34,6 @@ func run(repoPath string, args ...string) (string, error) {
 	runErr := cmd.Run()
 	durationMs := time.Since(start).Milliseconds()
 
-	// Build a readable command label: "status", "log --max-count=200 --all", etc.
 	cmdLabel := strings.Join(args, " ")
 
 	exitCode := 0
@@ -35,10 +44,13 @@ func run(repoPath string, args ...string) (string, error) {
 			exitCode = -1
 		}
 		errMsg := strings.TrimSpace(stderr.String())
+		// errors are always logged, never silent
 		logger.GitCmd(cmdLabel, durationMs, exitCode, errMsg)
 		return "", fmt.Errorf("%s", errMsg)
 	}
 
-	logger.GitCmd(cmdLabel, durationMs, exitCode, "")
+	if !logSilentGitCmds[args[0]] {
+		logger.GitCmd(cmdLabel, durationMs, exitCode, "")
+	}
 	return strings.TrimRight(stdout.String(), "\n"), nil
 }

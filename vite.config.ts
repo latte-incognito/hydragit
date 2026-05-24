@@ -6,6 +6,10 @@ export default defineConfig(() => ({
   plugins: [
     svelte({
       hot: !process.env.VITEST,
+      onwarn(warning, handler) {
+        if (warning.code.startsWith('a11y_')) return;
+        handler(warning);
+      },
     }),
   ],
 
@@ -30,6 +34,7 @@ export default defineConfig(() => ({
   build: {
     outDir: '.',
     emptyOutDir: false,
+    codeSplitting: false,
     rollupOptions: {
       input: {
         sidebar: resolve(__dirname, 'webview/src/panels/sidebar/main.ts'),
@@ -39,7 +44,6 @@ export default defineConfig(() => ({
         entryFileNames: 'webview/[name].js',
         chunkFileNames: 'webview/[name]-[hash].js',
         assetFileNames: 'webview/[name][extname]',
-        inlineDynamicImports: false,
         manualChunks: undefined,
       },
     },

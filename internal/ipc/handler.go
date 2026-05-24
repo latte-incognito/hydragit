@@ -1,6 +1,8 @@
 package ipc
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"time"
 
@@ -30,20 +32,38 @@ func fail(id string, err error) Response {
 	return Response{ID: id, OK: false, Error: err.Error()}
 }
 
+// logSilentCmds suppresses IPC request/response logging for high-frequency
+// commands. Errors are always logged regardless of this map.
+var logSilentCmds = map[string]bool{
+	"status": true,
+}
+
+// lastStatusHash tracks the last seen status payload to log only on change.
+var lastStatusHash string
+
 func Handle(repoPath string, req Request) Response {
 	id := req.ID
 	start := time.Now()
+	silent := logSilentCmds[req.Cmd]
 
-	logger.IPCRequest(id, req.Cmd)
+	if !silent {
+		logger.IPCRequest(id, req.Cmd)
+	}
 
 	resp := handle(repoPath, req)
 
 	durationMs := time.Since(start).Milliseconds()
-	errMsg := ""
-	if !resp.OK {
-		errMsg = resp.Error
+
+	if !silent {
+		errMsg := ""
+		if !resp.OK {
+			errMsg = resp.Error
+		}
+		logger.IPCResponse(id, req.Cmd, resp.OK, durationMs, errMsg)
+	} else if !resp.OK {
+		// silent cmd errored — always surface errors
+		logger.IPCResponse(id, req.Cmd, false, durationMs, resp.Error)
 	}
-	logger.IPCResponse(id, req.Cmd, resp.OK, durationMs, errMsg)
 
 	return resp
 }
@@ -63,6 +83,15 @@ func handle(repoPath string, req Request) Response {
 		if err != nil {
 			return fail(id, err)
 		}
+		// Only log when status actually changes
+		b, _ := json.Marshal(s)
+		sum := sha256.Sum256(b)
+		h := hex.EncodeToString(sum[:8])
+		if h != lastStatusHash {
+			lastStatusHash = h
+			logger.Info("status", "status changed")
+		}
+
 		return ok(id, s)
 
 	case "branches":
@@ -82,6 +111,18 @@ func handle(repoPath string, req Request) Response {
 			p.Limit = 200
 		}
 		commits, err := git.Log(repoPath, p.Branch, p.Limit)
+		if err != nil {
+			return fail(id, err)
+		}
+		laid := graph.AssignLanes(commits)
+		return ok(id, laid)
+
+	case "log.file":
+		var p struct {
+			Path string `json:"path"`
+		}
+		json.Unmarshal(req.Params, &p)
+		commits, err := git.LogFile(repoPath, p.Path)
 		if err != nil {
 			return fail(id, err)
 		}
@@ -218,6 +259,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "reset":
+		var p struct {
+			Commit string `json:"commit"`
+			Mode   string `json:"mode"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.Reset(repoPath, p.Commit, p.Mode); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "rebase":
 		var p struct {
 			Onto string `json:"onto"`
@@ -236,6 +288,16 @@ func handle(repoPath string, req Request) Response {
 
 	case "pull":
 		if err := git.Pull(repoPath); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "pull.mode":
+		var p struct {
+			Mode string `json:"mode"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.PullMode(repoPath, p.Mode); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)
@@ -260,12 +322,55 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "commit":
+		var p struct {
+			Message string   `json:"message"`
+			Paths   []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		result, err := git.CreateCommit(repoPath, p.Message, p.Paths)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, result)
+
+	case "commit.push":
+		var p struct {
+			Message string   `json:"message"`
+			Paths   []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		result, err := git.CommitAndPush(repoPath, p.Message, p.Paths)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, result)
+
 	case "revert":
 		var p struct {
 			Commit string `json:"commit"`
 		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Revert(repoPath, p.Commit); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "tags":
+		t, err := git.Tags(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, t)
+
+	case "tag.create":
+		var p struct {
+			Name    string `json:"name"`
+			Commit  string `json:"commit"`
+			Message string `json:"message"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.CreateTag(repoPath, p.Name, p.Commit, p.Message); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)

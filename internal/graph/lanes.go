@@ -3,13 +3,13 @@ package graph
 import "hydragit/internal/git"
 
 var LaneColors = []string{
+	"#e8873e", // orange
 	"#56c8e8", // teal
+	"#e85680", // pink
 	"#4ec94e", // green
 	"#9a7ae8", // purple
 	"#e3b341", // amber
-	"#e87856", // orange
 	"#56e8c8", // mint
-	"#e85680", // pink
 	"#7898e8", // blue
 }
 
@@ -17,173 +17,160 @@ func laneColor(lane int) string {
 	return LaneColors[lane%len(LaneColors)]
 }
 
-type Path struct {
+type Edge struct {
+	FromLane int    `json:"fromLane"`
+	ToLane   int    `json:"toLane"`
+	Color    string `json:"color"`
+}
+
+type MergePath struct {
 	FromLane int    `json:"fromLane"`
 	ToLane   int    `json:"toLane"`
 	FromRow  int    `json:"fromRow"`
 	ToRow    int    `json:"toRow"`
 	Color    string `json:"color"`
-	Type     string `json:"type"` // "straight" | "curve"
 }
 
 type LaidOutCommit struct {
 	git.Commit
-	Lane  int    `json:"lane"`
-	Color string `json:"color"`
-	Paths []Path `json:"paths"`
+	Lane       int         `json:"lane"`
+	Color      string      `json:"color"`
+	Edges      []Edge      `json:"edges"`
+	MergePaths []MergePath `json:"mergePaths,omitempty"`
 }
 
-type laneTracker struct {
-	owners []string
-}
-
-func (t *laneTracker) claim(hash string) int {
-	for i, h := range t.owners {
+func findInColumns(columns []string, hash string) int {
+	for i, h := range columns {
 		if h == hash {
 			return i
 		}
 	}
-	return t.alloc(hash)
+	return -1
 }
 
-func (t *laneTracker) alloc(hash string) int {
-	for i, h := range t.owners {
+func allocColumn(columns []string, hash string) ([]string, int) {
+	for i, h := range columns {
 		if h == "" {
-			t.owners[i] = hash
-			return i
+			columns[i] = hash
+			return columns, i
 		}
 	}
-	t.owners = append(t.owners, hash)
-	return len(t.owners) - 1
+	columns = append(columns, hash)
+	return columns, len(columns) - 1
 }
 
-func (t *laneTracker) free(lane int)             { t.owners[lane] = "" }
-func (t *laneTracker) set(lane int, hash string) { t.owners[lane] = hash }
-
-// mainLaneSet builds the set of hashes reachable via first-parent from startHash.
-func mainLaneSet(startHash string, rowOf map[string]int, commits []git.Commit) map[string]bool {
-	seen := make(map[string]bool)
-	hash := startHash
-	for {
-		seen[hash] = true
-		row, ok := rowOf[hash]
-		if !ok {
-			break
-		}
-		c := commits[row]
-		if len(c.Parents) == 0 {
-			break
-		}
-		hash = c.Parents[0]
-	}
-	return seen
+type pendingMergeEntry struct {
+	mergeRow  int
+	mergeLane int
 }
 
 func AssignLanes(commits []git.Commit) []*LaidOutCommit {
-	rowOf := make(map[string]int, len(commits))
-	for i, c := range commits {
-		rowOf[c.Hash] = i
+	n := len(commits)
+	if n == 0 {
+		return nil
 	}
 
-	tracker := &laneTracker{}
-	result := make([]*LaidOutCommit, len(commits))
-	// rows where the straight path to parent should NOT be emitted
-	// because the opening curve replaces it
-	skipStraight := make(map[int]bool)
+	result := make([]*LaidOutCommit, n)
+	var columns []string
+	pending := map[string][]pendingMergeEntry{}
 
 	for i, c := range commits {
-		myLane := tracker.claim(c.Hash)
-
-		if result[i] == nil {
-			result[i] = &LaidOutCommit{}
+		myLane := findInColumns(columns, c.Hash)
+		if myLane == -1 {
+			columns, myLane = allocColumn(columns, c.Hash)
 		}
-		result[i].Commit = c
-		result[i].Lane = myLane
-		result[i].Color = laneColor(myLane)
+
+		result[i] = &LaidOutCommit{
+			Commit: c,
+			Lane:   myLane,
+			Color:  laneColor(myLane),
+		}
+
+		// Resolve pending merges: a merge commit recorded this hash as
+		// a second parent; now that it appeared, draw the connector.
+		if entries, ok := pending[c.Hash]; ok {
+			for _, pm := range entries {
+				result[pm.mergeRow].MergePaths = append(
+					result[pm.mergeRow].MergePaths,
+					MergePath{
+						FromLane: pm.mergeLane,
+						ToLane:   myLane,
+						FromRow:  pm.mergeRow,
+						ToRow:    i,
+						Color:    laneColor(myLane),
+					},
+				)
+			}
+			delete(pending, c.Hash)
+		}
+
+		// Collapse: other columns expecting the same hash merge into myLane.
+		for j := range columns {
+			if j != myLane && columns[j] == c.Hash {
+				if i > 0 {
+					for k, e := range result[i-1].Edges {
+						if e.FromLane == j && e.ToLane == j {
+							result[i-1].Edges[k].ToLane = myLane
+							break
+						}
+					}
+				}
+				columns[j] = ""
+			}
+		}
 
 		if len(c.Parents) == 0 {
-			tracker.free(myLane)
+			columns[myLane] = ""
 			continue
 		}
 
-		// first parent inherits current lane
-		// skip straight if this commit is the last on a branch
-		// (opening curve handles the connection instead)
-		tracker.set(myLane, c.Parents[0])
-		if !skipStraight[i] {
-			result[i].Paths = append(result[i].Paths, pathTo(i, rowOf, myLane, myLane, c.Parents[0]))
-		}
+		// First parent inherits this lane.
+		columns[myLane] = c.Parents[0]
 
-		// additional parents (merges) get their own lane
-		for _, parent := range c.Parents[1:] {
-			branchLane := tracker.claim(parent)
-
-			// closing curve: merge commit → branch tip
-			result[i].Paths = append(result[i].Paths, pathTo(i, rowOf, myLane, branchLane, parent))
-
-			// opening curve: walk branch down to find divergence point
-			mainLane := mainLaneSet(c.Parents[0], rowOf, commits)
-			currentHash := parent
-			for {
-				row, ok := rowOf[currentHash]
-				if !ok {
-					break
-				}
-				commit := commits[row]
-				if len(commit.Parents) == 0 {
-					break
-				}
-				nextHash := commit.Parents[0]
-				if _, ok := rowOf[nextHash]; !ok {
-					break
-				}
-				if mainLane[nextHash] {
-					nextRow := rowOf[nextHash]
-
-					// mark last branch commit — don't emit straight path for it
-					skipStraight[row] = true
-
-					// initialize divergence point if not yet processed
-					if result[nextRow] == nil {
-						result[nextRow] = &LaidOutCommit{
-							Commit: commits[nextRow],
-							Lane:   myLane,
-							Color:  laneColor(myLane),
-						}
-					}
-
-					// emit opening curve from divergence point up to last branch commit
-					result[nextRow].Paths = append(result[nextRow].Paths, Path{
-						FromLane: myLane,
-						ToLane:   branchLane,
-						FromRow:  nextRow,
-						ToRow:    row,
-						Color:    laneColor(branchLane),
-						Type:     "curve",
-					})
-					break
-				}
-				currentHash = nextHash
+		// Eagerly collapse duplicate columns that now share the same
+		// first-parent hash. Keep the lowest-indexed lane to maintain
+		// visual stability (the main trunk stays on lane 0).
+		firstParentLane := myLane
+		var collapseEdges []Edge
+		for j := range columns {
+			if j == myLane || columns[j] != c.Parents[0] {
+				continue
+			}
+			if j < firstParentLane {
+				columns[firstParentLane] = ""
+				firstParentLane = j
+			} else {
+				collapseEdges = append(collapseEdges, Edge{j, firstParentLane, laneColor(firstParentLane)})
+				columns[j] = ""
 			}
 		}
+
+		// Additional parents: defer lane allocation (lazy).
+		for _, p := range c.Parents[1:] {
+			if pLane := findInColumns(columns, p); pLane != -1 {
+				result[i].MergePaths = append(result[i].MergePaths, MergePath{
+					FromLane: myLane,
+					ToLane:   pLane,
+					FromRow:  i,
+					ToRow:    i,
+					Color:    laneColor(pLane),
+				})
+			} else {
+				pending[p] = append(pending[p], pendingMergeEntry{i, myLane})
+			}
+		}
+
+		// Edges: first-parent continuation + collapse curves + pass-throughs.
+		var edges []Edge
+		edges = append(edges, Edge{myLane, firstParentLane, laneColor(firstParentLane)})
+		edges = append(edges, collapseEdges...)
+		for j, h := range columns {
+			if h != "" && j != myLane {
+				edges = append(edges, Edge{j, j, laneColor(j)})
+			}
+		}
+		result[i].Edges = edges
 	}
 
 	return result
-}
-
-func pathTo(fromRow int, rowOf map[string]int, fromLane, toLane int, parentHash string) Path {
-	toRow, ok := rowOf[parentHash]
-	if !ok {
-		return Path{}
-	}
-	pathType := "straight"
-	if fromLane != toLane {
-		pathType = "curve"
-	}
-	return Path{
-		FromLane: fromLane, ToLane: toLane,
-		FromRow: fromRow, ToRow: toRow,
-		Color: laneColor(toLane),
-		Type:  pathType,
-	}
 }

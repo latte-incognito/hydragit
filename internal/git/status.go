@@ -46,13 +46,23 @@ func Status(repoPath string) (StatusResult, error) {
 		return res, err
 	}
 
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+	for _, line := range strings.Split(out, "\n") {
+		// Trim only trailing whitespace per line — never leading,
+		// since the leading space is part of the XY status code (e.g. " M").
+		line = strings.TrimRight(line, "\r\n")
 		if len(line) < 4 {
 			continue
 		}
 
 		xy := line[:2]  // two-character status code, e.g. "M ", " M", "??"
-		raw := line[3:] // everything after the separator space
+
+		// Porcelain v1 format is always: XY<SP>path
+		// where XY is exactly 2 bytes and SP is exactly 1 space.
+		// Guard: if char at index 2 is not a space, skip malformed line.
+		if line[2] != ' ' {
+			continue
+		}
+		raw := line[3:] // path (or "old -> new" for renames)
 
 		// Renames are reported as "old -> new"; we only care about the new path.
 		path := raw

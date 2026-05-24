@@ -7,7 +7,7 @@ const _pending = new Map<string, Pending>();
 const _handlers = new Map<string, Handler[]>();
 
 // Commands handled entirely by the extension host — no response expected
-const HOST_ONLY_CMDS = new Set(['openDiff']);
+const HOST_ONLY_CMDS = new Set(['openDiff', 'openFile']);
 
 // One listener for the entire app lifetime
 window.addEventListener('message', (e: MessageEvent) => {
