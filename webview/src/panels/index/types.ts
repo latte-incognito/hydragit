@@ -7,13 +7,18 @@ export interface Branch {
   gone?: boolean;
 }
 
-export interface GraphPath {
+export interface GraphEdge {
+  fromLane: number;
+  toLane: number;
+  color: string;
+}
+
+export interface MergePath {
   fromLane: number;
   toLane: number;
   fromRow: number;
   toRow: number;
   color: string;
-  type: 'straight' | 'curve';
 }
 
 export interface Commit {
@@ -26,7 +31,8 @@ export interface Commit {
   parents: string[];
   lane?: number;
   color?: string;
-  paths?: GraphPath[];
+  edges?: GraphEdge[];
+  mergePaths?: MergePath[];
 }
 
 export interface DiffFile {

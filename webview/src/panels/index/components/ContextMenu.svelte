@@ -57,8 +57,12 @@
       Merge '{branchMenu.branch}' into '{branchMenu.current}'
     </div>
     <div class="ctx-sep"></div>
-    <div class="ci">Pull into '{branchMenu.current}' Using Rebase</div>
-    <div class="ci">Pull into '{branchMenu.current}' Using Merge</div>
+    <div class="ci" on:click={() => onBranchAction('pull-rebase')}>
+      Pull into '{branchMenu.current}' Using Rebase
+    </div>
+    <div class="ci" on:click={() => onBranchAction('pull-merge')}>
+      Pull into '{branchMenu.current}' Using Merge
+    </div>
     <div class="ctx-sep"></div>
     <div
       class="ci"
