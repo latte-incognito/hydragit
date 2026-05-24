@@ -7,6 +7,20 @@ export interface Branch {
   gone?: boolean;
 }
 
+export interface GraphEdge {
+  fromLane: number;
+  toLane: number;
+  color: string;
+}
+
+export interface MergePath {
+  fromLane: number;
+  toLane: number;
+  fromRow: number;
+  toRow: number;
+  color: string;
+}
+
 export interface Commit {
   hash: string;
   message: string;
@@ -17,6 +31,8 @@ export interface Commit {
   parents: string[];
   lane?: number;
   color?: string;
+  edges?: GraphEdge[];
+  mergePaths?: MergePath[];
 }
 
 export interface DiffFile {
@@ -54,4 +70,10 @@ export interface GitStatus {
   ahead: number;
   behind: number;
   modified: number;
+}
+
+export interface Tag {
+  name: string;   // e.g. "v0.1.0"
+  hash: string;   // short commit hash
+  date?: string;  // ISO date string (git creatordate:short)
 }

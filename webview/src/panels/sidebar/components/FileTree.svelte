@@ -176,7 +176,7 @@
     <div class="state-msg empty">No changes · working tree clean</div>
   {:else}
 
-    {#snippet renderFolder(node, depth)}
+    {#snippet renderFolder(node: TreeFolder, depth: number)}
       {#if node.fullPath !== '__root__'}
         {@const state = folderStagedState(node)}
         {@const isIndeterminate = state === 'some'}

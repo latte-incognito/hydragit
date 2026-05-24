@@ -117,6 +117,18 @@ func handle(repoPath string, req Request) Response {
 		laid := graph.AssignLanes(commits)
 		return ok(id, laid)
 
+	case "log.file":
+		var p struct {
+			Path string `json:"path"`
+		}
+		json.Unmarshal(req.Params, &p)
+		commits, err := git.LogFile(repoPath, p.Path)
+		if err != nil {
+			return fail(id, err)
+		}
+		laid := graph.AssignLanes(commits)
+		return ok(id, laid)
+
 	case "diff":
 		var p struct {
 			Commit string `json:"commit"`
@@ -247,6 +259,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "reset":
+		var p struct {
+			Commit string `json:"commit"`
+			Mode   string `json:"mode"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.Reset(repoPath, p.Commit, p.Mode); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "rebase":
 		var p struct {
 			Onto string `json:"onto"`
@@ -265,6 +288,16 @@ func handle(repoPath string, req Request) Response {
 
 	case "pull":
 		if err := git.Pull(repoPath); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "pull.mode":
+		var p struct {
+			Mode string `json:"mode"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.PullMode(repoPath, p.Mode); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)
@@ -319,6 +352,25 @@ func handle(repoPath string, req Request) Response {
 		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Revert(repoPath, p.Commit); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "tags":
+		t, err := git.Tags(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, t)
+
+	case "tag.create":
+		var p struct {
+			Name    string `json:"name"`
+			Commit  string `json:"commit"`
+			Message string `json:"message"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.CreateTag(repoPath, p.Name, p.Commit, p.Message); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)

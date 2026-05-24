@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { on, send } from '$shared/messageBus';
-  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus } from './types';
+  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag } from './types';
 
   import Toolbar     from './components/Toolbar.svelte';
   import ActionRail  from './components/ActionRail.svelte';
@@ -17,6 +17,7 @@
   let commits:     Commit[]   = [];
   let filtered:    Commit[]   = [];
   let stashes:     Stash[]    = [];
+  let tags:        Tag[]      = [];
   let activeBranch = 'master';
   let selCommitIdx: number | null = null;
   let selStashIdx:  number | null = null;
@@ -45,8 +46,9 @@
   let fileSearchPath   = '';
 
   // ── Context menus ─────────────────────────────────────────────────────────
-  let branchMenu  = { visible: false, x: 0, y: 0, branch: '', isCurrent: false };
+  let branchMenu  = { visible: false, x: 0, y: 0, branch: '', isCurrent: false, current: '' };
   let stashMenu   = { visible: false, x: 0, y: 0, label: '' };
+  let tagMenu     = { visible: false, x: 0, y: 0, name: '' };
   let ctxBranch   = '';
   let ctxStashIdx: number | null = null;
 
@@ -70,11 +72,12 @@
   // ── Load everything ───────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [status, brs, rawCommits, rawStashes] = await Promise.all([
+      const [status, brs, rawCommits, rawStashes, rawTags] = await Promise.all([
         send<GitStatus>('status'),
         send<Branch[]>('branches'),
         send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 200 }),
         send<Stash[]>('stash'),
+        send<Tag[]>('tags'),
       ]);
       sbBranch    = status.branch || activeBranch;
       sbInfo      = status.ahead || status.behind ? ` · ↑${status.ahead} ↓${status.behind}` : '';
@@ -82,6 +85,7 @@
       branches    = brs;
       commits     = rawCommits;
       stashes     = rawStashes;
+      tags        = rawTags ?? [];
       sbCounts    = `${commits.length} commits · ${branches.filter(b => !b.isRemote).length} branches`;
       const current = branches.find(b => b.isCurrent);
       if (current) activeBranch = current.name;
@@ -155,7 +159,6 @@
     selCommitIdx = null; diffFiles = []; diffHunks = [];
     flash(`Searching commits for: ${fileSearchPath}…`);
     try {
-      // log.file requires a new Go IPC command (see handler.go note below)
       const result = await send<Commit[]>('log.file', { path: fileSearchPath });
       filtered = result;
       flash(`${result.length} commit${result.length !== 1 ? 's' : ''} touched ${fileSearchPath}`, '#4ec94e');
@@ -319,7 +322,16 @@
       return;
     }
     if (a === 'tag') {
-      flash('Tag creation — coming soon', '#febc2e');
+      const name = prompt('New tag name (at HEAD):');
+      if (!name) return;
+      const message = prompt(`Annotation message for "${name}" (leave empty for lightweight tag):`) ?? '';
+      try {
+        await send('tag.create', { name, commit: '', message });
+        flash(`Created tag ${name}`, '#4ec94e');
+        loadAll();
+      } catch (e: unknown) {
+        flash('Tag failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      }
       return;
     }
     // stash.save, fetch, pull, push
@@ -340,14 +352,81 @@
     }
   }
 
+  // ── Commit context menu (LogPane) ────────────────────────────────────────
+  async function commitMenuAction(action: string, commit: Commit) {
+    const hash = commit.hash;
+    const acts: Record<string, () => Promise<void>> = {
+      'copy-hash': async () => {
+        await navigator.clipboard.writeText(hash);
+        flash(`Copied: ${hash.slice(0, 7)}`, '#4ec94e');
+      },
+      'cherry-pick': async () => {
+        await send('cherrypick', { commit: hash });
+        flash(`Cherry-picked ${hash.slice(0, 7)}`, '#4ec94e');
+        loadAll();
+      },
+      checkout: async () => {
+        await send('checkout', { branch: hash });
+        flash(`Checked out ${hash.slice(0, 7)} (detached HEAD)`, '#4ec94e');
+        loadAll();
+      },
+      revert: async () => {
+        await send('revert', { commit: hash });
+        flash(`Reverted ${hash.slice(0, 7)}`, '#4ec94e');
+        loadAll();
+      },
+      'new-branch': async () => {
+        const name = prompt('New branch name:');
+        if (!name) return;
+        await send('branch.create', { name, from: hash });
+        flash(`Created ${name}`, '#4ec94e');
+        loadAll();
+      },
+      'new-tag': async () => {
+        const name = prompt(`New tag at ${hash.slice(0, 7)}:`);
+        if (!name) return;
+        const message = prompt(`Annotation message for "${name}" (leave empty for lightweight tag):`) ?? '';
+        await send('tag.create', { name, commit: hash, message });
+        flash(`Created tag ${name}`, '#4ec94e');
+        loadAll();
+      },
+      'view-in-browser': async () => {
+        send('openCommitUrl', { commit: hash });
+      },
+      reset: async () => {
+        const raw = prompt(
+          `Reset current branch to ${hash.slice(0, 7)} — mode (soft / mixed / hard):`,
+          'mixed'
+        );
+        if (!raw) return;
+        const mode = raw.trim().toLowerCase();
+        if (mode !== 'soft' && mode !== 'mixed' && mode !== 'hard') {
+          flash(`Unknown reset mode: ${raw}`, '#f07070');
+          return;
+        }
+        if (mode === 'hard' && !confirm(
+          `Hard reset to ${hash.slice(0, 7)}?\n\nUncommitted changes will be DISCARDED.`
+        )) return;
+        await send('reset', { commit: hash, mode });
+        flash(`Reset (${mode}) to ${hash.slice(0, 7)}`, '#4ec94e');
+        loadAll();
+      },
+    };
+    try {
+      await acts[action]?.();
+    } catch (e: unknown) {
+      flash(action + ' failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
   // ── Branch context menu ───────────────────────────────────────────────────
   function showBranchCtx(e: MouseEvent, name: string, isCurrent: boolean) {
     e.preventDefault(); e.stopPropagation();
     ctxBranch  = name;
     branchMenu = {
-      visible: true, isCurrent, branch: name,
-      x: Math.min(e.clientX, window.innerWidth - 180),
-      y: Math.min(e.clientY, window.innerHeight - 260),
+      visible: true, isCurrent, branch: name, current: activeBranch,
+      x: Math.min(e.clientX, window.innerWidth - 320),
+      y: Math.min(e.clientY, window.innerHeight - 280),
     };
   }
 
@@ -367,6 +446,25 @@
       'new-from': async () => {
         const name = prompt('Branch name:');
         if (name) { await send('branch.create', { name, from: ctxBranch }); flash(`Created ${name}`, '#4ec94e'); loadAll(); }
+      },
+      'checkout-rebase': async () => {
+        const onto = branchMenu.current;
+        await send('checkout', { branch: ctxBranch });
+        await send('rebase', { onto });
+        flash(`Checked out ${ctxBranch} and rebased onto ${onto}`, '#4ec94e');
+        loadAll();
+      },
+      'pull-rebase': async () => {
+        flash('Pulling (rebase)…');
+        await send('pull.mode', { mode: 'rebase' });
+        flash('Pulled with rebase', '#4ec94e');
+        loadAll();
+      },
+      'pull-merge': async () => {
+        flash('Pulling (merge)…');
+        await send('pull.mode', { mode: 'merge' });
+        flash('Pulled with merge', '#4ec94e');
+        loadAll();
       },
     };
     try { await acts[a]?.(); }
@@ -392,22 +490,43 @@
     await stashAction(a);
   }
 
+  // ── Tag context menu ──────────────────────────────────────────────────────
+  function showTagCtx(e: MouseEvent, name: string) {
+    e.preventDefault(); e.stopPropagation();
+    tagMenu = {
+      visible: true, name,
+      x: Math.min(e.clientX, window.innerWidth - 180),
+      y: Math.min(e.clientY, window.innerHeight - 120),
+    };
+  }
+
+  async function tagCtxAction(a: string) {
+    const name = tagMenu.name;
+    tagMenu = { ...tagMenu, visible: false };
+    if (a === 'checkout') {
+      flash(`Checking out tag ${name}…`);
+      try { await send('checkout', { branch: name }); flash(`Checked out ${name}`, '#4ec94e'); loadAll(); }
+      catch (e: unknown) { flash('Checkout failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
+    }
+    if (a === 'copy-hash') {
+      const tag = tags.find(t => t.name === name);
+      if (tag?.hash) { await navigator.clipboard.writeText(tag.hash); flash(`Copied: ${tag.hash}`, '#4ec94e'); }
+    }
+    if (a === 'new-branch') {
+      const branchName = prompt(`Create branch from tag ${name}:`);
+      if (branchName) {
+        try { await send('branch.create', { name: branchName, from: name }); flash(`Created ${branchName}`, '#4ec94e'); loadAll(); }
+        catch (e: unknown) { flash('Create failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
+      }
+    }
+  }
+
   function closeMenus() {
     branchMenu = { ...branchMenu, visible: false };
     stashMenu  = { ...stashMenu,  visible: false };
+    tagMenu    = { ...tagMenu,    visible: false };
   }
 </script>
-
-<!--
-  NOTE — Go side: add to internal/git/log.go:
-    func LogFile(repoPath, filePath string) ([]Commit, error) {
-      out, err := run(repoPath, "log", "--follow", "--format=...", "--", filePath)
-      ...
-    }
-  And in internal/ipc/handler.go add case "log.file":
-    files := params["path"].(string)
-    commits, err := git.LogFile(repoPath, files)
--->
 
 <svelte:window
   on:click={closeMenus}
@@ -441,6 +560,7 @@
       <BranchPane
         {branches}
         {stashes}
+        {tags}
         {activeBranch}
         {selStashIdx}
         onSelectBranch={selectBranch}
@@ -449,6 +569,7 @@
         onNewBranch={() => railAction('branch.new')}
         onBranchCtx={showBranchCtx}
         onStashCtx={showStashCtx}
+        onTagCtx={showTagCtx}
       />
     </div>
 
@@ -459,9 +580,9 @@
       selectedIdx={selCommitIdx}
       onSelect={selectCommit}
       onCtx={() => {}}
+      onCommitAction={commitMenuAction}
       {fileSearchActive}
       {fileSearchPath}
-      on:searchkey={handleSearchKey}
     />
 
     <PaneDivider rightEl={detailPaneEl} isRight={true} />
@@ -489,8 +610,10 @@
   <ContextMenu
     {branchMenu}
     {stashMenu}
+    {tagMenu}
     onBranchAction={branchAction}
     onStashAction={stashCtxAction}
+    onTagAction={tagCtxAction}
   />
 </div>
 
