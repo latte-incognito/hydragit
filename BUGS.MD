@@ -16,3 +16,4 @@ Result of manual testing:
  15. Deselect Stashes , because Pop Apply Show Drop buttons don't disapper.
  16. Add Hydragit logo inside the status bar of Hydragit near branch name
  17. Add hydragit logo near select branch pane
+ 18. Support multi-repo workspaces, monorepos, and submodules (repo picker like IntelliJ)
