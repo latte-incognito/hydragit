@@ -20,30 +20,20 @@
   function buildGraphSVG(commits: Commit[], laneCount: number): string {
     const svgW = Math.max(28, laneCount * LANE_W + PAD * 2);
     const svgH = commits.length * ROW_H;
-    let pathStr = '';
+    let edgeStr = '';
     let dotStr  = '';
 
-    const curveTargetRows = new Set<number>();
-    const curveSourceRows = new Set<number>();
-    for (const c of commits) {
-      for (const p of c.paths ?? []) {
-        if (p.type === 'curve') {
-          curveTargetRows.add(p.toRow);
-          curveSourceRows.add(p.fromRow);
-        }
-      }
-    }
-
-    // Pass 1: edges
-    for (const c of commits) {
-      for (const p of c.paths ?? []) {
-        const x1 = cx(p.fromLane), y1 = cy(p.fromRow);
-        const x2 = cx(p.toLane),   y2 = cy(p.toRow);
-        if (p.type === 'straight') {
-          pathStr += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${p.color}" stroke-width="1.5" stroke-linecap="round"/>`;
+    // Pass 1: edges (row i → row i+1)
+    for (let i = 0; i < commits.length; i++) {
+      const c = commits[i];
+      for (const e of c.edges ?? []) {
+        const x1 = cx(e.fromLane), y1 = cy(i);
+        const x2 = cx(e.toLane),   y2 = cy(i + 1);
+        if (e.fromLane === e.toLane) {
+          edgeStr += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${e.color}" stroke-width="1.5" stroke-linecap="round"/>`;
         } else {
-          const my = (y1 + y2) / 2;
-          pathStr += `<path d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}" fill="none" stroke="${p.color}" stroke-width="1.5"/>`;
+          const third = (y2 - y1) / 3;
+          edgeStr += `<path d="M${x1},${y1} C${x1},${y1 + third} ${x2},${y2 - third} ${x2},${y2}" fill="none" stroke="${e.color}" stroke-width="1.5" stroke-linecap="round"/>`;
         }
       }
     }
@@ -54,25 +44,17 @@
       const color = c.color ?? '#56c8e8';
       const x     = cx(c.lane ?? 0);
       const y     = cy(i);
-      const isMerge       = (c.parents ?? []).length > 1;
-      const isBranchStart = curveTargetRows.has(i);
-      const isBranchSource = curveSourceRows.has(i);
+      const isMerge = (c.parents ?? []).length > 1;
 
       if (isMerge) {
-        // Merge commit: hollow diamond with filled center
-        dotStr += `<polygon points="${x},${y-5} ${x+5},${y} ${x},${y+5} ${x-5},${y}" fill="#1e1e1e" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
-          <circle cx="${x}" cy="${y}" r="1.6" fill="${color}"/>`;
-      } else if (isBranchStart || isBranchSource) {
-        // Fork or source point: hollow circle with cross
-        dotStr += `<circle cx="${x}" cy="${y}" r="4.5" fill="#1e1e1e" stroke="${color}" stroke-width="1.5"/>
-          <line x1="${x-3}" y1="${y}" x2="${x+3}" y2="${y}" stroke="${color}" stroke-width="1.2"/>
-          <line x1="${x}" y1="${y-3}" x2="${x}" y2="${y+3}" stroke="${color}" stroke-width="1.2"/>`;
+        dotStr += `<circle cx="${x}" cy="${y}" r="4" fill="#1e1e1e" stroke="${color}" stroke-width="1.5"/>
+          <circle cx="${x}" cy="${y}" r="1.5" fill="${color}"/>`;
       } else {
-        dotStr += `<circle cx="${x}" cy="${y}" r="3.5" fill="${color}"/>`;
+        dotStr += `<circle cx="${x}" cy="${y}" r="3" fill="${color}"/>`;
       }
     }
 
-    return `<svg width="${svgW}" height="${svgH}" style="display:block">${pathStr}${dotStr}</svg>`;
+    return `<svg width="${svgW}" height="${svgH}" style="display:block">${edgeStr}${dotStr}</svg>`;
   }
 
   // ── Pill helpers ──────────────────────────────────────────────────────────
