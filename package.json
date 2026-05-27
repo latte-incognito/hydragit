@@ -2,7 +2,7 @@
   "name": "hydragit",
   "displayName": "HydraGit",
   "description": "The git panel IntelliJ has, inside VS Code. No paywall.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "vkushnarenko",
   "license": "MIT",
   "icon": "images/icon.png",
