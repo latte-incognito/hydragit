@@ -13,7 +13,8 @@ Result of manual testing:
  15. ✅ Deselect Stashes , because Pop Apply Show Drop buttons don't disapper.
  16. ✅ Add Hydragit logo inside the status bar of Hydragit near branch name
  18. Support multi-repo workspaces, monorepos, and submodules (repo picker like IntelliJ)
- 19. Handle startup in a folder with no git repo (show friendly message instead of errors)
+ 19. ✅ Handle startup in a folder with no git repo  show nothing we should supress it and just drop inside logs and thats it 
  20. ✅ Old commit message should be cleaned from commit message area on sidebar after commit
  21. ✅ Hide Commit & Push button when branch has no upstream
  22. ✅ Don't cleare commit message, if command was error and commit doesnt happen 
+ 23. ✅ in side bar, make commit message non resizable if over flow just use inside scroll

@@ -102,7 +102,8 @@
     font-size: var(--hg-font-sm, 12px);
     font-weight: var(--hg-font-weight);
     padding: 6px 8px;
-    resize: vertical;
+    resize: none;
+    overflow-y: auto;
     outline: none;
     line-height: 1.5;
     box-sizing: border-box;

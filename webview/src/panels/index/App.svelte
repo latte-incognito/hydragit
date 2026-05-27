@@ -92,7 +92,12 @@
       // Re-apply active search filter
       applyFilter();
     } catch (e: unknown) {
-      flash('Load error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('not a git repository')) {
+        console.log('[HydraGit] No git repo detected, suppressing:', msg);
+      } else {
+        flash('Load error: ' + msg, '#f07070');
+      }
     }
   }
 
