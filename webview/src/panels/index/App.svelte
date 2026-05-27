@@ -48,7 +48,7 @@
   // ── Context menus ─────────────────────────────────────────────────────────
   let branchMenu  = { visible: false, x: 0, y: 0, branch: '', isCurrent: false, current: '' };
   let stashMenu   = { visible: false, x: 0, y: 0, label: '' };
-  let tagMenu     = { visible: false, x: 0, y: 0, name: '' };
+  let tagMenu     = { visible: false, x: 0, y: 0, name: '', current: '' };
   let ctxBranch   = '';
   let ctxStashIdx: number | null = null;
 
@@ -101,7 +101,15 @@
     }
   }
 
-  onMount(loadAll);
+  onMount(() => {
+    loadAll();
+    document.addEventListener('contextmenu', (e) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.ctx-menu, .ctx, .ci, .ctx-item')) {
+        e.preventDefault();
+      }
+    }, true);
+  });
 
   // ── All-branches toggle ───────────────────────────────────────────────────
   async function handleAllBranches(v: boolean) {
@@ -528,7 +536,7 @@
   function showTagCtx(e: MouseEvent, name: string) {
     e.preventDefault(); e.stopPropagation();
     tagMenu = {
-      visible: true, name,
+      visible: true, name, current: activeBranch,
       x: Math.min(e.clientX, window.innerWidth - 180),
       y: Math.min(e.clientY, window.innerHeight - 120),
     };
@@ -537,21 +545,34 @@
   async function tagCtxAction(a: string) {
     const name = tagMenu.name;
     tagMenu = { ...tagMenu, visible: false };
-    if (a === 'checkout') {
-      flash(`Checking out tag ${name}…`);
-      try { await send('checkout', { branch: name }); flash(`Checked out ${name}`, '#4ec94e'); loadAll(); }
-      catch (e: unknown) { flash('Checkout failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
-    }
-    if (a === 'copy-hash') {
-      const tag = tags.find(t => t.name === name);
-      if (tag?.hash) { await navigator.clipboard.writeText(tag.hash); flash(`Copied: ${tag.hash}`, '#4ec94e'); }
-    }
-    if (a === 'new-branch') {
-      const branchName = prompt(`Create branch from tag ${name}:`);
-      if (branchName) {
-        try { await send('branch.create', { name: branchName, from: name }); flash(`Created ${branchName}`, '#4ec94e'); loadAll(); }
-        catch (e: unknown) { flash('Create failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
+    try {
+      switch (a) {
+        case 'checkout':
+          flash(`Checking out tag ${name}…`);
+          await send('checkout', { branch: name });
+          flash(`Checked out ${name}`, '#4ec94e');
+          loadAll();
+          break;
+        case 'diff-working':
+          flash(`Diffing ${name} with working tree…`);
+          break;
+        case 'merge':
+          await send('merge', { branch: name });
+          flash(`Merged ${name} into ${activeBranch}`, '#4ec94e');
+          loadAll();
+          break;
+        case 'push':
+          await send('push', { branch: name, tags: true });
+          flash(`Pushed tag ${name} to origin`, '#4ec94e');
+          break;
+        case 'delete':
+          await send('tag.delete', { name });
+          flash(`Deleted tag ${name}`, '#4ec94e');
+          loadAll();
+          break;
       }
+    } catch (e: unknown) {
+      flash(`${a} failed: ` + (e instanceof Error ? e.message : String(e)), '#f07070');
     }
   }
 

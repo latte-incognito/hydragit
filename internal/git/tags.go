@@ -26,6 +26,11 @@ func CreateTag(repoPath, name, commit, message string) error {
 	return err
 }
 
+func DeleteTag(repoPath, name string) error {
+	_, err := run(repoPath, "tag", "-d", name)
+	return err
+}
+
 // Tags returns all tags sorted by descending creator date.
 // Format: <refname:short>TAB<objectname:short>TAB<creatordate:short>
 func Tags(repoPath string) ([]Tag, error) {

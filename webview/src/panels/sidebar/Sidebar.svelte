@@ -40,7 +40,10 @@
   const unsub = on('statusUpdate', applyStatus);
   onDestroy(unsub);
 
-  onMount(loadChanges);
+  onMount(() => {
+    loadChanges();
+    document.addEventListener('contextmenu', (e) => e.preventDefault(), true);
+  });
 
   async function loadChanges() {
     loading = true;
@@ -143,6 +146,7 @@
   $: allStaged   = files.length > 0 && files.every((f) => stagedPaths.has(f.path));
   $: someStaged  = files.some((f) => stagedPaths.has(f.path));
 </script>
+
 
 {#if noRepo}
   <FileTree

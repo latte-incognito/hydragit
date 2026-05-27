@@ -24,36 +24,57 @@
   };
 
   // Tag context menu
-  export let tagMenu: { visible: boolean; x: number; y: number; name: string } = {
+  export let tagMenu: { visible: boolean; x: number; y: number; name: string; current: string } = {
     visible: false,
     x: 0,
     y: 0,
     name: '',
+    current: '',
   };
 
   export let onBranchAction: (a: string) => void = () => {};
   export let onStashAction: (a: string) => void = () => {};
   export let onTagAction: (a: string) => void = () => {};
+
+  function fitMenu(node: HTMLElement) {
+    requestAnimationFrame(() => {
+      const rect = node.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+      if (rect.right > vw) node.style.left = Math.max(0, vw - rect.width - 4) + 'px';
+      if (rect.bottom > vh) node.style.top = Math.max(0, parseFloat(node.style.top) - (rect.bottom - vh) - 4) + 'px';
+      const updated = node.getBoundingClientRect();
+      if (updated.height > vh - 8) {
+        node.style.top = '4px';
+        node.style.maxHeight = (vh - 8) + 'px';
+        node.style.overflowY = 'auto';
+      }
+    });
+  }
 </script>
 
 <!-- Branch context menu -->
 {#if branchMenu.visible}
-  <div class="ctx show" style="left:{branchMenu.x}px;top:{branchMenu.y}px">
-    <div class="ci" on:click={() => onBranchAction('checkout')}>Checkout</div>
+  <div class="ctx show" style="left:{branchMenu.x}px;top:{branchMenu.y}px" use:fitMenu>
+    <div class="ci" class:disabled={branchMenu.isCurrent} on:click={() => onBranchAction('checkout')}>Checkout</div>
     <div class="ci" on:click={() => onBranchAction('new-from')}>
       New Branch from '{branchMenu.branch}'…
     </div>
-    <div class="ci" on:click={() => onBranchAction('checkout-rebase')}>
+    <div class="ci" class:disabled={branchMenu.isCurrent} on:click={() => onBranchAction('checkout-rebase')}>
       Checkout and Rebase onto '{branchMenu.current}'
     </div>
     <div class="ctx-sep"></div>
-    <div class="ci">Compare with '{branchMenu.current}'</div>
-    <div class="ci">Show Diff with Working Tree</div>
+    <div class="ci" on:click={() => onBranchAction('compare')}>
+      Compare with '{branchMenu.current}'
+    </div>
+    <div class="ci" on:click={() => onBranchAction('diff-working')}>
+      Show Diff with Working Tree
+    </div>
     <div class="ctx-sep"></div>
-    <div class="ci" on:click={() => onBranchAction('rebase')}>
+    <div class="ci" class:disabled={branchMenu.isCurrent} on:click={() => onBranchAction('rebase')}>
       Rebase '{branchMenu.current}' onto '{branchMenu.branch}'
     </div>
-    <div class="ci" on:click={() => onBranchAction('merge')}>
+    <div class="ci" class:disabled={branchMenu.isCurrent} on:click={() => onBranchAction('merge')}>
       Merge '{branchMenu.branch}' into '{branchMenu.current}'
     </div>
     <div class="ctx-sep"></div>
@@ -65,7 +86,7 @@
     </div>
     <div class="ctx-sep"></div>
     <div
-      class="ci"
+      class="ci danger"
       class:disabled={branchMenu.isCurrent}
       on:click={() => onBranchAction('delete')}
     >
@@ -76,26 +97,32 @@
 
 <!-- Stash context menu -->
 {#if stashMenu.visible}
-  <div class="ctx show" style="left:{stashMenu.x}px;top:{stashMenu.y}px">
-    <div class="ctx-lbl">{stashMenu.label}</div>
-    <div class="ctx-sep"></div>
+  <div class="ctx show" style="left:{stashMenu.x}px;top:{stashMenu.y}px" use:fitMenu>
     <div class="ci" on:click={() => onStashAction('pop')}>Pop</div>
     <div class="ci" on:click={() => onStashAction('apply')}>Apply</div>
-    <div class="ci" on:click={() => onStashAction('show')}>Show diff</div>
-    <div class="ctx-sep"></div>
+    <div class="ci" on:click={() => onStashAction('unstash')}>Unstash…</div>
     <div class="ci danger" on:click={() => onStashAction('drop')}>Drop</div>
+    <div class="ci danger" on:click={() => onStashAction('clear')}>Clear</div>
+    <div class="ctx-sep"></div>
+    <div class="ci" on:click={() => onStashAction('show-diff')}>Show Diff</div>
+    <div class="ci" on:click={() => onStashAction('show-diff-tab')}>Show Diff in a New Tab</div>
   </div>
 {/if}
 
 <!-- Tag context menu -->
 {#if tagMenu.visible}
   <div class="ctx show" style="left:{tagMenu.x}px;top:{tagMenu.y}px">
-    <div class="ctx-lbl">{tagMenu.name}</div>
-    <div class="ctx-sep"></div>
     <div class="ci" on:click={() => onTagAction('checkout')}>Checkout</div>
-    <div class="ci" on:click={() => onTagAction('new-branch')}>New branch from tag</div>
     <div class="ctx-sep"></div>
-    <div class="ci" on:click={() => onTagAction('copy-hash')}>Copy hash</div>
+    <div class="ci" on:click={() => onTagAction('diff-working')}>Show Diff with Working Tree</div>
+    <div class="ctx-sep"></div>
+    <div class="ci" on:click={() => onTagAction('merge')}>
+      Merge '{tagMenu.name}' into '{tagMenu.current}'
+    </div>
+    <div class="ctx-sep"></div>
+    <div class="ci" on:click={() => onTagAction('push')}>Push to origin</div>
+    <div class="ctx-sep"></div>
+    <div class="ci danger" on:click={() => onTagAction('delete')}>Delete</div>
   </div>
 {/if}
 

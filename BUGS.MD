@@ -2,19 +2,4 @@ Result of manual testing:
  1. Blocker: Search by file name freezes UI and doesn't work
  2. Create tag not working from side bar
  3. Show Diff and Show Diff in new tab whats the difference 
- 4. Context Menus inside Branches, should not appear or should provide some interesting features, like renaming branches, or folders with next
- 6. Side pane should expand untill the end of the screen only then there should ve internall scroll right notw its  ugly fixed at the top 
- 7. ✅ in Branches pane tags should be closed by default
- 8. ✅ in branches pane double click on Tag should open valid commit and branch inside commit pane 
- 9. ✅ Stash show, should probably show contents instead of just changes 
- 12. ✅ Status pane is kinda usefull but error message there  sometimes way bigger than 1 line so, probably need to handle it .
- 13. ✅ ADD playwright tests that will cover functionality
- 14. ✅ Commit and commit & push buttons inside side bar, commit is always hihlighted. And also need to add processing errors inside that side bar. 
- 15. ✅ Deselect Stashes , because Pop Apply Show Drop buttons don't disapper.
- 16. ✅ Add Hydragit logo inside the status bar of Hydragit near branch name
  18. Support multi-repo workspaces, monorepos, and submodules (repo picker like IntelliJ)
- 19. ✅ Handle startup in a folder with no git repo  show nothing we should supress it and just drop inside logs and thats it 
- 20. ✅ Old commit message should be cleaned from commit message area on sidebar after commit
- 21. ✅ Hide Commit & Push button when branch has no upstream
- 22. ✅ Don't cleare commit message, if command was error and commit doesnt happen 
- 23. ✅ in side bar, make commit message non resizable if over flow just use inside scroll

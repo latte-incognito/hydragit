@@ -397,6 +397,16 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "tag.delete":
+		var p struct {
+			Name string `json:"name"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.DeleteTag(repoPath, p.Name); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	default:
 		return Response{ID: id, OK: false, Error: "unknown command: " + req.Cmd}
 	}
