@@ -17,14 +17,32 @@ beforeEach(() => {
 // ── empty / loading states ────────────────────────────────────────────────────
 
 describe('FileTree — empty states', () => {
-  it('shows loading spinner when loading=true', () => {
+  it('shows loading message when loading=true', () => {
     const { getByText } = render(FileTree, { files: [], loading: true });
-    expect(getByText('Loading…')).toBeTruthy();
+    expect(getByText('Loading repository…')).toBeTruthy();
   });
 
   it('shows clean working tree message when files is empty', () => {
     const { getByText } = render(FileTree, { files: [], loading: false });
     expect(getByText('No changes · working tree clean')).toBeTruthy();
+  });
+
+  it('shows welcome view with Open Folder and Clone buttons when noRepo=true', () => {
+    const { getByText } = render(FileTree, { files: [], loading: false, noRepo: true });
+    expect(getByText('Open Folder')).toBeTruthy();
+    expect(getByText('Clone Repository')).toBeTruthy();
+    expect(getByText(/open a folder containing a Git repository/)).toBeTruthy();
+  });
+
+  it('does not show file tree when noRepo=true', () => {
+    const { queryByText } = render(FileTree, { files, loading: false, noRepo: true });
+    expect(queryByText('main.ts')).toBeFalsy();
+  });
+
+  it('noRepo takes priority over loading', () => {
+    const { getByText, queryByText } = render(FileTree, { files: [], loading: true, noRepo: true });
+    expect(getByText('Open Folder')).toBeTruthy();
+    expect(queryByText('Loading repository…')).toBeFalsy();
   });
 });
 

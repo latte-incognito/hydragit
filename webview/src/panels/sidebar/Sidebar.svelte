@@ -10,6 +10,7 @@
   // ── State ──────────────────────────────────────────────────────────────────
   let files: GitFile[] = [];
   let hasUpstream = false;
+  let noRepo = false;
   let sectionOpen = true;
   let loading = true;
 
@@ -24,10 +25,10 @@
 
   // ── Push events from extension ─────────────────────────────────────────────
   function applyStatus(data: unknown) {
+    if (noRepo) return;
     const s = data as GitStatus;
     const nextFiles = s.files ?? [];
 
-    // Prune staged paths that no longer exist
     const nextPaths = new Set(nextFiles.map((f) => f.path));
     stagedPaths = new Set([...stagedPaths].filter((p) => nextPaths.has(p)));
 
@@ -43,10 +44,14 @@
 
   async function loadChanges() {
     loading = true;
+    noRepo = false;
     try {
       const status = await send<GitStatus>('status');
       applyStatus(status);
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.log('[HydraGit sidebar] loadChanges error:', msg);
+      noRepo = msg.includes('not a git repository');
       loading = false;
     }
   }
@@ -139,38 +144,49 @@
   $: someStaged  = files.some((f) => stagedPaths.has(f.path));
 </script>
 
-<SectionHeader
-  title="Changes"
-  count={files.length > 0 ? files.length : null}
-  open={sectionOpen}
-  {allStaged}
-  {someStaged}
-  onToggle={() => { sectionOpen = !sectionOpen; }}
-  onRefresh={handleRefresh}
-  onToggleAll={handleToggleAll}
-  onExpandAll={handleExpandAll}
-  onCollapseAll={handleCollapseAll}
-/>
-
-{#if sectionOpen}
+{#if noRepo}
   <FileTree
-    {files}
-    {loading}
-    {stagedPaths}
-    {collapsed}
-    onToggleStage={handleToggleStage}
-    onToggleFolder={handleToggleFolder}
-    onStageFolder={handleStageFolder}
-    onOpenDiff={handleOpenDiff}
+    files={[]}
+    loading={false}
+    noRepo={true}
+    stagedPaths={new Set()}
+    collapsed={new Set()}
+  />
+{:else}
+  <SectionHeader
+    title="Changes"
+    count={files.length > 0 ? files.length : null}
+    open={sectionOpen}
+    {allStaged}
+    {someStaged}
+    onToggle={() => { sectionOpen = !sectionOpen; }}
+    onRefresh={handleRefresh}
+    onToggleAll={handleToggleAll}
+    onExpandAll={handleExpandAll}
+    onCollapseAll={handleCollapseAll}
+  />
+
+  {#if sectionOpen}
+    <FileTree
+      {files}
+      {loading}
+      {noRepo}
+      {stagedPaths}
+      {collapsed}
+      onToggleStage={handleToggleStage}
+      onToggleFolder={handleToggleFolder}
+      onStageFolder={handleStageFolder}
+      onOpenDiff={handleOpenDiff}
+    />
+  {/if}
+
+  <CommitArea
+    bind:this={commitAreaRef}
+    hasFiles={files.length > 0}
+    {stagedCount}
+    {hasUpstream}
+    error={commitError}
+    onCommit={handleCommit}
+    onCommitPush={handleCommitPush}
   />
 {/if}
-
-<CommitArea
-  bind:this={commitAreaRef}
-  hasFiles={files.length > 0}
-  {stagedCount}
-  {hasUpstream}
-  error={commitError}
-  onCommit={handleCommit}
-  onCommitPush={handleCommitPush}
-/>

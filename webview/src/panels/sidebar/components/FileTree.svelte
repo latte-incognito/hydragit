@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { send } from '$shared/messageBus';
   import type { GitFile } from '../types';
 
   export let files: GitFile[] = [];
   export let stagedPaths: Set<string> = new Set();
   export let loading: boolean = false;
+  export let noRepo: boolean = false;
   export let collapsed: Set<string> = new Set();   // persisted by parent
 
   export let onToggleStage:     (path: string) => void          = () => {};
@@ -168,12 +170,20 @@
 </script>
 
 <div class="tree-wrap" role="listbox" aria-label="Changed files">
-  {#if loading}
-    <div class="state-msg">
-      <span class="spinner" aria-hidden="true"></span>Loading…
+  {#if noRepo}
+    <div class="welcome-view">
+      <p class="welcome-text">In order to use Git features, you can open a folder containing a Git repository or clone from a URL.</p>
+      <button class="welcome-btn" on:click={() => send('vscode.openFolder')}>Open Folder</button>
+      <button class="welcome-btn" on:click={() => send('vscode.cloneRepo')}>Clone Repository</button>
+    </div>
+  {:else if loading}
+    <div class="welcome-view">
+      <p class="welcome-text">Loading repository…</p>
     </div>
   {:else if files.length === 0}
-    <div class="state-msg empty">No changes · working tree clean</div>
+    <div class="welcome-view">
+      <p class="welcome-text">No changes · working tree clean</p>
+    </div>
   {:else}
 
     {#snippet renderFolder(node: TreeFolder, depth: number)}
@@ -278,25 +288,35 @@
     padding: 3px 0;
   }
 
-  /* ── States ── */
-  .state-msg {
-    padding: 20px 16px;
+  /* ── Welcome view (matches VS Code Source Control style) ── */
+  .welcome-view {
+    padding: 20px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .welcome-text {
     font-size: var(--hg-font-sm, 12px);
     color: var(--vscode-descriptionForeground, #8c8c8c);
     text-align: center;
+    line-height: 1.5;
+    margin: 0;
   }
-  .state-msg.empty { font-size: var(--hg-font-xs, 11px); }
-  .spinner {
-    display: inline-block;
-    width: 12px; height: 12px;
-    border: 1.5px solid var(--vscode-descriptionForeground, #8c8c8c);
-    border-top-color: transparent;
-    border-radius: 50%;
-    animation: hg-spin 0.6s linear infinite;
-    vertical-align: middle;
-    margin-right: 6px;
+  .welcome-btn {
+    width: 100%;
+    padding: 6px 14px;
+    border-radius: 2px;
+    border: none;
+    font-size: var(--hg-font-sm, 12px);
+    font-family: var(--hg-font-family);
+    cursor: pointer;
+    background: var(--vscode-button-background, #0e639c);
+    color: var(--vscode-button-foreground, #ffffff);
   }
-  @keyframes hg-spin { to { transform: rotate(360deg); } }
+  .welcome-btn:hover {
+    background: var(--vscode-button-hoverBackground, #1177bb);
+  }
 
   /* ── Folder row ── */
   .folder-row {

@@ -264,6 +264,23 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
+      if (msg.cmd === 'vscode.openFolder') {
+        await vscode.commands.executeCommand('vscode.openFolder');
+        return;
+      }
+      if (msg.cmd === 'vscode.cloneRepo') {
+        await vscode.commands.executeCommand('git.clone');
+        return;
+      }
+
+      if (!this.goProcess) {
+        webviewView.webview.postMessage({
+          id: msg?.id, ok: false,
+          error: 'fatal: not a git repository (no workspace folder open)',
+        });
+        return;
+      }
+
       // openDiff is handled in the extension host — same as main panel
       if (msg.cmd === 'openDiff') {
         await openDiff(msg.params);
@@ -282,14 +299,17 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
       }
     });
 
-    this.statusSub?.dispose();
-    this.statusSub = this.statusService.onDidChange((snapshot) => {
-      this.postStatus(snapshot);
-    });
+    if (this.statusService) {
+      this.statusSub?.dispose();
+      this.statusSub = this.statusService.onDidChange((snapshot) => {
+        this.postStatus(snapshot);
+      });
+      this.postStatus(this.statusService.getSnapshot());
+    }
 
-    this.postStatus(this.statusService.getSnapshot());
-
-    vscode.commands.executeCommand('hydragit.revealAll');
+    if (this.goProcess) {
+      vscode.commands.executeCommand('hydragit.revealAll');
+    }
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) {
         vscode.commands.executeCommand('hydragit.revealAll');
