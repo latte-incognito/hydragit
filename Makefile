@@ -84,3 +84,20 @@ fmt-check:
 
 clean-webview:
 	rm -f webview/*.js webview/*.css
+
+## E2E: create fresh test git repo in /tmp
+test-e2e-repo:
+	bash tests/fixtures/create-test-repo.sh /tmp/hydragit-test-repo
+
+## E2E: run Playwright tests headless (5 workers)
+test-e2e: test-e2e-repo
+	npx playwright test
+
+## E2E: run Playwright tests headed (1 worker)
+test-e2e-headed: test-e2e-repo
+	HEADED=1 npx playwright test --headed
+
+## E2E: open last test report in browser
+test-report:
+	npx playwright show-report
+

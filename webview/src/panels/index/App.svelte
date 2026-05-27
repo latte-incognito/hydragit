@@ -48,7 +48,7 @@
   // ── Context menus ─────────────────────────────────────────────────────────
   let branchMenu  = { visible: false, x: 0, y: 0, branch: '', isCurrent: false, current: '' };
   let stashMenu   = { visible: false, x: 0, y: 0, label: '' };
-  let tagMenu     = { visible: false, x: 0, y: 0, name: '' };
+  let tagMenu     = { visible: false, x: 0, y: 0, name: '', current: '' };
   let ctxBranch   = '';
   let ctxStashIdx: number | null = null;
 
@@ -92,11 +92,24 @@
       // Re-apply active search filter
       applyFilter();
     } catch (e: unknown) {
-      flash('Load error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('not a git repository')) {
+        console.log('[HydraGit] No git repo detected, suppressing:', msg);
+      } else {
+        flash('Load error: ' + msg, '#f07070');
+      }
     }
   }
 
-  onMount(loadAll);
+  onMount(() => {
+    loadAll();
+    document.addEventListener('contextmenu', (e) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.ctx-menu, .ctx, .ci, .ctx-item')) {
+        e.preventDefault();
+      }
+    }, true);
+  });
 
   // ── All-branches toggle ───────────────────────────────────────────────────
   async function handleAllBranches(v: boolean) {
@@ -112,6 +125,7 @@
 
   // ── Branch select ─────────────────────────────────────────────────────────
   async function selectBranch(name: string, _remote: boolean) {
+    selStashIdx = null;
     activeBranch = name;
     selCommitIdx = null; selFile = null; diffFiles = []; diffHunks = [];
     try {
@@ -182,6 +196,7 @@
 
   // ── Commit select ─────────────────────────────────────────────────────────
   async function selectCommit(i: number) {
+    selStashIdx = null;
     selCommitIdx = i;
     selFile = null; diffFiles = []; diffHunks = [];
     detailLoading = true;
@@ -211,22 +226,49 @@
     }
   }
 
+  // ── Tag select ────────────────────────────────────────────────────────────
+  async function selectTagCommit(hash: string) {
+    const match = (c: Commit) => c.hash.startsWith(hash) || hash.startsWith(c.hash);
+    let idx = filtered.findIndex(match);
+    if (idx === -1) {
+      const branch = await send<string>('branch.containing', { commit: hash });
+      if (branch) {
+        await selectBranch(branch, false);
+        idx = filtered.findIndex(match);
+      }
+    }
+    if (idx !== -1) selectCommit(idx);
+  }
+
   // ── Stash ─────────────────────────────────────────────────────────────────
-  function selectStash(i: number) { selStashIdx = i; }
+  async function selectStash(i: number) {
+    selStashIdx = i;
+    const s = stashes[i];
+    const idx = s.index ?? i;
+    try {
+      const [files, hunks] = await Promise.all([
+        send<DiffFile[]>('stash.files', { index: idx }),
+        send<DiffHunk[]>('stash.show', { index: idx }),
+      ]);
+      diffFiles = files;
+      diffHunks = hunks;
+      selCommitIdx = null;
+      selFile = null;
+      // Stash message: "On <branch>: ..." or "WIP on <branch>: ..."
+      const stashMsg = s.msg ?? s.message ?? '';
+      const branchMatch = stashMsg.match(/^(?:WIP )?[Oo]n (.+?):/);
+      if (branchMatch && branchMatch[1] !== activeBranch) {
+        await selectBranch(branchMatch[1], false);
+      }
+    } catch (e: unknown) {
+      flash('Show failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
 
   async function stashAction(a: string) {
     if (selStashIdx === null) return;
     const s   = stashes[selStashIdx];
     const idx = s.index ?? selStashIdx;
-    if (a === 'show') {
-      try {
-        diffHunks    = await send<DiffHunk[]>('stash.show', { index: idx });
-        selCommitIdx = null; diffFiles = []; selFile = 'stash';
-      } catch (e: unknown) {
-        flash('Show failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
-      }
-      return;
-    }
     const cmdMap: Record<string, string> = { pop: 'stash.pop', apply: 'stash.apply', drop: 'stash.drop' };
     try {
       await send(cmdMap[a], { index: idx });
@@ -494,7 +536,7 @@
   function showTagCtx(e: MouseEvent, name: string) {
     e.preventDefault(); e.stopPropagation();
     tagMenu = {
-      visible: true, name,
+      visible: true, name, current: activeBranch,
       x: Math.min(e.clientX, window.innerWidth - 180),
       y: Math.min(e.clientY, window.innerHeight - 120),
     };
@@ -503,21 +545,34 @@
   async function tagCtxAction(a: string) {
     const name = tagMenu.name;
     tagMenu = { ...tagMenu, visible: false };
-    if (a === 'checkout') {
-      flash(`Checking out tag ${name}…`);
-      try { await send('checkout', { branch: name }); flash(`Checked out ${name}`, '#4ec94e'); loadAll(); }
-      catch (e: unknown) { flash('Checkout failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
-    }
-    if (a === 'copy-hash') {
-      const tag = tags.find(t => t.name === name);
-      if (tag?.hash) { await navigator.clipboard.writeText(tag.hash); flash(`Copied: ${tag.hash}`, '#4ec94e'); }
-    }
-    if (a === 'new-branch') {
-      const branchName = prompt(`Create branch from tag ${name}:`);
-      if (branchName) {
-        try { await send('branch.create', { name: branchName, from: name }); flash(`Created ${branchName}`, '#4ec94e'); loadAll(); }
-        catch (e: unknown) { flash('Create failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
+    try {
+      switch (a) {
+        case 'checkout':
+          flash(`Checking out tag ${name}…`);
+          await send('checkout', { branch: name });
+          flash(`Checked out ${name}`, '#4ec94e');
+          loadAll();
+          break;
+        case 'diff-working':
+          flash(`Diffing ${name} with working tree…`);
+          break;
+        case 'merge':
+          await send('merge', { branch: name });
+          flash(`Merged ${name} into ${activeBranch}`, '#4ec94e');
+          loadAll();
+          break;
+        case 'push':
+          await send('push', { branch: name, tags: true });
+          flash(`Pushed tag ${name} to origin`, '#4ec94e');
+          break;
+        case 'delete':
+          await send('tag.delete', { name });
+          flash(`Deleted tag ${name}`, '#4ec94e');
+          loadAll();
+          break;
       }
+    } catch (e: unknown) {
+      flash(`${a} failed: ` + (e instanceof Error ? e.message : String(e)), '#f07070');
     }
   }
 
@@ -570,6 +625,7 @@
         onBranchCtx={showBranchCtx}
         onStashCtx={showStashCtx}
         onTagCtx={showTagCtx}
+        onTagSelect={selectTagCommit}
       />
     </div>
 
@@ -590,6 +646,7 @@
     <div bind:this={detailPaneEl} class="detail-wrap">
       <DetailPane
         commit={selCommitIdx !== null ? filtered[selCommitIdx] : null}
+        stash={selStashIdx !== null ? stashes[selStashIdx] : null}
         files={diffFiles}
         hunks={diffHunks}
         {selFile}
@@ -597,6 +654,7 @@
         {iconUri}
         onSelectFile={selectDiffFile}
         onCommitAction={commitAction}
+        onStashAction={stashAction}
       />
     </div>
   </div>
@@ -605,6 +663,7 @@
     branch={sbBranch}
     info={sbInfo}
     countsText={flashMsg ? `⚡ ${flashMsg}` : sbCounts}
+    {iconUri}
   />
 
   <ContextMenu
