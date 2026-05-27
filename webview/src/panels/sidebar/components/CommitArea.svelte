@@ -20,15 +20,15 @@
     const msg = message.trim();
     if (!canCommit) return;
     onCommit(msg);
-    message = '';
   }
 
   function handleCommitPush() {
     const msg = message.trim();
     if (!canCommit) return;
     onCommitPush(msg);
-    message = '';
   }
+
+  export function clearMessage() { message = ''; }
 </script>
 
 <div class="commit-area">

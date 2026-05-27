@@ -16,3 +16,4 @@ Result of manual testing:
  19. Handle startup in a folder with no git repo (show friendly message instead of errors)
  20. ✅ Old commit message should be cleaned from commit message area on sidebar after commit
  21. ✅ Hide Commit & Push button when branch has no upstream
+ 22. ✅ Don't cleare commit message, if command was error and commit doesnt happen 

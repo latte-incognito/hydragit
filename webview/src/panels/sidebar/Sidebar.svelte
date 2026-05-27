@@ -20,6 +20,7 @@
   // We intentionally keep this as a module-level variable so it survives
   // Svelte's reactive re-renders without being reset.
   let collapsed: Set<string> = new Set();
+  let commitAreaRef: CommitArea;
 
   // ── Push events from extension ─────────────────────────────────────────────
   function applyStatus(data: unknown) {
@@ -113,6 +114,7 @@
     try {
       await send('commit', { message: msg, paths: [...stagedPaths] });
       stagedPaths = new Set();
+      commitAreaRef?.clearMessage();
       loadChanges();
     } catch (e: unknown) {
       commitError = e instanceof Error ? e.message : String(e);
@@ -124,6 +126,7 @@
     try {
       await send('commit.push', { message: msg, paths: [...stagedPaths] });
       stagedPaths = new Set();
+      commitAreaRef?.clearMessage();
       loadChanges();
     } catch (e: unknown) {
       commitError = e instanceof Error ? e.message : String(e);
@@ -163,6 +166,7 @@
 {/if}
 
 <CommitArea
+  bind:this={commitAreaRef}
   hasFiles={files.length > 0}
   {stagedCount}
   {hasUpstream}
