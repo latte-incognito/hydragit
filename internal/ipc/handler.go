@@ -260,6 +260,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "branch.containing":
+		var p struct {
+			Commit string `json:"commit"`
+		}
+		json.Unmarshal(req.Params, &p)
+		branch, err := git.BranchContaining(repoPath, p.Commit)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, branch)
+
 	case "merge":
 		var p struct {
 			Branch string `json:"branch"`

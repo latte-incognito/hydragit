@@ -388,7 +388,7 @@
                Right-click opens context menu via onTagCtx prop. -->
           <div
             class="titem tag-row"
-            on:dblclick={() => onTagSelect(tag.hash)}
+            on:click={() => onTagSelect(tag.hash)}
             on:contextmenu|preventDefault={(e) => onTagCtx(e, tag.name)}
             role="option"
             aria-selected="false"
@@ -590,7 +590,7 @@
   .titem.remote:hover { color: var(--vscode-foreground, #999); }
 
   /* ── Tag rows ────────────────────────────────────────────────────────────── */
-  .tag-row { cursor: default; } /* intentionally not clickable */
+  .tag-row { cursor: pointer; }
   .tag-row:hover {
     background: var(--vscode-list-hoverBackground, #2a2d2e);
     color: var(--vscode-foreground, #ccc);

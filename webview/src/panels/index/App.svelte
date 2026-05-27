@@ -214,8 +214,16 @@
   }
 
   // ── Tag select ────────────────────────────────────────────────────────────
-  function selectTagCommit(hash: string) {
-    const idx = filtered.findIndex(c => c.hash === hash);
+  async function selectTagCommit(hash: string) {
+    const match = (c: Commit) => c.hash.startsWith(hash) || hash.startsWith(c.hash);
+    let idx = filtered.findIndex(match);
+    if (idx === -1) {
+      const branch = await send<string>('branch.containing', { commit: hash });
+      if (branch) {
+        await selectBranch(branch, false);
+        idx = filtered.findIndex(match);
+      }
+    }
     if (idx !== -1) selectCommit(idx);
   }
 
@@ -233,6 +241,12 @@
       diffHunks = hunks;
       selCommitIdx = null;
       selFile = null;
+      // Stash message: "On <branch>: ..." or "WIP on <branch>: ..."
+      const stashMsg = s.msg ?? s.message ?? '';
+      const branchMatch = stashMsg.match(/^(?:WIP )?[Oo]n (.+?):/);
+      if (branchMatch && branchMatch[1] !== activeBranch) {
+        await selectBranch(branchMatch[1], false);
+      }
     } catch (e: unknown) {
       flash('Show failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
     }

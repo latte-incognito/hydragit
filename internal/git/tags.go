@@ -30,7 +30,7 @@ func CreateTag(repoPath, name, commit, message string) error {
 // Format: <refname:short>TAB<objectname:short>TAB<creatordate:short>
 func Tags(repoPath string) ([]Tag, error) {
 	out, err := run(repoPath, "tag", "--sort=-creatordate",
-		"--format=%(refname:short)\t%(objectname:short)\t%(creatordate:short)")
+		"--format=%(refname:short)\t%(objectname:short)\t%(*objectname:short)\t%(creatordate:short)")
 	if err != nil {
 		return nil, err
 	}
@@ -43,13 +43,18 @@ func Tags(repoPath string) ([]Tag, error) {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\t", 3)
+		parts := strings.SplitN(line, "\t", 4)
 		if len(parts) < 2 {
 			continue
 		}
-		t := Tag{Name: parts[0], Hash: parts[1]}
-		if len(parts) == 3 {
-			t.Date = parts[2]
+		// For annotated tags, *objectname is the commit hash; for lightweight, it's empty.
+		hash := parts[1]
+		if len(parts) >= 3 && parts[2] != "" {
+			hash = parts[2]
+		}
+		t := Tag{Name: parts[0], Hash: hash}
+		if len(parts) == 4 {
+			t.Date = parts[3]
 		}
 		tags = append(tags, t)
 	}
