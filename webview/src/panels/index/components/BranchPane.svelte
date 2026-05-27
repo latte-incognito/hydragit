@@ -167,8 +167,8 @@
   let localOpen = true;
   let remoteOpen = true;
   let remoteOriginOpen: Record<string, boolean> = {};
-  let tagsOpen = true;
-  let stashOpen = true;
+  let tagsOpen = false;
+  let stashOpen = false;
 
   function isOriginOpen(o: string) { return remoteOriginOpen[o] ?? true; }
   function toggleOrigin(o: string) {

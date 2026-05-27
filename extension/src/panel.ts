@@ -144,7 +144,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     };
 
     const iconUri = webviewView.webview.asWebviewUri(
-      vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon.png'))
+      vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon-tight.png'))
     );
     webviewView.webview.html = this.getHtml(webviewView.webview, iconUri);
 

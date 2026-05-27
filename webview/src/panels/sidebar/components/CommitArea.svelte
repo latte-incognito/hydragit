@@ -150,12 +150,12 @@
   }
 
   .btn-secondary {
-    background: var(--vscode-button-secondaryBackground, #3a3d41);
-    color: var(--vscode-button-secondaryForeground, #cccccc);
-    border-color: var(--vscode-button-secondaryBackground, #3a3d41);
+    background: var(--vscode-button-background, #0e639c);
+    color: var(--vscode-button-foreground, #ffffff);
+    border-color: var(--vscode-button-background, #0e639c);
     font-size: var(--hg-font-xs, 11px);
   }
   .btn-secondary:hover:not(:disabled) {
-    background: var(--vscode-button-secondaryHoverBackground, #44474a);
+    background: var(--vscode-button-hoverBackground, #1177bb);
   }
 </style>

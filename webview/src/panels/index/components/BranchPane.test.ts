@@ -33,13 +33,15 @@ describe('BranchPane — rendering', () => {
     expect(getAllByText('feature-x').length).toBe(2);
   });
 
-  it('renders stash message', () => {
+  it('renders stash message', async () => {
     const { getByText } = render(BranchPane, { branches, stashes, activeBranch: 'main' });
+    await fireEvent.click(getByText('Stashes'));
     expect(getByText('WIP: my stash')).toBeTruthy();
   });
 
-  it('shows no stashes empty state', () => {
+  it('shows no stashes empty state', async () => {
     const { getByText } = render(BranchPane, { branches, stashes: [], activeBranch: 'main' });
+    await fireEvent.click(getByText('Stashes'));
     expect(getByText('No stashes')).toBeTruthy();
   });
 
@@ -118,6 +120,7 @@ describe('BranchPane — stash actions', () => {
     const onSelectStash = vi.fn();
     const { getByText } = render(BranchPane, { branches, stashes, activeBranch: 'main', onSelectStash });
 
+    await fireEvent.click(getByText('Stashes'));
     await fireEvent.click(getByText('WIP: my stash'));
     expect(onSelectStash).toHaveBeenCalledWith(0);
   });

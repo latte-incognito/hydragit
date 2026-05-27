@@ -112,6 +112,7 @@
 
   // ── Branch select ─────────────────────────────────────────────────────────
   async function selectBranch(name: string, _remote: boolean) {
+    selStashIdx = null;
     activeBranch = name;
     selCommitIdx = null; selFile = null; diffFiles = []; diffHunks = [];
     try {
@@ -182,6 +183,7 @@
 
   // ── Commit select ─────────────────────────────────────────────────────────
   async function selectCommit(i: number) {
+    selStashIdx = null;
     selCommitIdx = i;
     selFile = null; diffFiles = []; diffHunks = [];
     detailLoading = true;
@@ -605,6 +607,7 @@
     branch={sbBranch}
     info={sbInfo}
     countsText={flashMsg ? `⚡ ${flashMsg}` : sbCounts}
+    {iconUri}
   />
 
   <ContextMenu
