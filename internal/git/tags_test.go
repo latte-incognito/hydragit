@@ -44,3 +44,65 @@ func TestTags(t *testing.T) {
 		t.Errorf("expected v0.1.0 and v0.2.0, got %v", names)
 	}
 }
+
+func TestDeleteTag(t *testing.T) {
+	dir := t.TempDir()
+	exec.Command("git", "-C", dir, "init").Run()
+	exec.Command("git", "-C", dir, "config", "user.email", "test@test.com").Run()
+	exec.Command("git", "-C", dir, "config", "user.name", "Test").Run()
+	exec.Command("git", "-C", dir, "commit", "--allow-empty", "-m", "init").Run()
+	exec.Command("git", "-C", dir, "tag", "v1.0.0").Run()
+
+	tags, _ := Tags(dir)
+	if len(tags) != 1 {
+		t.Fatalf("expected 1 tag, got %d", len(tags))
+	}
+
+	if err := DeleteTag(dir, "v1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+
+	tags, _ = Tags(dir)
+	if len(tags) != 0 {
+		t.Fatalf("expected 0 tags after delete, got %d", len(tags))
+	}
+}
+
+func TestDeleteTag_nonexistent(t *testing.T) {
+	dir := t.TempDir()
+	exec.Command("git", "-C", dir, "init").Run()
+	exec.Command("git", "-C", dir, "config", "user.email", "test@test.com").Run()
+	exec.Command("git", "-C", dir, "config", "user.name", "Test").Run()
+	exec.Command("git", "-C", dir, "commit", "--allow-empty", "-m", "init").Run()
+
+	err := DeleteTag(dir, "nonexistent")
+	if err == nil {
+		t.Fatal("expected error deleting nonexistent tag")
+	}
+}
+
+func TestTags_annotatedTagResolvesToCommitHash(t *testing.T) {
+	dir := t.TempDir()
+	exec.Command("git", "-C", dir, "init").Run()
+	exec.Command("git", "-C", dir, "config", "user.email", "test@test.com").Run()
+	exec.Command("git", "-C", dir, "config", "user.name", "Test").Run()
+	exec.Command("git", "-C", dir, "commit", "--allow-empty", "-m", "init").Run()
+
+	// Get the commit hash
+	out, _ := exec.Command("git", "-C", dir, "rev-parse", "--short", "HEAD").Output()
+	commitHash := string(out[:len(out)-1]) // trim newline
+
+	// Create an annotated tag
+	exec.Command("git", "-C", dir, "tag", "-a", "v1.0.0", "-m", "release").Run()
+
+	tags, err := Tags(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tags) != 1 {
+		t.Fatalf("expected 1 tag, got %d", len(tags))
+	}
+	if tags[0].Hash != commitHash {
+		t.Errorf("expected commit hash %s, got tag hash %s", commitHash, tags[0].Hash)
+	}
+}

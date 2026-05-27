@@ -13,11 +13,12 @@ type FileStatus struct {
 
 // StatusResult is the full snapshot returned by Status().
 type StatusResult struct {
-	Branch   string       `json:"branch"`
-	Ahead    int          `json:"ahead"`
-	Behind   int          `json:"behind"`
-	Modified int          `json:"modified"`
-	Files    []FileStatus `json:"files"`
+	Branch      string       `json:"branch"`
+	Ahead       int          `json:"ahead"`
+	Behind      int          `json:"behind"`
+	Modified    int          `json:"modified"`
+	HasUpstream bool         `json:"hasUpstream"`
+	Files       []FileStatus `json:"files"`
 }
 
 // Status returns the current branch, ahead/behind counts, and changed files
@@ -33,6 +34,7 @@ func Status(repoPath string) (StatusResult, error) {
 
 	// Ahead/behind relative to upstream — non-fatal if no upstream is set.
 	if ab, err := run(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD"); err == nil {
+		res.HasUpstream = true
 		if parts := strings.Fields(ab); len(parts) == 2 {
 			res.Behind, _ = strconv.Atoi(parts[0])
 			res.Ahead, _ = strconv.Atoi(parts[1])

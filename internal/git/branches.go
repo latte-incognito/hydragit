@@ -179,3 +179,18 @@ func PullMode(repoPath, mode string) error {
 	_, err := run(repoPath, args...)
 	return err
 }
+
+// BranchContaining returns the first local branch that contains the given commit.
+func BranchContaining(repoPath, commit string) (string, error) {
+	out, err := run(repoPath, "branch", "--contains", commit, "--format=%(refname:short)")
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			return line, nil
+		}
+	}
+	return "", nil
+}

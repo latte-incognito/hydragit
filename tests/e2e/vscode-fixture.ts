@@ -10,27 +10,44 @@ export type TestFixtures = {
 export const test = base.extend<TestFixtures>({
   vscode: async ({}, use, testInfo) => {
     const config = testInfo.project.use as any;
-    const repoPath: string = config.repoPath;
+    const baseRepoPath: string = config.repoPath;
     const extensionPath: string = config.extensionPath;
+    const workerRepoPath = `${baseRepoPath}-w${testInfo.workerIndex}`;
+
+    execSync(`bash tests/fixtures/create-test-repo.sh "${workerRepoPath}"`, {
+      stdio: "pipe",
+    });
 
     const vscodePath = process.env.VSCODE_PATH || getVSCodePath();
+
+    const isHeaded = !!process.env.HEADED;
 
     const app = await electron.launch({
       executablePath: vscodePath,
       args: [
-        repoPath,
+        workerRepoPath,
         `--extensionDevelopmentPath=${extensionPath}`,
         "--disable-other-extensions",
         "--skip-welcome",
         "--skip-release-notes",
         "--disable-workspace-trust",
-        "--user-data-dir=/tmp/hydragit-test-vscode-data",
+        `--user-data-dir=/tmp/hydragit-test-vscode-data-${testInfo.workerIndex}`,
       ],
       env: {
         ...process.env,
         NODE_ENV: "test",
+        ELECTRON_ENABLE_LOGGING: "1",
       },
     });
+
+    // On macOS there's no true headless for Electron — minimize the window
+    if (!isHeaded) {
+      const win = await app.firstWindow();
+      await win.evaluate(() => {
+        // @ts-ignore — Electron BrowserWindow API
+        require("electron").remote?.getCurrentWindow()?.minimize();
+      }).catch(() => {});
+    }
 
     await use(app);
     await app.close();
@@ -39,7 +56,8 @@ export const test = base.extend<TestFixtures>({
   mainWindow: async ({ vscode }, use) => {
     const window = await vscode.firstWindow();
     await window.waitForLoadState("domcontentloaded");
-    await window.waitForTimeout(3000);
+    // Wait for VS Code + extension to fully activate
+    await window.waitForTimeout(5000);
     await use(window);
   },
 });

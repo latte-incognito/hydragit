@@ -7,5 +7,6 @@ export interface GitStatus {
   branch: string;
   ahead: number;
   behind: number;
+  hasUpstream: boolean;
   files: GitFile[];
 }

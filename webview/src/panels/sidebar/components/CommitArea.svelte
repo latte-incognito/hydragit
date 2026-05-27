@@ -1,6 +1,7 @@
 <script lang="ts">
   export let hasFiles: boolean = false;
   export let stagedCount: number = 0;
+  export let hasUpstream: boolean = false;
   export let error: string = '';
 
   export let onCommit: (msg: string) => void = () => {};
@@ -26,6 +27,8 @@
     if (!canCommit) return;
     onCommitPush(msg);
   }
+
+  export function clearMessage() { message = ''; }
 </script>
 
 <div class="commit-area">
@@ -47,9 +50,11 @@
 
   <div class="btn-row">
     <button class="btn btn-primary" disabled={!canCommit} on:click={handleCommit}> Commit </button>
-    <button class="btn btn-secondary" disabled={!canCommit} on:click={handleCommitPush}>
-      Commit &amp; Push
-    </button>
+    {#if hasUpstream}
+      <button class="btn btn-secondary" disabled={!canCommit} on:click={handleCommitPush}>
+        Commit &amp; Push
+      </button>
+    {/if}
   </div>
 </div>
 
@@ -97,7 +102,8 @@
     font-size: var(--hg-font-sm, 12px);
     font-weight: var(--hg-font-weight);
     padding: 6px 8px;
-    resize: vertical;
+    resize: none;
+    overflow-y: auto;
     outline: none;
     line-height: 1.5;
     box-sizing: border-box;
@@ -150,12 +156,12 @@
   }
 
   .btn-secondary {
-    background: var(--vscode-button-secondaryBackground, #3a3d41);
-    color: var(--vscode-button-secondaryForeground, #cccccc);
-    border-color: var(--vscode-button-secondaryBackground, #3a3d41);
+    background: var(--vscode-button-background, #0e639c);
+    color: var(--vscode-button-foreground, #ffffff);
+    border-color: var(--vscode-button-background, #0e639c);
     font-size: var(--hg-font-xs, 11px);
   }
   .btn-secondary:hover:not(:disabled) {
-    background: var(--vscode-button-secondaryHoverBackground, #44474a);
+    background: var(--vscode-button-hoverBackground, #1177bb);
   }
 </style>
