@@ -69,6 +69,7 @@ describe('CommitArea — commit actions', () => {
     const { getByText, getByPlaceholderText } = render(CommitArea, {
       hasFiles: true,
       stagedCount: 1,
+      hasUpstream: true,
       onCommitPush,
     });
 

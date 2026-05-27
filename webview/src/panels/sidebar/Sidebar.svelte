@@ -9,6 +9,7 @@
 
   // ── State ──────────────────────────────────────────────────────────────────
   let files: GitFile[] = [];
+  let hasUpstream = false;
   let sectionOpen = true;
   let loading = true;
 
@@ -29,6 +30,7 @@
     const nextPaths = new Set(nextFiles.map((f) => f.path));
     stagedPaths = new Set([...stagedPaths].filter((p) => nextPaths.has(p)));
 
+    hasUpstream = s.hasUpstream ?? false;
     files = nextFiles;
     loading = false;
   }
@@ -163,6 +165,7 @@
 <CommitArea
   hasFiles={files.length > 0}
   {stagedCount}
+  {hasUpstream}
   error={commitError}
   onCommit={handleCommit}
   onCommitPush={handleCommitPush}

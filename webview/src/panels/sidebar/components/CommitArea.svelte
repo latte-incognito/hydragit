@@ -1,6 +1,7 @@
 <script lang="ts">
   export let hasFiles: boolean = false;
   export let stagedCount: number = 0;
+  export let hasUpstream: boolean = false;
   export let error: string = '';
 
   export let onCommit: (msg: string) => void = () => {};
@@ -19,12 +20,14 @@
     const msg = message.trim();
     if (!canCommit) return;
     onCommit(msg);
+    message = '';
   }
 
   function handleCommitPush() {
     const msg = message.trim();
     if (!canCommit) return;
     onCommitPush(msg);
+    message = '';
   }
 </script>
 
@@ -47,9 +50,11 @@
 
   <div class="btn-row">
     <button class="btn btn-primary" disabled={!canCommit} on:click={handleCommit}> Commit </button>
-    <button class="btn btn-secondary" disabled={!canCommit} on:click={handleCommitPush}>
-      Commit &amp; Push
-    </button>
+    {#if hasUpstream}
+      <button class="btn btn-secondary" disabled={!canCommit} on:click={handleCommitPush}>
+        Commit &amp; Push
+      </button>
+    {/if}
   </div>
 </div>
 

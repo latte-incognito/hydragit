@@ -14,6 +14,7 @@
   export let onBranchCtx: (e: MouseEvent, name: string, isCurrent: boolean) => void = () => {};
   export let onStashCtx: (e: MouseEvent, i: number) => void = () => {};
   export let onTagCtx: (e: MouseEvent, name: string) => void = () => {};
+  export let onTagSelect: (hash: string) => void = () => {};
 
   // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -387,6 +388,7 @@
                Right-click opens context menu via onTagCtx prop. -->
           <div
             class="titem tag-row"
+            on:dblclick={() => onTagSelect(tag.hash)}
             on:contextmenu|preventDefault={(e) => onTagCtx(e, tag.name)}
             role="option"
             aria-selected="false"

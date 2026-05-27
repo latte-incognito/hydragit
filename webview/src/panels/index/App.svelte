@@ -213,6 +213,12 @@
     }
   }
 
+  // ── Tag select ────────────────────────────────────────────────────────────
+  function selectTagCommit(hash: string) {
+    const idx = filtered.findIndex(c => c.hash === hash);
+    if (idx !== -1) selectCommit(idx);
+  }
+
   // ── Stash ─────────────────────────────────────────────────────────────────
   async function selectStash(i: number) {
     selStashIdx = i;
@@ -579,6 +585,7 @@
         onBranchCtx={showBranchCtx}
         onStashCtx={showStashCtx}
         onTagCtx={showTagCtx}
+        onTagSelect={selectTagCommit}
       />
     </div>
 
