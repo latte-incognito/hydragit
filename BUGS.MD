@@ -18,3 +18,10 @@ Result of manual testing:
  18. Support multi-repo workspaces, monorepos, and submodules (repo picker like IntelliJ)
  19. Handle startup in a folder with no git repo (show friendly message instead of errors)
  20. Old commit meessage should be cleaned from commit message are on sidebar after commit
+ 21. fatal: The current branch feat/bug_fixes has no upstream branch.
+To push the current branch and set the remote as upstream, use
+
+    git push --set-upstream origin feat/bug_fixes
+
+To have this happen automatically for branches without a tracking
+upstream, see 'push.autoSetupRemote' in 'git help config'. If there is nowhere to commit and push, just block commit and push button , leave only commit

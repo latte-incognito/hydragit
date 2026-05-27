@@ -89,13 +89,15 @@ clean-webview:
 test-e2e-repo:
 	bash tests/fixtures/create-test-repo.sh /tmp/hydragit-test-repo
 
-## E2E: run Playwright tests headed (visible browser)
+## E2E: run Playwright tests headless (5 workers)
+test-e2e: test-e2e-repo
+	npx playwright test
+
+## E2E: run Playwright tests headed (1 worker)
 test-e2e-headed: test-e2e-repo
-	npx playwright test --headed
+	HEADED=1 npx playwright test --headed
 
 ## E2E: open last test report in browser
 test-report:
 	npx playwright show-report
 
-## Full local test: rebuild extension, install it, then run E2E headed
-test-local: install-local test-e2e-repo test-e2e-headed

@@ -2,15 +2,12 @@ import { test, expect } from "./vscode-fixture";
 
 test.describe("HydraGit Extension", () => {
   test("extension activates and shows sidebar", async ({ mainWindow }) => {
-    const activityBar = mainWindow.locator('[id="workbench.parts.activitybar"]');
-    await expect(activityBar).toBeVisible();
-
-    // Click on HydraGit icon — use the <a> tag specifically to avoid badge duplicate
-    const hydragitIcon = mainWindow.locator(
-      'a.action-label[aria-label="HydraGit"]'
-    );
-    await expect(hydragitIcon).toBeVisible({ timeout: 10000 });
-    await hydragitIcon.click();
+    await mainWindow.keyboard.press("Meta+Shift+P");
+    const input = mainWindow.locator(".quick-input-box input");
+    await expect(input).toBeVisible({ timeout: 5000 });
+    await input.fill(">View: Show HydraGit");
+    await mainWindow.waitForTimeout(500);
+    await mainWindow.keyboard.press("Enter");
     await mainWindow.waitForTimeout(1000);
   });
 
