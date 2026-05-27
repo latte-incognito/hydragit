@@ -21,6 +21,15 @@ const stashes = [
 // ── rendering ─────────────────────────────────────────────────────────────────
 
 describe('BranchPane — rendering', () => {
+  it('bug-07: tags section is collapsed by default', () => {
+    const tags = [{ name: 'v1.0.0', hash: 'abc123' }];
+    const { queryByText, getByText } = render(BranchPane, { branches, stashes: [], tags, activeBranch: 'main' });
+    // Tag name should NOT be visible (collapsed)
+    expect(queryByText('v1.0.0')).toBeFalsy();
+    // But the Tags header should be visible
+    expect(getByText('Tags')).toBeTruthy();
+  });
+
   it('renders local branch names', () => {
     const { getAllByText } = render(BranchPane, { branches, stashes: [], activeBranch: 'main' });
     expect(getAllByText('main').length).toBeGreaterThan(0);

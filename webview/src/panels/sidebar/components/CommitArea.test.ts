@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import CommitArea from './CommitArea.svelte';
 
 // ── hint text ─────────────────────────────────────────────────────────────────
@@ -103,5 +104,71 @@ describe('CommitArea — commit actions', () => {
     await fireEvent.click(getByText('Commit'));
 
     expect(onCommit).toHaveBeenCalledWith('fix: spaces');
+  });
+});
+
+// ── bug #20: message not cleared eagerly (cleared by parent on success) ──────
+
+describe('CommitArea — message preservation (bug #20/#22)', () => {
+  it('bug-20: message stays after commit (parent clears via clearMessage)', async () => {
+    const onCommit = vi.fn();
+    const { getByText, getByPlaceholderText } = render(CommitArea, {
+      hasFiles: true,
+      stagedCount: 1,
+      onCommit,
+    });
+
+    const textarea = getByPlaceholderText('Commit message') as HTMLTextAreaElement;
+    await fireEvent.input(textarea, { target: { value: 'my commit' } });
+    await fireEvent.click(getByText('Commit'));
+
+    // Message should NOT be cleared by CommitArea itself — parent does it on success
+    expect(textarea.value).toBe('my commit');
+  });
+
+  it('bug-20: clearMessage() resets the textarea', async () => {
+    const { getByPlaceholderText, component } = render(CommitArea, {
+      hasFiles: true,
+      stagedCount: 1,
+    });
+
+    const textarea = getByPlaceholderText('Commit message') as HTMLTextAreaElement;
+    await fireEvent.input(textarea, { target: { value: 'my commit' } });
+    expect(textarea.value).toBe('my commit');
+
+    (component as any).clearMessage();
+    await tick();
+    expect(textarea.value).toBe('');
+  });
+});
+
+// ── bug #21: hide Commit & Push when no upstream ─────────────────────────────
+
+describe('CommitArea — upstream visibility (bug #21)', () => {
+  it('bug-21: hides Commit & Push button when hasUpstream is false', () => {
+    const { queryByText } = render(CommitArea, {
+      hasFiles: true,
+      stagedCount: 1,
+      hasUpstream: false,
+    });
+    expect(queryByText('Commit & Push')).toBeFalsy();
+  });
+
+  it('bug-21: shows Commit & Push button when hasUpstream is true', () => {
+    const { getByText } = render(CommitArea, {
+      hasFiles: true,
+      stagedCount: 1,
+      hasUpstream: true,
+    });
+    expect(getByText('Commit & Push')).toBeTruthy();
+  });
+
+  it('bug-21: always shows Commit button regardless of upstream', () => {
+    const { getByText } = render(CommitArea, {
+      hasFiles: true,
+      stagedCount: 1,
+      hasUpstream: false,
+    });
+    expect(getByText('Commit')).toBeTruthy();
   });
 });
