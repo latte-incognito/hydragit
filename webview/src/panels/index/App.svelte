@@ -214,21 +214,28 @@
   }
 
   // ── Stash ─────────────────────────────────────────────────────────────────
-  function selectStash(i: number) { selStashIdx = i; }
+  async function selectStash(i: number) {
+    selStashIdx = i;
+    const s = stashes[i];
+    const idx = s.index ?? i;
+    try {
+      const [files, hunks] = await Promise.all([
+        send<DiffFile[]>('stash.files', { index: idx }),
+        send<DiffHunk[]>('stash.show', { index: idx }),
+      ]);
+      diffFiles = files;
+      diffHunks = hunks;
+      selCommitIdx = null;
+      selFile = null;
+    } catch (e: unknown) {
+      flash('Show failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
 
   async function stashAction(a: string) {
     if (selStashIdx === null) return;
     const s   = stashes[selStashIdx];
     const idx = s.index ?? selStashIdx;
-    if (a === 'show') {
-      try {
-        diffHunks    = await send<DiffHunk[]>('stash.show', { index: idx });
-        selCommitIdx = null; diffFiles = []; selFile = 'stash';
-      } catch (e: unknown) {
-        flash('Show failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
-      }
-      return;
-    }
     const cmdMap: Record<string, string> = { pop: 'stash.pop', apply: 'stash.apply', drop: 'stash.drop' };
     try {
       await send(cmdMap[a], { index: idx });
@@ -592,6 +599,7 @@
     <div bind:this={detailPaneEl} class="detail-wrap">
       <DetailPane
         commit={selCommitIdx !== null ? filtered[selCommitIdx] : null}
+        stash={selStashIdx !== null ? stashes[selStashIdx] : null}
         files={diffFiles}
         hunks={diffHunks}
         {selFile}
@@ -599,6 +607,7 @@
         {iconUri}
         onSelectFile={selectDiffFile}
         onCommitAction={commitAction}
+        onStashAction={stashAction}
       />
     </div>
   </div>

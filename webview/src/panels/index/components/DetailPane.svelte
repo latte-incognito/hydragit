@@ -3,6 +3,7 @@
   import type { Commit, DiffFile, DiffHunk } from '../types';
 
   export let commit: Commit | null = null;
+  export let stash: any = null;
   export let files: DiffFile[] = [];
   export let hunks: DiffHunk[] = [];
   export let selFile: string | null = null;
@@ -11,6 +12,9 @@
 
   export let onSelectFile: (path: string) => void = () => {};
   export let onCommitAction: (action: string, hash: string) => void = () => {};
+  export let onStashAction: (action: string) => void = () => {};
+
+  $: isStash = !commit && stash !== null;
 
   // ── Derived totals ────────────────────────────────────────────────────────
   $: totalAdd = files.reduce((a, f) => a + (f.additions ?? 0), 0);
@@ -173,6 +177,11 @@
 
   // ── Diff / selection ──────────────────────────────────────────────────────
   function openDiff(filePath: string) {
+    if (isStash && stash) {
+      const ref = `stash@{${stash.index ?? 0}}`;
+      send('openDiff', { commit: ref, parent: ref + '^', file: filePath });
+      return;
+    }
     if (!commit) return;
     send('openDiff', {
       commit: commit.hash,
@@ -334,15 +343,105 @@
 {/if}
 
 <div class="pane-detail">
-  {#if !commit && hunks.length > 0}
-    <!-- ── Stash diff ── -->
-    <div class="stash-diff">
-      {#each hunks as hunk}
-        <div class="hunk-header">{hunk.header}</div>
-        {#each hunk.lines as line}
-          <div class="hunk-line hunk-line--{line.type}">{line.content}</div>
-        {/each}
-      {/each}
+  {#if isStash}
+    <!-- ── Stash view (same layout as commit) ── -->
+    <div class="detail-content">
+
+      <div class="detail-files">
+        {#if files.length === 0}
+          <div class="df-msg df-msg--empty">No file changes</div>
+        {:else}
+          <div class="tree-toolbar">
+            <span class="tree-count">
+              {files.length} file{files.length !== 1 ? 's' : ''} changed
+            </span>
+            <div class="tt-wrap">
+              <button class="tt-btn" aria-label="Expand all" on:click={expandAll}>
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 3h8M2 6h8M2 9h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div class="tt-wrap">
+              <button class="tt-btn" aria-label="Collapse all" on:click={collapseAll}>
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="tree-body" on:contextmenu={showCtx}>
+            {#snippet renderStashFolder(node: TreeFolder, depth: number)}
+              <div
+                class="tree-row tree-row--folder"
+                class:tree-row--root={node.fullPath === '__root__'}
+                style="padding-left:{8 + depth * 14}px"
+                on:click={() => toggleFolder(node.fullPath)}
+                on:contextmenu={showCtx}
+              >
+                <svg class="chevron" class:open={!collapsed.has(node.fullPath)} width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M3 2l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <svg class="folder-icon" width="13" height="12" viewBox="0 0 14 13" fill="none">
+                  <path d="M1 4a1 1 0 011-1h3l1 1.5H12a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1V4z" stroke="currentColor" stroke-width="1.1"/>
+                </svg>
+                <span class="folder-label">{node.label}</span>
+                <span class="folder-count">{countFiles(node)}</span>
+              </div>
+              {#if !collapsed.has(node.fullPath)}
+                {#each node.children as child}
+                  {#if child.kind === 'folder'}
+                    {@render renderStashFolder(child, depth + 1)}
+                  {:else}
+                    {@const f = child.file}
+                    {@const s = cfg(f.status)}
+                    {@const fname = f.path.split('/').pop() ?? f.path}
+                    <div
+                      class="tree-row tree-row--file"
+                      class:selected={selFile === f.path}
+                      style="padding-left:{8 + (depth + 1) * 14}px"
+                      on:click={() => onSelectFile(f.path)}
+                      on:dblclick={() => openDiff(f.path)}
+                      on:contextmenu={(e) => showCtx(e, f.path)}
+                      role="option"
+                      aria-selected={selFile === f.path}
+                      tabindex="0"
+                    >
+                      <span class="badge {s.badgeClass}" title={f.status}>{s.label}</span>
+                      <span class="fname {s.nameClass}" title={f.path}>{fname}</span>
+                      <span class="file-stats">
+                        {#if f.additions}<span class="stat-add">+{f.additions}</span>{/if}
+                        {#if f.deletions}<span class="stat-del">-{f.deletions}</span>{/if}
+                      </span>
+                    </div>
+                  {/if}
+                {/each}
+              {/if}
+            {/snippet}
+            {@render renderStashFolder(tree, 0)}
+          </div>
+        {/if}
+      </div>
+
+      <div class="detail-meta">
+        <div class="dm-msg">{stash.msg ?? stash.message ?? ''}</div>
+        <div class="dm-row"><span class="dm-label">Ref</span>stash@{'{'}{stash.index ?? 0}{'}'}</div>
+        {#if stash.time ?? stash.date}
+          <div class="dm-row"><span class="dm-label">Date</span>{stash.time ?? stash.date}</div>
+        {/if}
+        <div class="dm-stats">
+          <span class="stat-add">+{totalAdd}</span>
+          <span class="stat-del">-{totalDel}</span>
+          <span class="dm-stat-dim">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="dm-actions">
+          <button class="action-btn" on:click={() => onStashAction('pop')}>Pop</button>
+          <button class="action-btn" on:click={() => onStashAction('apply')}>Apply</button>
+          <button class="action-btn action-btn--danger" on:click={() => onStashAction('drop')}>Drop</button>
+        </div>
+      </div>
+
     </div>
 
   {:else if !commit}
@@ -814,6 +913,9 @@
   .action-btn:hover {
     color: var(--vscode-foreground, #ccc);
     background: var(--vscode-list-hoverBackground, #2a2d2e);
+  }
+  .action-btn--danger:hover {
+    color: #f07070;
   }
 
   /* ── Context menu ── */

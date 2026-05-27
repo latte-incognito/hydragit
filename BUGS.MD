@@ -7,7 +7,7 @@ Result of manual testing:
  6. Side pane should expand untill the end of the screen only then there should ve internall scroll right notw its  ugly fixed at the top 
  7. ✅ in Branches pane tags should be closed by default
  8 in branches pane double click on Tag should open valid commit and banch inside commit pane 
- 9. Stash show, should probably show contents instead of just changes 
+ 9. ✅ Stash show, should probably show contents instead of just changes 
  10. Ask claude what cool features missing.
  11. I totally moved to use this extension instead of gitlens
  12. ✅ Status pane is kinda usefull but error message there  sometimes way bigger than 1 line so, probably need to handle it .
@@ -15,6 +15,6 @@ Result of manual testing:
  14. ✅ Commit and commit & push buttons inside side bar, commit is always hihlighted. And also need to add processing errors inside that side bar. 
  15. ✅ Deselect Stashes , because Pop Apply Show Drop buttons don't disapper.
  16. ✅ Add Hydragit logo inside the status bar of Hydragit near branch name
- 17. Add hydragit logo near select branch pane — removed, looked ugly
  18. Support multi-repo workspaces, monorepos, and submodules (repo picker like IntelliJ)
  19. Handle startup in a folder with no git repo (show friendly message instead of errors)
+ 20. Old commit meessage should be cleaned from commit message are on sidebar after commit

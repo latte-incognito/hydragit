@@ -196,6 +196,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, hunks)
 
+	case "stash.files":
+		var p struct {
+			Index int `json:"index"`
+		}
+		json.Unmarshal(req.Params, &p)
+		files, err := git.StashFiles(repoPath, p.Index)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, files)
+
 	case "stash.save":
 		var p struct {
 			Message string `json:"message"`

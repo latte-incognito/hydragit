@@ -84,38 +84,9 @@ describe('BranchPane — branch selection', () => {
   });
 });
 
-// ── stash actions ─────────────────────────────────────────────────────────────
+// ── stash selection ──────────────────────────────────────────────────────────
 
-describe('BranchPane — stash actions', () => {
-  it('does not show action bar when no stash selected', () => {
-    const { queryByText } = render(BranchPane, { branches, stashes, activeBranch: 'main', selStashIdx: null });
-    expect(queryByText('Pop')).toBeNull();
-  });
-
-  it('shows action bar when stash is selected', () => {
-    const { getByText } = render(BranchPane, { branches, stashes, activeBranch: 'main', selStashIdx: 0 });
-    expect(getByText('Pop')).toBeTruthy();
-    expect(getByText('Apply')).toBeTruthy();
-    expect(getByText('Show')).toBeTruthy();
-    expect(getByText('Drop')).toBeTruthy();
-  });
-
-  it('calls onStashAction with pop', async () => {
-    const onStashAction = vi.fn();
-    const { getByText } = render(BranchPane, { branches, stashes, activeBranch: 'main', selStashIdx: 0, onStashAction });
-
-    await fireEvent.click(getByText('Pop'));
-    expect(onStashAction).toHaveBeenCalledWith('pop');
-  });
-
-  it('calls onStashAction with drop', async () => {
-    const onStashAction = vi.fn();
-    const { getByText } = render(BranchPane, { branches, stashes, activeBranch: 'main', selStashIdx: 0, onStashAction });
-
-    await fireEvent.click(getByText('Drop'));
-    expect(onStashAction).toHaveBeenCalledWith('drop');
-  });
-
+describe('BranchPane — stash selection', () => {
   it('calls onSelectStash with index when stash row clicked', async () => {
     const onSelectStash = vi.fn();
     const { getByText } = render(BranchPane, { branches, stashes, activeBranch: 'main', onSelectStash });

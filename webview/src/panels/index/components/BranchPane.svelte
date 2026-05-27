@@ -438,15 +438,6 @@
 
   </div><!-- /tree-scroll -->
 
-  <!-- Stash action bar -->
-  {#if selStashIdx !== null}
-    <div class="stash-actions">
-      <button class="sab primary" on:click={() => onStashAction('pop')}>Pop</button>
-      <button class="sab" on:click={() => onStashAction('apply')}>Apply</button>
-      <button class="sab" on:click={() => onStashAction('show')}>Show</button>
-      <button class="sab danger" on:click={() => onStashAction('drop')}>Drop</button>
-    </div>
-  {/if}
 </div>
 
 <style>
