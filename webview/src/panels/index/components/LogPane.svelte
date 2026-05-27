@@ -180,6 +180,22 @@
 
   function closeCtx() { ctxVisible = false; }
 
+  function fitMenu(node: HTMLElement) {
+    requestAnimationFrame(() => {
+      const rect = node.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+      if (rect.right > vw) node.style.left = Math.max(0, vw - rect.width - 4) + 'px';
+      if (rect.bottom > vh) node.style.top = Math.max(0, parseFloat(node.style.top) - (rect.bottom - vh) - 4) + 'px';
+      const updated = node.getBoundingClientRect();
+      if (updated.height > vh - 8) {
+        node.style.top = '4px';
+        node.style.maxHeight = (vh - 8) + 'px';
+        node.style.overflowY = 'auto';
+      }
+    });
+  }
+
   function runAction(action: string) {
     closeCtx();
     if (ctxIdx === null) return;
@@ -243,7 +259,7 @@
   <!-- svelte-ignore a11y-click-events-have-key-events -->
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="ctx-overlay" on:click={closeCtx}></div>
-  <div class="ctx-menu" style="left:{ctxX}px;top:{ctxY}px">
+  <div class="ctx-menu" style="left:{ctxX}px;top:{ctxY}px" use:fitMenu>
     <div class="ctx-item" on:click={() => runAction('copy-hash')}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">

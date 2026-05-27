@@ -45,8 +45,13 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspaceRoot) {
-    vscode.window.showErrorMessage('HydraGit: no workspace folder open.');
-    Logger.error('extension', 'no workspace folder open');
+    Logger.warn('extension', 'no workspace folder open — registering empty sidebar');
+    const sidebarProvider = new HydraSidebarProvider(ctx, null as any, null as any);
+    ctx.subscriptions.push(
+      vscode.window.registerWebviewViewProvider('hydragit.sidebarView', sidebarProvider, {
+        webviewOptions: { retainContextWhenHidden: true },
+      })
+    );
     return;
   }
 

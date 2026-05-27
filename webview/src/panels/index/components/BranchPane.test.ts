@@ -21,6 +21,15 @@ const stashes = [
 // ── rendering ─────────────────────────────────────────────────────────────────
 
 describe('BranchPane — rendering', () => {
+  it('bug-07: tags section is collapsed by default', () => {
+    const tags = [{ name: 'v1.0.0', hash: 'abc123' }];
+    const { queryByText, getByText } = render(BranchPane, { branches, stashes: [], tags, activeBranch: 'main' });
+    // Tag name should NOT be visible (collapsed)
+    expect(queryByText('v1.0.0')).toBeFalsy();
+    // But the Tags header should be visible
+    expect(getByText('Tags')).toBeTruthy();
+  });
+
   it('renders local branch names', () => {
     const { getAllByText } = render(BranchPane, { branches, stashes: [], activeBranch: 'main' });
     expect(getAllByText('main').length).toBeGreaterThan(0);
@@ -33,13 +42,15 @@ describe('BranchPane — rendering', () => {
     expect(getAllByText('feature-x').length).toBe(2);
   });
 
-  it('renders stash message', () => {
+  it('renders stash message', async () => {
     const { getByText } = render(BranchPane, { branches, stashes, activeBranch: 'main' });
+    await fireEvent.click(getByText('Stashes'));
     expect(getByText('WIP: my stash')).toBeTruthy();
   });
 
-  it('shows no stashes empty state', () => {
+  it('shows no stashes empty state', async () => {
     const { getByText } = render(BranchPane, { branches, stashes: [], activeBranch: 'main' });
+    await fireEvent.click(getByText('Stashes'));
     expect(getByText('No stashes')).toBeTruthy();
   });
 
@@ -82,42 +93,14 @@ describe('BranchPane — branch selection', () => {
   });
 });
 
-// ── stash actions ─────────────────────────────────────────────────────────────
+// ── stash selection ──────────────────────────────────────────────────────────
 
-describe('BranchPane — stash actions', () => {
-  it('does not show action bar when no stash selected', () => {
-    const { queryByText } = render(BranchPane, { branches, stashes, activeBranch: 'main', selStashIdx: null });
-    expect(queryByText('Pop')).toBeNull();
-  });
-
-  it('shows action bar when stash is selected', () => {
-    const { getByText } = render(BranchPane, { branches, stashes, activeBranch: 'main', selStashIdx: 0 });
-    expect(getByText('Pop')).toBeTruthy();
-    expect(getByText('Apply')).toBeTruthy();
-    expect(getByText('Show')).toBeTruthy();
-    expect(getByText('Drop')).toBeTruthy();
-  });
-
-  it('calls onStashAction with pop', async () => {
-    const onStashAction = vi.fn();
-    const { getByText } = render(BranchPane, { branches, stashes, activeBranch: 'main', selStashIdx: 0, onStashAction });
-
-    await fireEvent.click(getByText('Pop'));
-    expect(onStashAction).toHaveBeenCalledWith('pop');
-  });
-
-  it('calls onStashAction with drop', async () => {
-    const onStashAction = vi.fn();
-    const { getByText } = render(BranchPane, { branches, stashes, activeBranch: 'main', selStashIdx: 0, onStashAction });
-
-    await fireEvent.click(getByText('Drop'));
-    expect(onStashAction).toHaveBeenCalledWith('drop');
-  });
-
+describe('BranchPane — stash selection', () => {
   it('calls onSelectStash with index when stash row clicked', async () => {
     const onSelectStash = vi.fn();
     const { getByText } = render(BranchPane, { branches, stashes, activeBranch: 'main', onSelectStash });
 
+    await fireEvent.click(getByText('Stashes'));
     await fireEvent.click(getByText('WIP: my stash'));
     expect(onSelectStash).toHaveBeenCalledWith(0);
   });

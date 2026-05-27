@@ -196,6 +196,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, hunks)
 
+	case "stash.files":
+		var p struct {
+			Index int `json:"index"`
+		}
+		json.Unmarshal(req.Params, &p)
+		files, err := git.StashFiles(repoPath, p.Index)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, files)
+
 	case "stash.save":
 		var p struct {
 			Message string `json:"message"`
@@ -248,6 +259,17 @@ func handle(repoPath string, req Request) Response {
 			return fail(id, err)
 		}
 		return ok(id, nil)
+
+	case "branch.containing":
+		var p struct {
+			Commit string `json:"commit"`
+		}
+		json.Unmarshal(req.Params, &p)
+		branch, err := git.BranchContaining(repoPath, p.Commit)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, branch)
 
 	case "merge":
 		var p struct {
@@ -371,6 +393,16 @@ func handle(repoPath string, req Request) Response {
 		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.CreateTag(repoPath, p.Name, p.Commit, p.Message); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "tag.delete":
+		var p struct {
+			Name string `json:"name"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.DeleteTag(repoPath, p.Name); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)

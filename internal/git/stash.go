@@ -59,6 +59,52 @@ func StashShow(repoPath string, index int) ([]Hunk, error) {
 	return parseHunks(out), nil
 }
 
+func StashFiles(repoPath string, index int) ([]FileStat, error) {
+	ref := fmt.Sprintf("stash@{%d}", index)
+	nsOut, err := run(repoPath, "diff", "--name-status", ref+"^", ref)
+	if err != nil {
+		return nil, err
+	}
+	numOut, err := run(repoPath, "diff", "--numstat", ref+"^", ref)
+	if err != nil {
+		return nil, err
+	}
+
+	type nsEntry struct {
+		status string
+		path   string
+	}
+	var entries []nsEntry
+	for _, line := range strings.Split(nsOut, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			continue
+		}
+		status := string(parts[0][0])
+		path := parts[len(parts)-1]
+		entries = append(entries, nsEntry{status: status, path: path})
+	}
+
+	numLines := strings.Split(numOut, "\n")
+	var results []FileStat
+	for i, ns := range entries {
+		ds := FileStat{Path: ns.path, Status: ns.status}
+		if i < len(numLines) {
+			parts := strings.Fields(numLines[i])
+			if len(parts) >= 2 {
+				fmt.Sscanf(parts[0], "%d", &ds.Additions)
+				fmt.Sscanf(parts[1], "%d", &ds.Deletions)
+			}
+		}
+		results = append(results, ds)
+	}
+	return results, nil
+}
+
 func StashSave(repoPath, message string) error {
 	if message == "" {
 		_, err := run(repoPath, "stash", "push")

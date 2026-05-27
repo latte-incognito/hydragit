@@ -14,6 +14,7 @@
   export let onBranchCtx: (e: MouseEvent, name: string, isCurrent: boolean) => void = () => {};
   export let onStashCtx: (e: MouseEvent, i: number) => void = () => {};
   export let onTagCtx: (e: MouseEvent, name: string) => void = () => {};
+  export let onTagSelect: (hash: string) => void = () => {};
 
   // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -167,8 +168,8 @@
   let localOpen = true;
   let remoteOpen = true;
   let remoteOriginOpen: Record<string, boolean> = {};
-  let tagsOpen = true;
-  let stashOpen = true;
+  let tagsOpen = false;
+  let stashOpen = false;
 
   function isOriginOpen(o: string) { return remoteOriginOpen[o] ?? true; }
   function toggleOrigin(o: string) {
@@ -387,6 +388,7 @@
                Right-click opens context menu via onTagCtx prop. -->
           <div
             class="titem tag-row"
+            on:click={() => onTagSelect(tag.hash)}
             on:contextmenu|preventDefault={(e) => onTagCtx(e, tag.name)}
             role="option"
             aria-selected="false"
@@ -438,15 +440,6 @@
 
   </div><!-- /tree-scroll -->
 
-  <!-- Stash action bar -->
-  {#if selStashIdx !== null}
-    <div class="stash-actions">
-      <button class="sab primary" on:click={() => onStashAction('pop')}>Pop</button>
-      <button class="sab" on:click={() => onStashAction('apply')}>Apply</button>
-      <button class="sab" on:click={() => onStashAction('show')}>Show</button>
-      <button class="sab danger" on:click={() => onStashAction('drop')}>Drop</button>
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -597,7 +590,7 @@
   .titem.remote:hover { color: var(--vscode-foreground, #999); }
 
   /* ── Tag rows ────────────────────────────────────────────────────────────── */
-  .tag-row { cursor: default; } /* intentionally not clickable */
+  .tag-row { cursor: pointer; }
   .tag-row:hover {
     background: var(--vscode-list-hoverBackground, #2a2d2e);
     color: var(--vscode-foreground, #ccc);

@@ -104,13 +104,6 @@
   <!-- Branch switcher -->
   <div class="branch-picker-wrap">
     <button class="branch-pill" on:click={openBranchPicker} title="Switch branch">
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-        <circle cx="3" cy="2.5" r="1.8" stroke="currentColor" stroke-width="1.2"/>
-        <circle cx="3" cy="9.5" r="1.8" stroke="currentColor" stroke-width="1.2"/>
-        <circle cx="9" cy="2.5" r="1.8" stroke="currentColor" stroke-width="1.2"/>
-        <path d="M3 4.3v3.4M3 7.7C3 9 5 9.5 6 9.5s3-.5 3-1.8V4.3"
-              stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>
-      </svg>
       <span class="branch-name">{activeBranch || repoName}</span>
       <svg width="8" height="8" viewBox="0 0 8 8" fill="none" class="branch-chevron">
         <path d="M1 3l3 3 3-3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
@@ -268,6 +261,14 @@
   .branch-picker-wrap {
     position: relative;
     flex-shrink: 0;
+  }
+  .hg-logo {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    object-fit: contain;
+    filter: grayscale(1) brightness(0.7);
+    opacity: 0.8;
   }
   .branch-pill {
     display: flex;
