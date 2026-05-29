@@ -91,6 +91,45 @@ func TestLogLines(t *testing.T) {
 	}
 }
 
+func TestLineHistory(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "f.txt", "alpha\nbravo\n", "c1")
+	commitFile(t, dir, "f.txt", "ALPHA\nbravo\n", "c2") // line 1 only
+
+	// Line 1 changed at creation and in c2 → 2 commits, each with a hunk.
+	lc, err := LineHistory(dir, "f.txt", 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lc) != 2 {
+		t.Fatalf("expected 2 commits, got %d", len(lc))
+	}
+	for _, c := range lc {
+		if len(c.Hunks) == 0 {
+			t.Fatalf("commit %s: expected line-range hunks", c.Hash[:7])
+		}
+	}
+
+	// Newest commit's hunk is scoped to line 1: shows ALPHA, never line-2 bravo.
+	var sawAlphaAdd, sawBravo bool
+	for _, h := range lc[0].Hunks {
+		for _, l := range h.Lines {
+			if l.Type == "add" && l.Content == "ALPHA" {
+				sawAlphaAdd = true
+			}
+			if strings.Contains(l.Content, "bravo") {
+				sawBravo = true
+			}
+		}
+	}
+	if !sawAlphaAdd {
+		t.Fatal("expected ALPHA addition in line-1 hunk")
+	}
+	if sawBravo {
+		t.Fatal("line-2 content leaked into a line-1-scoped hunk")
+	}
+}
+
 // Regression: root-level files must be found. The old LogFile used a "**/"
 // pathspec that never matched files at the repo root.
 func TestFileHistoryRootFile(t *testing.T) {

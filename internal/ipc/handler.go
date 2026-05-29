@@ -154,6 +154,19 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, commits)
 
+	case "line.history":
+		var p struct {
+			Path  string `json:"path"`
+			Start int    `json:"start"`
+			End   int    `json:"end"`
+		}
+		json.Unmarshal(req.Params, &p)
+		commits, err := git.LineHistory(repoPath, p.Path, p.Start, p.End)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, commits)
+
 	case "diff.refs":
 		var p struct {
 			A    string `json:"a"`

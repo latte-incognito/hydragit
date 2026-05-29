@@ -3,13 +3,15 @@
   import { send, on } from '$shared/messageBus';
   import vscode from '$shared/vscode';
   import SideBySideDiff from './SideBySideDiff.svelte';
-  import type { Commit, HistoryInit, Hunk } from './types';
+  import type { Commit, HistoryInit, Hunk, LineCommit } from './types';
 
   let mode: 'file' | 'selection' = 'file';
   let file = '';
   let start = 0;
   let end = 0;
 
+  // File mode → Commit[]; selection mode → LineCommit[] (each carries its
+  // line-range hunks). Stored together; selection rows are cast when needed.
   let commits: Commit[] = [];
   let selectedIdx: number | null = null;
   let loading = false;
@@ -17,7 +19,6 @@
 
   // Selection-mode diff state.
   let diffHunks: Hunk[] = [];
-  let diffLoading = false;
   let diffCount = 0;
   let olderRef = '';
   let newerRef = '';
@@ -33,7 +34,7 @@
     try {
       const result =
         mode === 'selection'
-          ? await send<Commit[]>('log.lines', { path: file, start, end })
+          ? await send<LineCommit[]>('line.history', { path: file, start, end })
           : await send<Commit[]>('file.history', { path: file });
       commits = result ?? [];
       if (commits.length) selectRow(0);
@@ -51,7 +52,12 @@
     if (!c) return;
 
     if (mode === 'selection') {
-      fetchSelectionDiff(i);
+      // The diff is already scoped to the selected lines: each LineCommit
+      // carries its own line-range hunks (git log -L). left = previous
+      // revision in the list (older), right = selected.
+      diffHunks = (c as LineCommit).hunks ?? [];
+      newerRef = c.hash;
+      olderRef = commits[i + 1]?.hash ?? (c.parents ?? [])[0] ?? '';
     } else {
       // File history → native VS Code diff in the top editor group.
       send('openDiff', {
@@ -59,23 +65,6 @@
         parent: (c.parents ?? [])[0] ?? '',
         file,
       });
-    }
-  }
-
-  // Diff the selected revision against the previous one in the list (older),
-  // mirroring JetBrains: left = older revision, right = selected.
-  async function fetchSelectionDiff(i: number) {
-    const c = commits[i];
-    newerRef = c.hash;
-    olderRef = commits[i + 1]?.hash ?? (c.parents ?? [])[0] ?? '';
-    diffLoading = true;
-    diffHunks = [];
-    try {
-      diffHunks = (await send<Hunk[]>('diff.refs', { a: olderRef, b: newerRef, file })) ?? [];
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    } finally {
-      diffLoading = false;
     }
   }
 
@@ -133,7 +122,7 @@
     <div class="diff-toolbar">
       <span class="dt-mode">Side-by-side viewer</span>
       <span class="dt-spacer"></span>
-      {#if !diffLoading}
+      {#if selected}
         <span class="dt-count">{diffCount} difference{diffCount !== 1 ? 's' : ''}</span>
       {/if}
     </div>
@@ -150,7 +139,7 @@
     {:else if commits.length === 0}
       <div class="hist-msg">No history for this selection.</div>
     {:else}
-      <SideBySideDiff hunks={diffHunks} loading={diffLoading} bind:diffCount />
+      <SideBySideDiff hunks={diffHunks} bind:diffCount />
 
       <div class="sel-list">
         <div class="list-toolbar">
@@ -303,8 +292,17 @@
     border-left: 2px solid transparent;
     padding: 0 10px;
   }
-  .row:hover { background: var(--vscode-list-hoverBackground, #2a2a2a); }
-  .row.selected { background: #0e2030; border-left-color: #56c8e8; }
+  .row:hover { background: var(--vscode-list-hoverBackground); }
+  .row.selected {
+    background: var(--vscode-list-activeSelectionBackground);
+    border-left-color: var(--vscode-list-focusOutline, var(--vscode-focusBorder));
+  }
+  /* Keep text legible against the theme's selection background. */
+  .row.selected .r-msg,
+  .row.selected .r-author,
+  .row.selected .r-date {
+    color: var(--vscode-list-activeSelectionForeground);
+  }
   .r-refs { display: flex; align-items: center; flex-shrink: 0; }
   .r-msg {
     flex: 1;
@@ -346,9 +344,22 @@
     margin-right: 3px;
     vertical-align: middle;
   }
-  .pill-main   { background: #0a3050; color: #56c8e8; border: 0.5px solid #1a5a7a; }
-  .pill-remote { background: #0a200a; color: #4e8c4e; border: 0.5px solid #1a4a1a; }
-  .pill-tag    { background: #1a1200; color: #c8a020; border: 0.5px solid #5a4000; }
+  /* Theme-aware via VS Code chart colors; subtle tint over the theme bg. */
+  .pill-main {
+    color: var(--vscode-charts-blue);
+    background: color-mix(in srgb, var(--vscode-charts-blue) 15%, transparent);
+    border: 0.5px solid color-mix(in srgb, var(--vscode-charts-blue) 40%, transparent);
+  }
+  .pill-remote {
+    color: var(--vscode-charts-green);
+    background: color-mix(in srgb, var(--vscode-charts-green) 15%, transparent);
+    border: 0.5px solid color-mix(in srgb, var(--vscode-charts-green) 40%, transparent);
+  }
+  .pill-tag {
+    color: var(--vscode-charts-yellow);
+    background: color-mix(in srgb, var(--vscode-charts-yellow) 15%, transparent);
+    border: 0.5px solid color-mix(in srgb, var(--vscode-charts-yellow) 40%, transparent);
+  }
 
   /* ════ Selection-mode layout ════ */
   .history--selection { user-select: none; }
@@ -441,18 +452,23 @@
     border-left: 2px solid transparent;
     font-size: var(--hg-font-xs);
   }
-  .srow:hover { background: var(--vscode-list-hoverBackground, #2a2a2a); }
-  .srow.selected { background: #0e2030; border-left-color: #56c8e8; }
+  .srow:hover { background: var(--vscode-list-hoverBackground); }
+  .srow.selected {
+    background: var(--vscode-list-activeSelectionBackground);
+    border-left-color: var(--vscode-list-focusOutline, var(--vscode-focusBorder));
+  }
   .srow > span {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     padding-right: 8px;
   }
-  .c-ver.mono { font-family: var(--hg-editor-font-family); color: #56c8e8; }
-  .srow .c-date { color: var(--vscode-disabledForeground, #777); }
-  .srow .c-author { color: var(--vscode-descriptionForeground, #888); }
-  .srow .c-msg { color: var(--vscode-foreground, #bbb); padding-right: 0; }
+  .c-ver.mono { font-family: var(--hg-editor-font-family); color: var(--vscode-textLink-foreground); }
+  .srow .c-date { color: var(--vscode-disabledForeground); }
+  .srow .c-author { color: var(--vscode-descriptionForeground); }
+  .srow .c-msg { color: var(--vscode-foreground); padding-right: 0; }
+  /* Legible on the theme's selection background. */
+  .srow.selected > span { color: var(--vscode-list-activeSelectionForeground); }
 
   .hist-footer {
     flex-shrink: 0;

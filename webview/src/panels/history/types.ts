@@ -22,6 +22,11 @@ export interface Hunk {
   lines: HunkLine[];
 }
 
+// A commit plus the diff hunks scoped to the tracked line range (selection).
+export interface LineCommit extends Commit {
+  hunks: Hunk[];
+}
+
 // One rendered row of the side-by-side viewer. A side may be absent (filler).
 export interface DiffRow {
   kind: 'ctx' | 'del' | 'add' | 'mod';

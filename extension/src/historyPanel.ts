@@ -160,9 +160,33 @@ export class HistoryPanelManager {
       `<style>
   html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; overflow: hidden !important; }
   .app-root { width: 100vw !important; height: 100vh !important; }
+  ${this.editorFontVars()}
 </style></head>`
     );
 
     return html;
+  }
+
+  // VS Code does not inject editor-font CSS variables into webviews, so the
+  // diff would fall back to Courier New. Read the user's real editor settings
+  // and override the --hg-editor-* tokens the diff/headers/hashes use.
+  private editorFontVars(): string {
+    const cfg = vscode.workspace.getConfiguration('editor');
+    const family = cfg.get<string>('fontFamily') || 'monospace';
+    const size = cfg.get<number>('fontSize') || 13;
+    const weight = String(cfg.get<string | number>('fontWeight') ?? 'normal');
+
+    // editor.lineHeight: 0 = auto (~1.5×); 1–7 = multiplier; ≥8 = pixels.
+    const lh = cfg.get<number>('lineHeight') ?? 0;
+    let lineHeight = '1.5';
+    if (lh > 0 && lh < 8) lineHeight = String(lh);
+    else if (lh >= 8) lineHeight = `${lh}px`;
+
+    return `:root {
+    --hg-editor-font-family: ${family};
+    --hg-editor-font-size: ${size}px;
+    --hg-editor-font-weight: ${weight};
+    --hg-editor-line-height: ${lineHeight};
+  }`;
   }
 }

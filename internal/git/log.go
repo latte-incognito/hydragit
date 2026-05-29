@@ -144,6 +144,53 @@ func LogLines(repoPath, filePath string, start, end int) ([]Commit, error) {
 	}
 	return parseCommitLines(out), nil
 }
+
+// LineCommit is a commit together with the diff hunks scoped to a tracked line
+// range — i.e. how that commit changed exactly the selected lines.
+type LineCommit struct {
+	Commit
+	Hunks []Hunk `json:"hunks"`
+}
+
+// LineHistory returns, for each commit that changed lines [start,end] of
+// filePath, the commit metadata plus the diff of just those tracked lines.
+// Backs the "History for Selection" diff so it shows changes scoped to the
+// selection, not the whole file.
+//
+// `git log -L<s>,<e>:<file>` emits, per commit, the metadata line followed by a
+// patch covering only the tracked range. A leading NUL (%x00) marks each
+// commit boundary so we can split metadata from patch reliably (NUL never
+// appears in git output otherwise).
+func LineHistory(repoPath, filePath string, start, end int) ([]LineCommit, error) {
+	lineSpec := "-L" + strconv.Itoa(start) + "," + strconv.Itoa(end) + ":" + filePath
+	out, err := run(repoPath,
+		"log", lineSpec,
+		"--format=%x00"+commitFormat, "--date=iso-strict",
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	result := []LineCommit{}
+	for _, chunk := range strings.Split(out, "\x00") {
+		if chunk == "" {
+			continue
+		}
+		nl := strings.IndexByte(chunk, '\n')
+		if nl < 0 {
+			continue
+		}
+		commits := parseCommitLines(chunk[:nl])
+		if len(commits) == 0 {
+			continue
+		}
+		result = append(result, LineCommit{
+			Commit: commits[0],
+			Hunks:  parseHunks(chunk[nl+1:]),
+		})
+	}
+	return result, nil
+}
 func Log(repoPath, branch string, limit int) ([]Commit, error) {
 	args := []string{
 		"log",
