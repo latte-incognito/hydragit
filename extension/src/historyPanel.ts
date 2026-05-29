@@ -17,6 +17,9 @@ type HistoryInit =
 export class HistoryPanelManager {
   private panel?: vscode.WebviewPanel;
   private lastInit?: HistoryInit;
+  // Editor group the diff should open into. File history → top group (One),
+  // Selection history → right group (Two). Set by reveal().
+  private diffColumn: vscode.ViewColumn = vscode.ViewColumn.One;
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
@@ -43,14 +46,27 @@ export class HistoryPanelManager {
     return path.relative(root, uri.fsPath);
   }
 
-  private reveal(title: string, init: HistoryInit): void {
+  private async reveal(title: string, init: HistoryInit): Promise<void> {
     this.lastInit = init;
+    const selection = init.mode === 'selection';
+
+    // Layout:
+    //   File history  → two rows: diff on top (col 1), list on bottom (col 2).
+    //   Selection     → two columns: list on left (col 1), diff on right (col 2).
+    const listColumn = selection ? vscode.ViewColumn.One : vscode.ViewColumn.Two;
+    this.diffColumn = selection ? vscode.ViewColumn.Two : vscode.ViewColumn.One;
+
+    // orientation: 0 = horizontal (left/right), 1 = vertical (top/bottom).
+    await vscode.commands.executeCommand('vscode.setEditorLayout', {
+      orientation: selection ? 0 : 1,
+      groups: [{}, {}],
+    });
 
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel(
         'hydragit.history',
         title,
-        vscode.ViewColumn.Active,
+        listColumn,
         {
           enableScripts: true,
           retainContextWhenHidden: true,
@@ -66,15 +82,15 @@ export class HistoryPanelManager {
         this.panel = undefined;
       });
 
-      // Fresh webview — it will request init via 'ready' once mounted.
+      // Fresh webview — it will request init via 'ready' once mounted, which
+      // triggers the first diff into this.diffColumn.
       this.panel.title = title;
-      this.panel.reveal(vscode.ViewColumn.Active);
       return;
     }
 
-    // Panel already alive — re-point it immediately.
+    // Panel already alive — move it to the right group and re-point it.
     this.panel.title = title;
-    this.panel.reveal(vscode.ViewColumn.Active);
+    this.panel.reveal(listColumn);
     this.panel.webview.postMessage({ type: 'init', data: init });
   }
 
@@ -90,7 +106,9 @@ export class HistoryPanelManager {
     }
 
     if (msg.cmd === 'openDiff') {
-      await openDiff(msg.params);
+      // Open into the dedicated diff group and keep focus on the commit list
+      // so the user can keep arrowing/clicking through commits.
+      await openDiff(msg.params, { viewColumn: this.diffColumn, preserveFocus: true });
       return;
     }
     if (msg.cmd === 'openFile') {
