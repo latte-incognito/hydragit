@@ -22,10 +22,11 @@
     error = '';
     selectedIdx = null;
     try {
-      commits =
+      const result =
         mode === 'selection'
           ? await send<Commit[]>('log.lines', { path: file, start, end })
-          : await send<Commit[]>('log.file', { path: file });
+          : await send<Commit[]>('file.history', { path: file });
+      commits = result ?? [];
       if (commits.length) selectRow(0);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);

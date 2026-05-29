@@ -106,6 +106,27 @@ func LogFile(repoPath, filePath string) ([]Commit, error) {
 	return parseCommitLines(out), nil
 }
 
+// FileHistory returns the commits reachable from ref that touched filePath,
+// following the file across renames. Backs the "File History" feature.
+//
+// filePath must be repo-relative and is passed as an exact pathspec (no glob),
+// so it matches root-level files correctly — unlike LogFile's "**/" search
+// heuristic. ref defaults to HEAD ("the current branch's history").
+func FileHistory(repoPath, ref, filePath string) ([]Commit, error) {
+	if ref == "" {
+		ref = "HEAD"
+	}
+	out, err := run(repoPath,
+		"log", ref, "--topo-order", "--follow",
+		"--format="+commitFormat, "--date=iso-strict",
+		"--", filePath,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return parseCommitLines(out), nil
+}
+
 // LogLines returns the commits that changed lines [start,end] of filePath,
 // in HEAD's history. Backs the "History for Selection" feature.
 //
