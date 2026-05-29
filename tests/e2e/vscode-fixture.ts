@@ -12,9 +12,12 @@ export const test = base.extend<TestFixtures>({
     const config = testInfo.project.use as any;
     const baseRepoPath: string = config.repoPath;
     const extensionPath: string = config.extensionPath;
+    // Projects may override which fixture builder to run (e.g. a large perf repo).
+    const fixtureScript: string =
+      config.fixtureScript || "tests/fixtures/create-test-repo.sh";
     const workerRepoPath = `${baseRepoPath}-w${testInfo.workerIndex}`;
 
-    execSync(`bash tests/fixtures/create-test-repo.sh "${workerRepoPath}"`, {
+    execSync(`bash ${fixtureScript} "${workerRepoPath}"`, {
       stdio: "pipe",
     });
 

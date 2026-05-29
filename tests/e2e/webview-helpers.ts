@@ -53,3 +53,34 @@ export async function openHydraGitMainPanel(page: Page): Promise<void> {
   await page.keyboard.press("Enter");
   await page.waitForTimeout(2000);
 }
+
+/**
+ * Reveals the HydraGit pane via the command palette, mirroring the proven flow
+ * in hydragit.spec.ts ("View: Show HydraGit"). Call this before any test that
+ * needs the commit-log webview rendered.
+ */
+export async function revealHydraGitPanel(page: Page): Promise<void> {
+  await page.keyboard.press("Meta+Shift+P");
+  const input = page.locator(".quick-input-box input");
+  await input.waitFor({ state: "visible", timeout: 5000 });
+  await input.fill(">View: Show HydraGit");
+  await page.waitForTimeout(500);
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(1500);
+}
+
+/**
+ * Scans VS Code's nested webview iframes for the one rendering the commit log
+ * (identified by the `.pane-log` root). Throws if none is found.
+ */
+export async function getLogFrame(page: Page): Promise<FrameLocator> {
+  const outer = page.frameLocator("iframe.webview.ready");
+  const count = await page.locator("iframe.webview.ready").count();
+  for (let i = 0; i < count; i++) {
+    const inner = outer.nth(i).frameLocator("#active-frame");
+    if ((await inner.locator(".pane-log").count()) > 0) {
+      return inner;
+    }
+  }
+  throw new Error("commit-log webview frame (.pane-log) not found");
+}
