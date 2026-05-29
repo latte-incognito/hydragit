@@ -20,7 +20,7 @@ async function fileExistsAtRef(absPath: string, ref: string): Promise<boolean> {
   }
 }
 
-async function openFile(params: { file: string }): Promise<void> {
+export async function openFile(params: { file: string }): Promise<void> {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
   const absPath = path.join(workspaceRoot, params.file);
   await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(absPath));
@@ -67,7 +67,7 @@ async function openCommitUrl(params: { commit: string }): Promise<void> {
   }
 }
 
-async function openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
+export async function openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
   const { commit, parent, file } = params;
 
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';

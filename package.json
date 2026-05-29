@@ -2,7 +2,7 @@
   "name": "hydragit",
   "displayName": "HydraGit",
   "description": "The git panel IntelliJ has, inside VS Code. No paywall.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "vkushnarenko",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -30,8 +30,42 @@
       {
         "command": "hydragit.openLogs",
         "title": "HydraGit: Open Logs Folder"
+      },
+      {
+        "command": "hydragit.fileHistory",
+        "title": "HydraGit: File History"
+      },
+      {
+        "command": "hydragit.selectionHistory",
+        "title": "HydraGit: History for Selection"
       }
     ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "hydragit.fileHistory",
+          "when": "!explorerResourceIsFolder",
+          "group": "9_hydragit"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "hydragit.fileHistory",
+          "group": "9_hydragit"
+        },
+        {
+          "command": "hydragit.selectionHistory",
+          "when": "editorHasSelection",
+          "group": "9_hydragit"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "hydragit.fileHistory",
+          "group": "9_hydragit"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
