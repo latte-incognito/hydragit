@@ -72,13 +72,21 @@
   // ── Load everything ───────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [status, brs, rawCommits, rawStashes, rawTags] = await Promise.all([
+      const [status, brs, rawStashes, rawTags] = await Promise.all([
         send<GitStatus>('status'),
         send<Branch[]>('branches'),
-        send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 200 }),
         send<Stash[]>('stash'),
         send<Tag[]>('tags'),
       ]);
+      // Resolve the current branch before requesting its log, so the initial
+      // graph shows HEAD's branch rather than the hardcoded default (and so
+      // we don't try to `git log master` in a repo that has no master).
+      const current = brs.find(b => b.isCurrent);
+      if (current) activeBranch = current.name;
+      else if (status.branch) activeBranch = status.branch;
+
+      const rawCommits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 200 });
+
       sbBranch    = status.branch || activeBranch;
       sbInfo      = status.ahead || status.behind ? ` · ↑${status.ahead} ↓${status.behind}` : '';
       hasPending  = (status.behind ?? 0) > 0;
@@ -87,8 +95,6 @@
       stashes     = rawStashes;
       tags        = rawTags ?? [];
       sbCounts    = `${commits.length} commits · ${branches.filter(b => !b.isRemote).length} branches`;
-      const current = branches.find(b => b.isCurrent);
-      if (current) activeBranch = current.name;
       // Re-apply active search filter
       applyFilter();
     } catch (e: unknown) {

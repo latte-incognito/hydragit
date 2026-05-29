@@ -39,6 +39,7 @@ export default defineConfig(() => ({
       input: {
         sidebar: resolve(__dirname, 'webview/src/panels/sidebar/main.ts'),
         index: resolve(__dirname, 'webview/src/panels/index/main.ts'),
+        history: resolve(__dirname, 'webview/src/panels/history/main.ts'),
       },
       output: {
         entryFileNames: 'webview/[name].js',

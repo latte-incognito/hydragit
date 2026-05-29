@@ -15,59 +15,27 @@ type Commit struct {
 	Refs    []string `json:"refs"`
 }
 
-// LogFile returns all commits that touched the given file path or pattern.
-//
-// Three cases:
-//  1. Path with directory separator (e.g. "webview/src/App.svelte"):
-//     uses --follow to track renames across history.
-//  2. Plain filename or extension with dot (e.g. "README.md", "DetailPane.svelte"):
-//     prepends "**/" so git matches the name anywhere in the tree.
-//  3. Explicit glob (contains * or ?): e.g. "*.md" becomes "**/*.md".
-func LogFile(repoPath, filePath string) ([]Commit, error) {
-	sep := "\x1f"
-	format := strings.Join([]string{"%H", "%P", "%an", "%aI", "%s", "%D"}, sep)
+// commitSep is the field separator used in our --format strings. ASCII unit
+// separator (0x1f) never appears in commit metadata, so it parses unambiguously.
+const commitSep = "\x1f"
 
-	hasGlob := strings.ContainsAny(filePath, "*?")
-	hasSlash := strings.ContainsAny(filePath, "/\\")
+// commitFormat is the --format value matching parseCommitLines's field order:
+// hash, parents, author name, author date (ISO), subject, ref names.
+var commitFormat = strings.Join([]string{"%H", "%P", "%an", "%aI", "%s", "%D"}, commitSep)
 
-	var args []string
-	if hasSlash && !hasGlob {
-		// Exact path — use --follow to track renames
-		args = []string{
-			"log", "--all", "--topo-order",
-			"--format=" + format, "--date=iso-strict",
-			"--follow", "--", filePath,
-		}
-	} else {
-		// Filename or glob — match anywhere in the tree via **/ prefix
-		pattern := filePath
-		if !hasGlob {
-			pattern = "**/" + filePath
-		} else if !hasSlash {
-			pattern = "**/" + filePath
-		}
-		args = []string{
-			"log", "--all", "--topo-order",
-			"--format=" + format, "--date=iso-strict",
-			"--", pattern,
-		}
-	}
-
-	out, err := run(repoPath, args...)
-	if err != nil {
-		return nil, err
-	}
+// parseCommitLines parses the output of `git log --format=commitFormat`.
+// Shared by Log, LogFile, and LineHistory.
+func parseCommitLines(out string) []Commit {
 	if out == "" {
-		return []Commit{}, nil
+		return []Commit{}
 	}
-
 	lines := strings.Split(out, "\n")
 	commits := make([]Commit, 0, len(lines))
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, sep, 6)
+		parts := strings.SplitN(line, commitSep, 6)
 		if len(parts) < 6 {
 			continue
 		}
@@ -93,16 +61,123 @@ func LogFile(repoPath, filePath string) ([]Commit, error) {
 		}
 		commits = append(commits, c)
 	}
-	return commits, nil
+	return commits
+}
+
+// LogFile returns all commits that touched the given file path or pattern.
+//
+// Three cases:
+//  1. Path with directory separator (e.g. "webview/src/App.svelte"):
+//     uses --follow to track renames across history.
+//  2. Plain filename or extension with dot (e.g. "README.md", "DetailPane.svelte"):
+//     prepends "**/" so git matches the name anywhere in the tree.
+//  3. Explicit glob (contains * or ?): e.g. "*.md" becomes "**/*.md".
+func LogFile(repoPath, filePath string) ([]Commit, error) {
+	hasGlob := strings.ContainsAny(filePath, "*?")
+	hasSlash := strings.ContainsAny(filePath, "/\\")
+
+	var args []string
+	if hasSlash && !hasGlob {
+		// Exact path — use --follow to track renames
+		args = []string{
+			"log", "--all", "--topo-order",
+			"--format=" + commitFormat, "--date=iso-strict",
+			"--follow", "--", filePath,
+		}
+	} else {
+		// Filename or glob — match anywhere in the tree via **/ prefix
+		pattern := filePath
+		if !hasGlob {
+			pattern = "**/" + filePath
+		} else if !hasSlash {
+			pattern = "**/" + filePath
+		}
+		args = []string{
+			"log", "--all", "--topo-order",
+			"--format=" + commitFormat, "--date=iso-strict",
+			"--", pattern,
+		}
+	}
+
+	out, err := run(repoPath, args...)
+	if err != nil {
+		return nil, err
+	}
+	return parseCommitLines(out), nil
+}
+
+// FileHistory returns the commits reachable from ref that touched filePath,
+// following the file across renames. Backs the "File History" feature.
+//
+// filePath must be repo-relative and is passed as an exact pathspec (no glob),
+// so it matches root-level files correctly — unlike LogFile's "**/" search
+// heuristic. ref defaults to HEAD ("the current branch's history").
+func FileHistory(repoPath, ref, filePath string) ([]Commit, error) {
+	if ref == "" {
+		ref = "HEAD"
+	}
+	out, err := run(repoPath,
+		"log", ref, "--topo-order", "--follow",
+		"--format="+commitFormat, "--date=iso-strict",
+		"--", filePath,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return parseCommitLines(out), nil
+}
+
+// LineCommit is a commit together with the diff hunks scoped to a tracked line
+// range — i.e. how that commit changed exactly the selected lines.
+type LineCommit struct {
+	Commit
+	Hunks []Hunk `json:"hunks"`
+}
+
+// LineHistory returns, for each commit that changed lines [start,end] of
+// filePath, the commit metadata plus the diff of just those tracked lines.
+// Backs the "History for Selection" diff so it shows changes scoped to the
+// selection, not the whole file.
+//
+// `git log -L<s>,<e>:<file>` emits, per commit, the metadata line followed by a
+// patch covering only the tracked range. A leading NUL (%x00) marks each
+// commit boundary so we can split metadata from patch reliably (NUL never
+// appears in git output otherwise).
+func LineHistory(repoPath, filePath string, start, end int) ([]LineCommit, error) {
+	lineSpec := "-L" + strconv.Itoa(start) + "," + strconv.Itoa(end) + ":" + filePath
+	out, err := run(repoPath,
+		"log", lineSpec,
+		"--format=%x00"+commitFormat, "--date=iso-strict",
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	result := []LineCommit{}
+	for _, chunk := range strings.Split(out, "\x00") {
+		if chunk == "" {
+			continue
+		}
+		nl := strings.IndexByte(chunk, '\n')
+		if nl < 0 {
+			continue
+		}
+		commits := parseCommitLines(chunk[:nl])
+		if len(commits) == 0 {
+			continue
+		}
+		result = append(result, LineCommit{
+			Commit: commits[0],
+			Hunks:  parseHunks(chunk[nl+1:]),
+		})
+	}
+	return result, nil
 }
 func Log(repoPath, branch string, limit int) ([]Commit, error) {
-	sep := "\x1f"
-	format := strings.Join([]string{"%H", "%P", "%an", "%aI", "%s", "%D"}, sep)
-
 	args := []string{
 		"log",
-		"--topo-order", // ← add this
-		"--format=" + format,
+		"--topo-order",
+		"--format=" + commitFormat,
 		"--date=iso-strict",
 	}
 	if limit > 0 {
@@ -118,45 +193,5 @@ func Log(repoPath, branch string, limit int) ([]Commit, error) {
 	if err != nil {
 		return nil, err
 	}
-	if out == "" {
-		return []Commit{}, nil
-	}
-
-	lines := strings.Split(out, "\n")
-	commits := make([]Commit, 0, len(lines))
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, sep, 6)
-		if len(parts) < 6 {
-			continue
-		}
-		c := Commit{
-			Hash:    parts[0],
-			Author:  parts[2],
-			Message: parts[4],
-		}
-		// parse date
-		if t, err := time.Parse(time.RFC3339, parts[3]); err == nil {
-			c.Date = t.UTC().Format(time.RFC3339)
-		} else {
-			c.Date = parts[3]
-		}
-		// parents
-		if parts[1] != "" {
-			c.Parents = strings.Fields(parts[1])
-		}
-		// refs
-		if parts[5] != "" {
-			for _, ref := range strings.Split(parts[5], ",") {
-				r := strings.TrimSpace(ref)
-				if r != "" {
-					c.Refs = append(c.Refs, r)
-				}
-			}
-		}
-		commits = append(commits, c)
-	}
-	return commits, nil
+	return parseCommitLines(out), nil
 }
