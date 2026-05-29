@@ -63,6 +63,16 @@ can carry column state across chunks. Not required for v1.
 
 ## Task 2 — Fix lane assignment: correct connections over compactness
 
+> ✅ **RESOLVED.** Removed the eager first-parent collapse in
+> `internal/graph/lanes.go`; lanes now pass straight through and converge only
+> at the real shared parent commit. The two-features-from-one-base case renders
+> correctly (each feature in its own lane, converging at `M0`), and 50
+> cross-merged branches now render ~50 lanes wide. Covered by
+> `TestTwoFeaturesFromSameBase` and `TestManyBranchesRenderWide`
+> (`internal/graph`). The webview SVG builder (`graphSvg.ts`) already scales its
+> width with lane count, so it draws the wider graph as-is — horizontal overflow
+> handling for very wide graphs is folded into Task 1's render work.
+
 ### The bug
 
 `internal/graph/lanes.go : AssignLanes` **eagerly collapses** any two lanes that
