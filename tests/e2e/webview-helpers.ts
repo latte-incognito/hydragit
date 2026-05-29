@@ -55,16 +55,18 @@ export async function openHydraGitMainPanel(page: Page): Promise<void> {
 }
 
 /**
- * Activates the extension (activity-bar icon) and reveals the panel view that
- * hosts the commit log, then waits for the webview to settle.
+ * Reveals the HydraGit pane via the command palette, mirroring the proven flow
+ * in hydragit.spec.ts ("View: Show HydraGit"). Call this before any test that
+ * needs the commit-log webview rendered.
  */
 export async function revealHydraGitPanel(page: Page): Promise<void> {
-  await page
-    .locator('a.action-label[aria-label="HydraGit"]')
-    .click()
-    .catch(() => {});
-  await page.waitForTimeout(1000);
-  await openHydraGitMainPanel(page);
+  await page.keyboard.press("Meta+Shift+P");
+  const input = page.locator(".quick-input-box input");
+  await input.waitFor({ state: "visible", timeout: 5000 });
+  await input.fill(">View: Show HydraGit");
+  await page.waitForTimeout(500);
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(1500);
 }
 
 /**
