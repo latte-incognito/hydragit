@@ -1,20 +1,45 @@
 <script lang="ts">
-  import type { Hunk, DiffRow } from './types';
+  import type { Hunk } from './types';
 
   export let hunks: Hunk[] = [];
   export let loading = false;
 
-  // Parse "@@ -oldStart,oldCount +newStart,newCount @@" → [oldStart, newStart].
+  interface Seg {
+    text: string;
+    hi: boolean; // exact intra-line change
+  }
+  interface Row {
+    kind: 'ctx' | 'del' | 'add' | 'mod';
+    leftNo?: number;
+    rightNo?: number;
+    leftText?: string;
+    rightText?: string;
+    leftHi?: [number, number]; // changed char range
+    rightHi?: [number, number];
+  }
+
   function parseHeader(header: string): [number, number] {
     const m = header.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
     if (!m) return [1, 1];
     return [parseInt(m[1], 10), parseInt(m[2], 10)];
   }
 
-  // Convert unified hunks into aligned side-by-side rows. Consecutive del/add
-  // runs are paired into 'mod' rows; leftovers become one-sided del/add rows.
-  function buildRows(hunks: Hunk[]): { rows: DiffRow[]; diffs: number } {
-    const rows: DiffRow[] = [];
+  // Intra-line change range: common prefix/suffix stays plain, middle is marked.
+  function changeRange(a: string, b: string): { left: [number, number]; right: [number, number] } {
+    let start = 0;
+    const minLen = Math.min(a.length, b.length);
+    while (start < minLen && a[start] === b[start]) start++;
+    let endA = a.length;
+    let endB = b.length;
+    while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {
+      endA--;
+      endB--;
+    }
+    return { left: [start, endA], right: [start, endB] };
+  }
+
+  function buildRows(hunks: Hunk[]) {
+    const rows: Row[] = [];
     let diffs = 0;
 
     for (const h of hunks) {
@@ -27,19 +52,30 @@
         diffs++;
         const pairs = Math.min(pendingDel.length, pendingAdd.length);
         for (let i = 0; i < pairs; i++) {
+          const r = changeRange(pendingDel[i].text, pendingAdd[i].text);
           rows.push({
             kind: 'mod',
             leftNo: pendingDel[i].no,
-            leftText: pendingDel[i].text,
             rightNo: pendingAdd[i].no,
+            leftText: pendingDel[i].text,
             rightText: pendingAdd[i].text,
+            leftHi: r.left,
+            rightHi: r.right,
           });
         }
         for (let i = pairs; i < pendingDel.length; i++) {
-          rows.push({ kind: 'del', leftNo: pendingDel[i].no, leftText: pendingDel[i].text });
+          rows.push({
+            kind: 'del',
+            leftNo: pendingDel[i].no,
+            leftText: pendingDel[i].text,
+          });
         }
         for (let i = pairs; i < pendingAdd.length; i++) {
-          rows.push({ kind: 'add', rightNo: pendingAdd[i].no, rightText: pendingAdd[i].text });
+          rows.push({
+            kind: 'add',
+            rightNo: pendingAdd[i].no,
+            rightText: pendingAdd[i].text,
+          });
         }
         pendingDel = [];
         pendingAdd = [];
@@ -51,8 +87,8 @@
           rows.push({
             kind: 'ctx',
             leftNo: oldNo,
-            leftText: line.content,
             rightNo: newNo,
+            leftText: line.content,
             rightText: line.content,
           });
           oldNo++;
@@ -70,9 +106,19 @@
     return { rows, diffs };
   }
 
+  // Split a line into plain / changed segments around the intra-line change range.
+  function segsFor(text: string, hi?: [number, number]): Seg[] {
+    if (!hi || hi[1] <= hi[0]) return [{ text, hi: false }];
+    const [a, b] = hi;
+    const segs: Seg[] = [];
+    if (a > 0) segs.push({ text: text.slice(0, a), hi: false });
+    segs.push({ text: text.slice(a, b), hi: true });
+    if (b < text.length) segs.push({ text: text.slice(b), hi: false });
+    return segs;
+  }
+
   $: built = buildRows(hunks ?? []);
   $: rows = built.rows;
-  // Exposed so the parent can show "N difference(s)".
   export let diffCount = 0;
   $: diffCount = built.diffs;
 </script>
@@ -87,9 +133,17 @@
       {#each rows as r}
         <div class="drow drow--{r.kind}">
           <span class="gutter">{r.leftNo ?? ''}</span>
-          <span class="side side-left" class:filler={r.leftText === undefined}>{r.leftText ?? ''}</span>
+          <span class="side side-left" class:filler={r.leftText === undefined}>
+            {#if r.leftText !== undefined}
+              {#each segsFor(r.leftText, r.leftHi) as s}<span class:hi={s.hi}>{s.text}</span>{/each}
+            {/if}
+          </span>
           <span class="gutter">{r.rightNo ?? ''}</span>
-          <span class="side side-right" class:filler={r.rightText === undefined}>{r.rightText ?? ''}</span>
+          <span class="side side-right" class:filler={r.rightText === undefined}>
+            {#if r.rightText !== undefined}
+              {#each segsFor(r.rightText, r.rightHi) as s}<span class:hi={s.hi}>{s.text}</span>{/each}
+            {/if}
+          </span>
         </div>
       {/each}
     </div>
@@ -115,6 +169,7 @@
     overflow: auto;
     font-family: var(--hg-editor-font-family);
     font-size: var(--hg-editor-font-size);
+    font-weight: var(--hg-editor-font-weight);
     line-height: var(--hg-editor-line-height);
   }
 
@@ -138,16 +193,24 @@
     color: var(--vscode-editor-foreground, #ccc);
   }
 
-  /* Changed-line backgrounds — VS Code diff tokens with sane fallbacks. */
+  /* Whole changed line — softer line-level tint. */
   .drow--del .side-left,
   .drow--mod .side-left {
-    background: var(--vscode-diffEditor-removedLineBackground, rgba(240, 112, 112, 0.18));
+    background: var(--vscode-diffEditor-removedLineBackground, rgba(240, 112, 112, 0.16));
   }
   .drow--add .side-right,
   .drow--mod .side-right {
-    background: var(--vscode-diffEditor-insertedLineBackground, rgba(78, 201, 78, 0.16));
+    background: var(--vscode-diffEditor-insertedLineBackground, rgba(78, 201, 78, 0.14));
   }
   .side.filler {
     background: var(--vscode-diffEditor-diagonalFill, rgba(128, 128, 128, 0.08));
+  }
+
+  /* Exact intra-line change — stronger char-level tint. */
+  .side-left .hi {
+    background: var(--vscode-diffEditor-removedTextBackground, rgba(240, 112, 112, 0.4));
+  }
+  .side-right .hi {
+    background: var(--vscode-diffEditor-insertedTextBackground, rgba(78, 201, 78, 0.35));
   }
 </style>

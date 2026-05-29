@@ -136,29 +136,6 @@ func DiffFile(repoPath, commit, file string) ([]Hunk, error) {
 	return parseHunks(out), nil
 }
 
-// emptyTree is git's canonical empty-tree object. Used as the "before" side
-// when a file has no prior revision (e.g. the oldest commit in a list).
-const emptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-
-// fullContext is a deliberately huge -U value so the diff carries the whole
-// file as context — the side-by-side viewer renders the full file, not just
-// changed hunks (matching JetBrains' "History for Selection" diff).
-const fullContext = "100000"
-
-// DiffRefs returns hunks for filePath between two refs: a = before (older),
-// b = after (newer). When a is empty the empty tree is used, so a file with no
-// predecessor renders as fully added. Backs the selection-history diff.
-func DiffRefs(repoPath, a, b, filePath string) ([]Hunk, error) {
-	if a == "" {
-		a = emptyTree
-	}
-	out, err := run(repoPath, "diff", "--unified="+fullContext, a, b, "--", filePath)
-	if err != nil {
-		return nil, err
-	}
-	return parseHunks(out), nil
-}
-
 func parseHunks(diff string) []Hunk {
 	var hunks []Hunk
 	var current *Hunk

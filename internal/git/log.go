@@ -24,7 +24,7 @@ const commitSep = "\x1f"
 var commitFormat = strings.Join([]string{"%H", "%P", "%an", "%aI", "%s", "%D"}, commitSep)
 
 // parseCommitLines parses the output of `git log --format=commitFormat`.
-// Shared by Log, LogFile, and LogLines.
+// Shared by Log, LogFile, and LineHistory.
 func parseCommitLines(out string) []Commit {
 	if out == "" {
 		return []Commit{}
@@ -120,24 +120,6 @@ func FileHistory(repoPath, ref, filePath string) ([]Commit, error) {
 		"log", ref, "--topo-order", "--follow",
 		"--format="+commitFormat, "--date=iso-strict",
 		"--", filePath,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return parseCommitLines(out), nil
-}
-
-// LogLines returns the commits that changed lines [start,end] of filePath,
-// in HEAD's history. Backs the "History for Selection" feature.
-//
-// Uses `git log -L<start>,<end>:<file>` with -s to suppress the patch, so the
-// output is the same field-separated commit format parseCommitLines expects.
-// filePath must be repo-relative; -L does not accept --all or a pathspec.
-func LogLines(repoPath, filePath string, start, end int) ([]Commit, error) {
-	lineSpec := "-L" + strconv.Itoa(start) + "," + strconv.Itoa(end) + ":" + filePath
-	out, err := run(repoPath,
-		"log", lineSpec, "-s",
-		"--format="+commitFormat, "--date=iso-strict",
 	)
 	if err != nil {
 		return nil, err

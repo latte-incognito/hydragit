@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -82,68 +81,6 @@ func TestDiffFile(t *testing.T) {
 	for _, line := range hunks[0].Lines {
 		if line.Type != "add" && line.Type != "ctx" {
 			t.Errorf("unexpected line type %q in new file diff", line.Type)
-		}
-	}
-}
-
-func TestDiffRefs(t *testing.T) {
-	dir := initRepo(t)
-	commitFile(t, dir, "file.txt", "line1\nline2\n", "c1")
-	commitFile(t, dir, "file.txt", "line1\nCHANGED\n", "c2")
-
-	// hashes newest-first
-	out, _ := exec.Command("git", "-C", dir, "log", "--format=%H").Output()
-	hashes := strings.Fields(string(out))
-	newer, older := hashes[0], hashes[1]
-
-	hunks, err := DiffRefs(dir, older, newer, "file.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(hunks) == 0 {
-		t.Fatal("expected a hunk between the two revisions")
-	}
-
-	var sawDel, sawAdd, sawCtx bool
-	for _, h := range hunks {
-		for _, l := range h.Lines {
-			switch {
-			case l.Type == "del" && l.Content == "line2":
-				sawDel = true
-			case l.Type == "add" && l.Content == "CHANGED":
-				sawAdd = true
-			case l.Type == "ctx" && l.Content == "line1":
-				sawCtx = true // full-context: unchanged line is present
-			}
-		}
-	}
-	if !sawDel || !sawAdd {
-		t.Fatalf("expected del line2 + add CHANGED; got del=%v add=%v", sawDel, sawAdd)
-	}
-	if !sawCtx {
-		t.Fatal("expected unchanged context line (full-file context)")
-	}
-}
-
-// Empty "before" ref → file rendered as fully added.
-func TestDiffRefsEmptyBefore(t *testing.T) {
-	dir := initRepo(t)
-	commitFile(t, dir, "file.txt", "a\nb\n", "add file")
-	out, _ := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
-	newer := strings.TrimSpace(string(out))
-
-	hunks, err := DiffRefs(dir, "", newer, "file.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(hunks) == 0 {
-		t.Fatal("expected hunk for added file")
-	}
-	for _, h := range hunks {
-		for _, l := range h.Lines {
-			if l.Type != "add" {
-				t.Errorf("expected all-add for new file, got %q %q", l.Type, l.Content)
-			}
 		}
 	}
 }

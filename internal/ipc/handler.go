@@ -129,19 +129,6 @@ func handle(repoPath string, req Request) Response {
 		laid := graph.AssignLanes(commits)
 		return ok(id, laid)
 
-	case "log.lines":
-		var p struct {
-			Path  string `json:"path"`
-			Start int    `json:"start"`
-			End   int    `json:"end"`
-		}
-		json.Unmarshal(req.Params, &p)
-		commits, err := git.LogLines(repoPath, p.Path, p.Start, p.End)
-		if err != nil {
-			return fail(id, err)
-		}
-		return ok(id, commits)
-
 	case "file.history":
 		var p struct {
 			Path string `json:"path"`
@@ -166,22 +153,6 @@ func handle(repoPath string, req Request) Response {
 			return fail(id, err)
 		}
 		return ok(id, commits)
-
-	case "diff.refs":
-		var p struct {
-			A    string `json:"a"`
-			B    string `json:"b"`
-			File string `json:"file"`
-		}
-		json.Unmarshal(req.Params, &p)
-		hunks, err := git.DiffRefs(repoPath, p.A, p.B, p.File)
-		if err != nil {
-			return fail(id, err)
-		}
-		if hunks == nil {
-			hunks = []git.Hunk{}
-		}
-		return ok(id, hunks)
 
 	case "diff":
 		var p struct {
