@@ -51,15 +51,18 @@ export class HistoryPanelManager {
     const selection = init.mode === 'selection';
 
     // Layout:
-    //   File history  → two rows: diff on top (col 1), list on bottom (col 2).
-    //   Selection     → two columns: list on left (col 1), diff on right (col 2).
+    //   Selection → single full tab; the list + side-by-side diff are rendered
+    //               entirely inside the webview (no native diff editor).
+    //   File      → two rows: diff on top (col 1), list on bottom (col 2). The
+    //               diff is VS Code's native editor opened via openDiff.
     const listColumn = selection ? vscode.ViewColumn.One : vscode.ViewColumn.Two;
-    this.diffColumn = selection ? vscode.ViewColumn.Two : vscode.ViewColumn.One;
+    this.diffColumn = vscode.ViewColumn.One;
 
     // orientation: 0 = horizontal (left/right), 1 = vertical (top/bottom).
+    // Selection collapses to a single group; file history splits into two rows.
     await vscode.commands.executeCommand('vscode.setEditorLayout', {
-      orientation: selection ? 0 : 1,
-      groups: [{}, {}],
+      orientation: 1,
+      groups: selection ? [{}] : [{}, {}],
     });
 
     if (!this.panel) {
@@ -82,8 +85,7 @@ export class HistoryPanelManager {
         this.panel = undefined;
       });
 
-      // Fresh webview — it will request init via 'ready' once mounted, which
-      // triggers the first diff into this.diffColumn.
+      // Fresh webview — it requests init via 'ready' once mounted.
       this.panel.title = title;
       return;
     }
