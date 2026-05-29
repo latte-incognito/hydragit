@@ -7,7 +7,7 @@ These align with the "IntelliJ panel, no paywall" positioning, and all are imple
 | GitLens Pro feature | What it does | HydraGit status | PyCharm equivalent |
 |---|---|---|---|
 | **Commit Graph search/filter** | Filter graph by author/message/file/branch, jump between matches | Graph exists; no search/filter | Git log tab — filter dropdowns (Branch / User / Date / Path) + text search |
-| **Visual File History** | Per-file timeline — every commit that touched a file, who/when | Not present | `Git → Show History` — per-file commit list with diff on each revision |
+| **Visual File History** | Per-file timeline — every commit that touched a file, who/when | DONE | `Git → Show History` — per-file commit list with diff on each revision |
 | **Line/file blame & hovers** | Inline blame annotations, "who changed this line + commit" | Not present | `Annotate with Git Blame` — per-line author/commit/date in the gutter |
 | **Revision navigation** | Step backward/forward through a file's history in the editor | Not present | History tab + diff viewer; arrow through revisions in the diff view |
 | **Worktree management UI** | Create/switch/remove worktrees visually | Not present | `Git → Manage Worktrees` (newer versions); otherwise branch-based |

@@ -67,7 +67,8 @@ type pendingMergeEntry struct {
 func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 	n := len(commits)
 	if n == 0 {
-		return nil
+		// Non-nil so JSON marshals to [] not null (webview reads .length).
+		return []*LaidOutCommit{}
 	}
 
 	result := make([]*LaidOutCommit, n)

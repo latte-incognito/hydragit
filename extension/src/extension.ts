@@ -3,6 +3,7 @@ import * as path from 'path';
 import { buildInfo } from './generated/buildInfo';
 import { GoProcess } from './goProcess';
 import { HydraBadgeTreeProvider, HydraSidebarProvider, HydraViewProvider } from './panel';
+import { HistoryPanelManager } from './historyPanel';
 import { HydraStatusService } from './HydraStatusService';
 import { Logger } from './Logger';
 
@@ -74,6 +75,33 @@ export function activate(ctx: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('hydragit.revealAll', async () => {
       await vscode.commands.executeCommand('workbench.view.extension.hydragit');
       await vscode.commands.executeCommand('hydragit.mainView.focus');
+    })
+  );
+
+  const historyPanel = new HistoryPanelManager(ctx, goProcess);
+
+  ctx.subscriptions.push(
+    vscode.commands.registerCommand('hydragit.fileHistory', (uri?: vscode.Uri) => {
+      // Explorer passes the resource uri; from the editor menu it's absent,
+      // so fall back to the active editor's document.
+      const target = uri ?? vscode.window.activeTextEditor?.document.uri;
+      if (!target) {
+        vscode.window.showWarningMessage('HydraGit: no file to show history for.');
+        return;
+      }
+      historyPanel.openFileHistory(target);
+    }),
+
+    vscode.commands.registerCommand('hydragit.selectionHistory', () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showWarningMessage('HydraGit: no active editor selection.');
+        return;
+      }
+      // git line ranges are 1-based and inclusive.
+      const start = editor.selection.start.line + 1;
+      const end = editor.selection.end.line + 1;
+      historyPanel.openSelectionHistory(editor.document.uri, start, end);
     })
   );
 

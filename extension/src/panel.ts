@@ -20,7 +20,7 @@ async function fileExistsAtRef(absPath: string, ref: string): Promise<boolean> {
   }
 }
 
-async function openFile(params: { file: string }): Promise<void> {
+export async function openFile(params: { file: string }): Promise<void> {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
   const absPath = path.join(workspaceRoot, params.file);
   await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(absPath));
@@ -67,8 +67,19 @@ async function openCommitUrl(params: { commit: string }): Promise<void> {
   }
 }
 
-async function openDiff(params: { commit: string; parent: string; file: string }): Promise<void> {
+export async function openDiff(
+  params: { commit: string; parent: string; file: string },
+  opts?: { viewColumn?: vscode.ViewColumn; preserveFocus?: boolean }
+): Promise<void> {
   const { commit, parent, file } = params;
+
+  // Target a specific editor group (history panels) or the active one (default).
+  // preview:true so successive selections replace the diff in place.
+  const show: vscode.TextDocumentShowOptions = {
+    preview: true,
+    viewColumn: opts?.viewColumn,
+    preserveFocus: opts?.preserveFocus,
+  };
 
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
   const absPath = path.join(workspaceRoot, file);
@@ -80,14 +91,14 @@ async function openDiff(params: { commit: string; parent: string; file: string }
     const headExists = await fileExistsAtRef(absPath, 'HEAD');
 
     if (!headExists) {
-      await vscode.commands.executeCommand('vscode.open', workingTreeUri, { preview: true }, title);
+      await vscode.commands.executeCommand('vscode.open', workingTreeUri, show, title);
       return;
     }
 
     const headUri = vscode.Uri.parse(`git:${absPath}`).with({
       query: JSON.stringify({ path: absPath, ref: 'HEAD' }),
     });
-    await vscode.commands.executeCommand('vscode.diff', headUri, workingTreeUri, title);
+    await vscode.commands.executeCommand('vscode.diff', headUri, workingTreeUri, title, show);
     return;
   }
 
@@ -110,16 +121,16 @@ async function openDiff(params: { commit: string; parent: string; file: string }
   }
 
   if (!existsInParent) {
-    await vscode.commands.executeCommand('vscode.open', gitUri(commit), { preview: true }, title);
+    await vscode.commands.executeCommand('vscode.open', gitUri(commit), show, title);
     return;
   }
 
   if (!existsInCommit) {
-    await vscode.commands.executeCommand('vscode.open', gitUri(parent), { preview: true }, `${title} (deleted)`);
+    await vscode.commands.executeCommand('vscode.open', gitUri(parent), show, `${title} (deleted)`);
     return;
   }
 
-  await vscode.commands.executeCommand('vscode.diff', gitUri(parent), gitUri(commit), title);
+  await vscode.commands.executeCommand('vscode.diff', gitUri(parent), gitUri(commit), title, show);
 }
 
 export class HydraViewProvider implements vscode.WebviewViewProvider {
