@@ -201,6 +201,46 @@ git commit -m "Initial gh-pages"
 
 git checkout "$MAIN_BRANCH"
 
+# ─── Octopus merge (one merge commit with 3+ parents) ──────────────────────────
+# Each branch touches a distinct file so the octopus merges cleanly.
+
+for n in a b c; do
+  git checkout "$MAIN_BRANCH"
+  git checkout -b "oct/$n"
+  echo "octopus $n" > "oct-$n.txt"
+  git add "oct-$n.txt"
+  git commit -m "feat: octopus branch $n"
+done
+
+git checkout "$MAIN_BRANCH"
+git merge oct/a oct/b oct/c --no-ff -m "Octopus merge: a + b + c"
+
+# ─── Criss-cross merge (two heads each merging the other's tip) ────────────────
+# cross/x and cross/y each merge the other's *original* commit, producing the
+# classic crossing topology that stresses lane routing in the renderer.
+
+git checkout "$MAIN_BRANCH"
+git checkout -b cross/x
+echo "x" > cross-x.txt
+git add cross-x.txt
+git commit -m "feat: cross x"
+X_COMMIT=$(git rev-parse HEAD)
+
+git checkout "$MAIN_BRANCH"
+git checkout -b cross/y
+echo "y" > cross-y.txt
+git add cross-y.txt
+git commit -m "feat: cross y"
+Y_COMMIT=$(git rev-parse HEAD)
+
+git checkout cross/x
+git merge "$Y_COMMIT" --no-ff -m "Merge cross/y into cross/x"
+
+git checkout cross/y
+git merge "$X_COMMIT" --no-ff -m "Merge cross/x into cross/y"
+
+git checkout "$MAIN_BRANCH"
+
 # ─── Remote simulation (bare repo as "origin") ─────────────────────────────────
 
 REMOTE_DIR="${REPO_DIR}/../test-remote.git"

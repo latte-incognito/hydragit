@@ -126,27 +126,22 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 		}
 
 		// First parent inherits this lane.
+		//
+		// We deliberately do NOT collapse other columns that merely await the
+		// same parent hash here. Folding them together at this row would draw an
+		// unrelated branch as if it joined this commit — e.g. two features that
+		// forked from the same base would appear to connect through whichever
+		// merge commit comes first, instead of at their real fork point. Each
+		// lane instead passes straight through and converges only when its real
+		// parent commit is actually reached (the "Resolve pending"/collapse
+		// logic at the top of the loop). The graph may get wide; that is
+		// correct. See FIRST_TO_RESOLVE.MD, Task 2.
 		columns[myLane] = c.Parents[0]
 
-		// Eagerly collapse duplicate columns that now share the same
-		// first-parent hash. Keep the lowest-indexed lane to maintain
-		// visual stability (the main trunk stays on lane 0).
-		firstParentLane := myLane
-		var collapseEdges []Edge
-		for j := range columns {
-			if j == myLane || columns[j] != c.Parents[0] {
-				continue
-			}
-			if j < firstParentLane {
-				columns[firstParentLane] = ""
-				firstParentLane = j
-			} else {
-				collapseEdges = append(collapseEdges, Edge{j, firstParentLane, laneColor(firstParentLane)})
-				columns[j] = ""
-			}
-		}
-
-		// Additional parents: defer lane allocation (lazy).
+		// Additional parents (merges): connect to each. If the parent already
+		// occupies a lane, draw the connector now; otherwise defer until it
+		// appears (lazy allocation keeps merge connectors from reserving lanes
+		// before they are needed).
 		for _, p := range c.Parents[1:] {
 			if pLane := findInColumns(columns, p); pLane != -1 {
 				result[i].MergePaths = append(result[i].MergePaths, MergePath{
@@ -161,10 +156,10 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 			}
 		}
 
-		// Edges: first-parent continuation + collapse curves + pass-throughs.
+		// Edges: straight continuation of this lane + a pass-through for every
+		// other still-active lane.
 		var edges []Edge
-		edges = append(edges, Edge{myLane, firstParentLane, laneColor(firstParentLane)})
-		edges = append(edges, collapseEdges...)
+		edges = append(edges, Edge{myLane, myLane, laneColor(myLane)})
 		for j, h := range columns {
 			if h != "" && j != myLane {
 				edges = append(edges, Edge{j, j, laneColor(j)})
