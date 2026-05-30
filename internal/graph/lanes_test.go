@@ -140,14 +140,10 @@ func TestCollapseEdges(t *testing.T) {
 	assert(t, result[1].Lane == 1, "b on lane 1")
 	assert(t, result[2].Lane == 0, "c on lane 0 (first match)")
 
-	// Row 1 edges should have a merge curve from lane 1 → lane 0
-	hasMergeCurve := false
-	for _, e := range result[1].Edges {
-		if e.FromLane == 1 && e.ToLane == 0 {
-			hasMergeCurve = true
-		}
-	}
-	assert(t, hasMergeCurve, "expected collapse merge curve from lane 1 to lane 0")
+	// b connects down to its real parent c (lane 1 → lane 0). With lane reuse,
+	// b's lane is freed and the connection is drawn as a long curve (MergePath)
+	// rather than an inline edge — either form is a valid "b → c" curve.
+	assert(t, hasConn(result[1], 1, 0), "expected b to connect down to c (lane 1 → lane 0)")
 }
 
 // ── lazy allocation keeps lanes compact ──────────────────────────────────────
@@ -171,9 +167,11 @@ func TestLazyAllocationCompact(t *testing.T) {
 			maxLane = c.Lane
 		}
 	}
-	// With lazy allocation, the inner branch uses lane 1 and frees it;
-	// the outer branch then reuses lane 1. Max should be 1, not 2.
-	assert(t, maxLane <= 1, "lazy allocation should keep max lane ≤ 1")
+	// Lazy allocation: merge connectors don't reserve a lane until the parent
+	// actually appears, so this nested-merge shape stays at 2 lanes instead of
+	// 3. (We no longer eagerly collapse shared-parent lanes — see
+	// TestTwoFeaturesFromSameBase — so the old ≤1 ceiling no longer holds.)
+	assert(t, maxLane <= 2, "lazy allocation should keep max lane ≤ 2 for nested merges")
 }
 
 // ── result length matches input ───────────────────────────────────────────────
@@ -353,6 +351,84 @@ func TestWideConcurrency(t *testing.T) {
 	// Ten simultaneously-live branches must occupy ten distinct lanes (0..9).
 	assert(t, maxLane(result) == n-1,
 		"ten concurrent branches should use exactly ten lanes")
+}
+
+// ── two features from one base must not fold together ─────────────────────────
+
+func laneOf(result []*LaidOutCommit, hash string) int {
+	for _, c := range result {
+		if c.Hash == hash {
+			return c.Lane
+		}
+	}
+	return -1
+}
+
+func hasEdge(c *LaidOutCommit, from, to int) bool {
+	for _, e := range c.Edges {
+		if e.FromLane == from && e.ToLane == to {
+			return true
+		}
+	}
+	return false
+}
+
+// hasConn reports whether commit c connects lane `from` to lane `to`, drawn
+// either as an inline edge or as a long curve (MergePath). Used where lane reuse
+// may render a connection either way.
+func hasConn(c *LaidOutCommit, from, to int) bool {
+	if hasEdge(c, from, to) {
+		return true
+	}
+	for _, mp := range c.MergePaths {
+		if mp.FromLane == from && mp.ToLane == to {
+			return true
+		}
+	}
+	return false
+}
+
+// TestTwoFeaturesFromSameBase is the regression test for the lane-collapse bug
+// (FIRST_TO_RESOLVE.MD Task 2). Two features fork from the same base M0 and each
+// merges back without squashing. The OLD eager-collapse folded featureB's tail
+// into the featureA merge commit, implying a connection that never existed.
+// The correct rendering keeps each feature in its own lane and converges them
+// only at the real fork point, M0.
+//
+// Rows mirror `git log --topo-order` output for this history:
+//
+//	MB ── B2 ── B1 ── MA ── A2 ── A1 ── M0
+func TestTwoFeaturesFromSameBase(t *testing.T) {
+	commits := []git.Commit{
+		{Hash: "MB", Parents: []string{"MA", "B2"}}, // merge featureB into main
+		{Hash: "B2", Parents: []string{"B1"}},
+		{Hash: "B1", Parents: []string{"M0"}},
+		{Hash: "MA", Parents: []string{"M0", "A2"}}, // merge featureA into main
+		{Hash: "A2", Parents: []string{"A1"}},
+		{Hash: "A1", Parents: []string{"M0"}},
+		{Hash: "M0", Parents: []string{}},
+	}
+	result := AssignLanes(commits)
+
+	// The two features never share a lane.
+	laneB := laneOf(result, "B1")
+	laneA := laneOf(result, "A1")
+	assert(t, laneB > 0 && laneA > 0, "both features should be off the main lane")
+	assert(t, laneB != laneA, "the two features must occupy different lanes")
+
+	// featureB must pass straight through the featureA-merge row, not fold into
+	// it. MA is at row 3; its row carries a pass-through edge for featureB's lane.
+	mergeARow := result[3]
+	assert(t, mergeARow.Hash == "MA", "row 3 should be the featureA merge")
+	assert(t, hasEdge(mergeARow, laneB, laneB),
+		"featureB must pass through the featureA-merge row, not fold into it")
+
+	// Both features connect down to M0 (their real parent), never to the
+	// featureA merge node. M0 is the last row; the row feeding into it is A1.
+	intoBase := result[5]
+	assert(t, intoBase.Hash == "A1", "row 5 should feed into M0")
+	assert(t, hasConn(intoBase, laneA, 0), "featureA should connect to M0 (lane 0)")
+	assert(t, hasConn(intoBase, laneB, 0), "featureB should connect to M0 (lane 0)")
 }
 
 // ── lane recycling (a freed lane is reused, not leaked) ───────────────────────

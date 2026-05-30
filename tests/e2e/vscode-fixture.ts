@@ -12,12 +12,14 @@ export const test = base.extend<TestFixtures>({
     const config = testInfo.project.use as any;
     const baseRepoPath: string = config.repoPath;
     const extensionPath: string = config.extensionPath;
-    // Projects may override which fixture builder to run (e.g. a large perf repo).
+    // Projects may override which fixture builder to run (e.g. a large perf repo)
+    // and pass extra args to it (e.g. a branch count).
     const fixtureScript: string =
       config.fixtureScript || "tests/fixtures/create-test-repo.sh";
+    const fixtureArgs: string = config.fixtureArgs || "";
     const workerRepoPath = `${baseRepoPath}-w${testInfo.workerIndex}`;
 
-    execSync(`bash ${fixtureScript} "${workerRepoPath}"`, {
+    execSync(`bash ${fixtureScript} "${workerRepoPath}" ${fixtureArgs}`, {
       stdio: "pipe",
     });
 

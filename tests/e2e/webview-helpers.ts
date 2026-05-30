@@ -84,3 +84,17 @@ export async function getLogFrame(page: Page): Promise<FrameLocator> {
   }
   throw new Error("commit-log webview frame (.pane-log) not found");
 }
+
+// Graph SVG geometry — must match webview/src/panels/index/graphSvg.ts.
+const LANE_W = 16;
+const PAD = 4;
+
+/**
+ * Number of lanes the commit graph is drawn with, derived from the graph SVG's
+ * width (svgW = laneCount * LANE_W + PAD * 2). A wide graph → large lane count.
+ */
+export async function graphLaneCount(frame: FrameLocator): Promise<number> {
+  const w = await frame.locator(".graph-col svg").first().getAttribute("width");
+  const width = Number(w ?? 0);
+  return Math.round((width - PAD * 2) / LANE_W);
+}

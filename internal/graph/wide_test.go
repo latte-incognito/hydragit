@@ -10,20 +10,14 @@ import (
 	"hydragit/internal/git"
 )
 
-// TestManyBranchesStayCompact is a characterization test: it documents that
-// even 50 branches, each cross-merged with its neighbour, render as a NARROW
-// graph — not a 50-lane-wide one. Two mechanisms keep it compact:
-//
-//   - git.Log uses --topo-order, which serializes a branch's commits instead of
-//     interleaving them, so few branches are "open" at any given row; and
-//   - AssignLanes eagerly collapses any two lanes that await the same next
-//     parent (e.g. both heading to the shared base).
-//
-// Measured width for this 50-branch setup is ~4 lanes. This test guards that
-// property: if a future lane-algorithm change blows the graph wide, it fails
-// here. (A synthetic struct ordering can force many lanes — see
-// TestWideConcurrency — but real `git log` output does not.)
-func TestManyBranchesStayCompact(t *testing.T) {
+// TestManyBranchesRenderCompact verifies the Task 4 behaviour: when 50 branches
+// fork from a common base and each cross-merges its neighbour without squashing,
+// the graph renders COMPACT — branches that share an ancestor have their lanes
+// freed and reused (with long edges to the real ancestor), rather than holding
+// 50 dedicated lanes. This is correct (no false connections — see
+// TestTwoFeaturesFromSameBase) AND narrow, matching git's own `git log --graph`.
+// End-to-end through git.Log + AssignLanes so it reflects real output.
+func TestManyBranchesRenderCompact(t *testing.T) {
 	dir := t.TempDir()
 
 	run := func(args ...string) {
@@ -78,9 +72,9 @@ func TestManyBranchesStayCompact(t *testing.T) {
 	max := maxLane(laid)
 	t.Logf("commits=%d maxLane=%d laneCount=%d", len(commits), max, max+1)
 
-	// 50 cross-merged branches still pack into a handful of lanes. Assert a
-	// generous ceiling: if width suddenly explodes, the lane packing regressed.
+	// Branches sharing the base collapse into a handful of reused lanes. Assert a
+	// generous ceiling: if width blows up again, lane reuse regressed.
 	if max > 8 {
-		t.Fatalf("expected the graph to stay compact (<=8 lanes) for 50 branches, got maxLane=%d", max)
+		t.Fatalf("expected a compact graph (<=8 lanes) for 50 branches, got maxLane=%d", max)
 	}
 }
