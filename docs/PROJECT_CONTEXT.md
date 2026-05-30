@@ -3,8 +3,8 @@
 > IntelliJ-style git panel inside VS Code. Branch tree, commit log, inline diff, stash manager. No paywall.
 > Built because GitLens went paywalled and VS Code's built-in git panel has no history view.
 
-**Publisher:** `vkushnarenko.hydragit`
-**Status:** 🚧 v0.1.0 in development — core features implemented, pre-publish QA remaining
+**Publisher:** `vkushnarenko.hydragit` (reserved — not yet published to Marketplace)
+**Status:** v0.2.0 in repo, pre-publish — staging/commit, tags, blame, and file/line history built on top of the v0.1 core. The repo is the source of truth.
 
 ---
 
@@ -79,16 +79,24 @@ cmd/hydragit/
                               Initialises logger, stdin JSON loop → ipc.Handle()
 
 internal/git/
-  repo.go                   — run() single entry point for all git CLI calls.
+  repo.go                   — run()/runStdin() single entry point for all git CLI calls.
                               Logs every command via logger.GitCmd(). Captures duration + exit code.
+                              runStdin feeds editor buffers to `git blame --contents -`.
   status.go                 — Status() → StatusResult { branch, ahead, behind, modified, files[] }
-  log.go                    — Log() → []Commit with hash, parents, author, date, message, refs
+  log.go                    — Log()/LogWith()/LogFile()/FileHistory()/LineHistory() → []Commit
   branches.go               — Branches(), Checkout(), CreateBranch(), DeleteBranch(),
-                              RenameBranch(), Merge(), Rebase(), Push(), Fetch(), Pull()
+                              RenameBranch(), BranchContaining(), Merge(), Rebase(), Reset(),
+                              Push(), Fetch(), Pull(), PullMode()
   diff.go                   — DiffCommit() → []FileStat, DiffFile() → []Hunk
   stash.go                  — StashList(), StashPop(), StashApply(), StashDrop(),
-                              StashShow(), StashSave()
+                              StashShow(), StashFiles(), StashSave()
+  commit.go                 — CreateCommit(), CommitAndPush() (stage paths + commit)
+  tags.go                   — Tags(), CreateTag(), DeleteTag()
+  blame.go                  — Blame() → per-line blame, buffer-aware via runStdin
+  config.go                 — User() → committer name/email from git config
   cherrypick.go             — CherryPick(), Revert()
+  *_test.go                 — one real test per source file + scenarios_test.go
+                              (real temp-repo scenarios, no mocking)
 
 internal/graph/
   lanes.go                  — AssignLanes() assigns lane/color/paths to commits for graph rendering
@@ -143,20 +151,24 @@ webview/src/
     types.ts                — GitFile { path, status }, GitStatus { branch, ahead, behind, files }
     components/
       SectionHeader.svelte  — collapsible header, master stage checkbox (indeterminate support)
-      FileList.svelte       — scrollable list, per-file checkboxes
+      FileTree.svelte       — staged/unstaged file tree, per-file checkboxes, status badges
       CommitArea.svelte     — textarea + Commit / Commit & Push buttons (pinned bottom)
 
   panels/index/
     main.ts                 — entry point
     App.svelte              — root component for main panel
+    graphSvg.ts             — pure SVG-path builder for the lane graph (unit-tested)
     components/
       BranchPane.svelte
-      LogPane.svelte        — commit graph display
+      LogPane.svelte        — commit graph display (virtualized, inline SVG lanes)
       DetailPane.svelte
       PaneDivider.svelte
-      Toolbar.svelte
+      Toolbar.svelte        — search box with mode switch, branch combobox
+      ActionRail.svelte     — quick git action buttons
       StatusBar.svelte
-      ContextMenu.svelte    — dead code, needs cleanup or removal
+      ContextMenu.svelte    — commit context menu (live, tested)
+
+  panels/history/           — File / Selection (line) history views, Shiki-based diff, blame cards
 
   styles/
     vscode-theme.css        — VS Code CSS variable mappings
@@ -193,25 +205,37 @@ Rules:
 | ping | — | "pong" |
 | status | — | StatusResult |
 | branches | — | []Branch |
-| log | { branch?, limit? } | []LaidOutCommit |
+| log | { branch?, limit?, grep?, author? } | []LaidOutCommit |
+| log.file | { path } | []LaidOutCommit |
+| file.history | { path, ref? } | []Commit |
+| line.history | { path, start, end } | []Commit |
 | diff | { commit, file? } | []Hunk or []FileStat |
+| blame | { path, ref?, contents?, dirty? } | []BlameLine |
+| user | — | { name, email } |
 | stash | — | []StashEntry |
-| stash.pop | { index } | — |
-| stash.apply | { index } | — |
-| stash.drop | { index } | — |
+| stash.pop / stash.apply / stash.drop | { index } | — |
 | stash.show | { index } | []Hunk |
+| stash.files | { index } | []FileStat |
 | stash.save | { message? } | — |
 | checkout | { branch } | — |
 | branch.create | { name, from? } | — |
 | branch.delete | { name, force } | — |
 | branch.rename | { from, to } | — |
+| branch.containing | { commit } | string |
 | merge | { branch } | — |
 | rebase | { onto } | — |
+| reset | { commit, mode } | — |
 | fetch | — | — |
 | pull | — | — |
+| pull.mode | { mode } | — |
 | push | { branch? } | — |
 | cherrypick | { commit } | — |
 | revert | { commit } | — |
+| commit | { message, paths[] } | CommitResult |
+| commit.push | { message, paths[] } | CommitResult |
+| tags | — | []Tag |
+| tag.create | { name, commit?, message? } | — |
+| tag.delete | { name } | — |
 
 ---
 
@@ -230,6 +254,11 @@ Rules:
 |---------|-------|-------------|
 | hydragit.showVersionInfo | HydraGit: Show Version Info | shows version in Output Channel + info message |
 | hydragit.openLogs | HydraGit: Open Logs Folder | reveals log dir in OS file manager |
+| hydragit.fileHistory | HydraGit: File History | opens per-file commit timeline |
+| hydragit.selectionHistory | HydraGit: History for Selection | history for an editor selection / line range |
+| hydragit.lineHistory | (internal) | line-range history entry point |
+| hydragit.copyCommitSha | (context menu) | copies a commit hash |
+| hydragit.toggleLineBlame | HydraGit: Toggle Line Blame | toggles inline blame in the editor |
 | hydragit.revealAll | (internal) | focuses main panel |
 
 ---
@@ -338,43 +367,36 @@ Mono:           monospace
 
 ---
 
-## What's working (as of v0.1.0 dev)
+## What's working (as of v0.2.0)
 
-- File list renders with correct filenames
-- Per-file checkboxes + master checkbox (indeterminate state)
-- Staged count shown in CommitArea
-- CommitArea pinned at bottom, FileList scrolls independently
-- Go status parsing rewritten as single-pass
-- Full logging: Go JSON file + TS Output Channel
-- `hydragit.openLogs` command opens log folder
-- IPC skeleton + all git operations implemented
-- Graph lane assignment (AssignLanes)
+- Full two-pane layout: branch tree + virtualized commit graph + detail/diff pane
+- Sidebar staging: file tree, per-file + master checkbox, commit & commit-and-push
+- Stash manager UI (list/pop/apply/drop/show/save) with diff preview
+- Tags (list/create/delete), reset, cherry-pick, revert, merge, rebase
+- File history + line/selection history (Shiki diff), inline blame
+- Search/filter (message/author server-side, hash/file), branch scope toggle
+- Commit context menu (copy/patch/cherry-pick/checkout/reset/revert/new branch/new tag)
+- Full logging: Go JSON file + TS Output Channel; relative dates in the log UI
+- Graph lane assignment (AssignLanes), per-branch-line color, hover highlight
+- Tests: Go `_test.go` per package + scenarios, Vitest component tests, Playwright e2e
+
+See `IMPLEMENTED_FEATURES.md` for the full, current inventory.
 
 ---
 
-## Immediate TODOs (priority order)
+## Open follow-ups
 
-1. **Pre-publish QA** — test on various repo types (see TASKS.md Step 7)
-2. **Wire `commit` command** — staged paths + message → Go, implement in handler.go
-3. **Diff view on file click** — `// TODO: open diff view` in Sidebar.svelte
-4. **VS Code StatusBarItem** — `branch ↑2 ↓1` using `ahead`/`behind`
-5. **Relative dates** in commit history (log.go returns RFC3339, UI needs relative display)
-6. **Stash UI** — all IPC commands exist, no Svelte UI yet
-7. **Split `panel.ts`** into separate files per panel
-8. **`ContextMenu.svelte` cleanup** — dead code, remove or wire up
+Polish and not-yet-built items live in `docs/ideas.md` (backlog) — e.g. interactive
+rebase editor, branch/ref compare, worktree UI, undo/reflog timeline, amend/reword.
 
 ---
 
 ## Known issues
 
-- `sidebar.html` needs explicit body reset CSS (browser default adds 8px margin). If CommitArea floats off bottom, add to `sidebar.css`:
-  ```css
-  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
-  #app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-  ```
-- `bind:indeterminate` on master checkbox requires Svelte 4 — verify version.
-- `rev-list --left-right --count @{u}...HEAD` logs as error when branch has no upstream — expected/non-fatal, but noisy. Downgrade to warn.
-- `.prettierrc` missing from repo.
+- `rev-list --left-right --count @{u}...HEAD` logs as error when a branch has no
+  upstream — expected/non-fatal, but noisy. Consider downgrading to warn.
+- Root `hydragit-server` binary was historically committed; `bin/` platform
+  binaries are gitignored and bundled only in the `.vsix`.
 
 ---
 
@@ -382,7 +404,7 @@ Mono:           monospace
 
 | Version | Scope | Status |
 |---|---|---|
-| `0.1.0` | Branch tree + commit log + stash + inline diff. Core two-pane layout. | 🚧 In dev |
-| `0.2.0` | Staged diff view, stage/unstage files, commit from extension, infinite scroll | Planned |
-| `0.3.0` | Interactive rebase UI, branch compare / PR diff, conflict resolution hints | Planned |
+| `0.1.x` | Branch tree + commit log + stash + inline diff. Core two-pane layout. | ✅ Built (in repo) |
+| `0.2.0` | Stage/unstage + commit from extension, tags, blame, file/line history | ✅ Built (in repo, pre-publish) |
+| `0.3.0` | Interactive rebase UI, branch compare / ref diff, conflict resolution hints | Planned |
 | `1.0.0` | All features, polished, AI commit message (Claude API, opt-in) | Planned |

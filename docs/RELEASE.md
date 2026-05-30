@@ -32,7 +32,7 @@ Publisher ID `vkushnarenko` is permanent. Extension becomes `vkushnarenko.hydrag
   "name": "hydragit",
   "displayName": "HydraGit",
   "description": "IntelliJ-style git panel for VS Code — branch tree, commit log, diff. No paywall.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "vkushnarenko",
   "icon": "images/icon.png",
   "engines": { "vscode": "^1.85.0" },
@@ -62,8 +62,8 @@ Open project in VS Code → press F5
 
 **Install as .vsix**
 ```bash
-make package              # → hydragit-0.1.0.vsix
-code --install-extension hydragit-0.1.0.vsix
+make package              # → hydragit-0.2.0.vsix
+code --install-extension hydragit-0.2.0.vsix
 ```
 
 Use on your own real repos for at least 3 days before publishing.
@@ -82,10 +82,13 @@ URL: `marketplace.visualstudio.com/items?itemName=vkushnarenko.hydragit`
 
 **Version bumps:**
 ```bash
-vsce publish patch   # 0.1.0 → 0.1.1
-vsce publish minor   # 0.1.0 → 0.2.0
-vsce publish major   # 0.1.0 → 1.0.0
+vsce publish patch   # 0.2.0 → 0.2.1
+vsce publish minor   # 0.2.0 → 0.3.0
+vsce publish major   # 0.2.0 → 1.0.0
 ```
+
+> Note: not yet published to the Marketplace. The repo is the source of truth;
+> `vkushnarenko.hydragit` is the reserved publisher/extension ID for first publish.
 
 ---
 

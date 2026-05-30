@@ -10,9 +10,13 @@ If you came from IntelliJ and miss having everything in one panel — this is it
 
 ## Features
 - Branch tree — local + remote, right-click actions
-- Commit log — subject, author, date, branch/tag pills
+- Commit log — lane graph, subject, author, date, branch/tag pills, search
 - Inline diff — click a commit, see changed files and diff
-- Branch actions — checkout, merge, rebase, rename, delete, push
+- Stage & commit — file tree, commit / commit & push, right from the sidebar
+- Stash manager — list, pop, apply, drop, show, save
+- Branch actions — checkout, merge, rebase, reset, rename, delete, push
+- Tags — list, create, delete
+- History & blame — file history, line/selection history, inline blame
 
 ## Install
 Search `HydraGit` in Extensions, or: `ext install vkushnarenko.hydragit`
@@ -20,7 +24,6 @@ Search `HydraGit` in Extensions, or: `ext install vkushnarenko.hydragit`
 ## Usage
 Command palette → `HydraGit: Open`
 Or click the HydraGit button in the Source Control panel header.
-```
 
 **The GIF is not optional.** Extensions without a GIF get ~5x fewer installs.
 Record it before publishing. 15 seconds: open panel → branch tree → click branch → log updates → click commit → detail panel → click file → diff → right-click branch → context menu.

@@ -5,7 +5,6 @@ bar (the real target, given the "IntelliJ panel, no paywall" positioning). All
 implementable under the `os/exec + git CLI only` constraint.
 
 - Shipped features → `IMPLEMENTED_FEATURES.md`
-- Graph-engine polish already in progress → `FIRST_TO_RESOLVE.MD`
 
 ## Backlog (not yet built)
 
@@ -18,8 +17,9 @@ implementable under the `os/exec + git CLI only` constraint.
 | **Search & Compare view** | Cross-repo commit search + jump-between-matches | Git log search + Find in Files |
 | **Interactive branch-folder rename** | Rename a whole `folder/` of branches at once | — |
 
-**Top priority: inline blame** — the one remaining standard PyCharm daily-driver
-expectation not yet covered. Doable with `git blame --porcelain`.
+**Inline blame — shipped.** Done via `git blame --porcelain` (buffer-aware through
+`runStdin`), surfaced as editor line-blame + blame cards. See `internal/git/blame.go`
+and `memory/blame-avatar-decisions.md`.
 
 ## Quality-of-life git actions (high-frequency, low-friction)
 

@@ -175,7 +175,6 @@ refreshed by the 3s status poll.
 
 ## Known follow-ups
 
-See `FIRST_TO_RESOLVE.MD` for the remaining polish: lane straightening for the
-last feature at a shared base (Task 6), wide-graph lane-width compression
-(Task 3), and the optional focus / linear / hide-merges view (deferred part of
-Task 5).
+Remaining graph polish: lane straightening for the last feature at a shared base,
+wide-graph lane-width compression, and an optional focus / linear / hide-merges
+view. Broader backlog (rebase editor, ref compare, worktrees, etc.) → `docs/ideas.md`.
