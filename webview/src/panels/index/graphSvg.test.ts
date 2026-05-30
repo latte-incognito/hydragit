@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildGraphSVG, cx, cy } from './graphSvg';
+import { buildGraphSVG, cx, cy, ROW_H } from './graphSvg';
 import type { Commit } from './types';
 
 // Structural tests for the commit-graph SVG builder. These are the cheap,
@@ -93,5 +93,28 @@ describe('buildGraphSVG', () => {
     const svg = parse(buildGraphSVG([], 0));
     expect(svg).toBeTruthy();
     expect(nodeMarkers(svg)).toBe(0);
+  });
+
+  it('renders only the requested row window (virtual scrolling)', () => {
+    // A 6-commit linear chain.
+    const commits: Commit[] = [];
+    for (let i = 0; i < 6; i++) {
+      commits.push({
+        hash: `c${i}`,
+        parents: i < 5 ? [`c${i + 1}`] : [],
+        lane: 0,
+        color: '#f00',
+        edges: i < 5 ? [{ fromLane: 0, toLane: 0, color: '#f00' }] : [],
+      } as Commit);
+    }
+
+    // Full render: one node marker per commit.
+    expect(nodeMarkers(parse(buildGraphSVG(commits, 1)))).toBe(6);
+
+    // Window [2, 4): only rows 2 and 3 get node markers, and the SVG is sized
+    // to the window (2 rows tall) — not the whole history.
+    const win = parse(buildGraphSVG(commits, 1, 2, 4));
+    expect(nodeMarkers(win)).toBe(2);
+    expect(Number(win.getAttribute('height'))).toBe(2 * ROW_H);
   });
 });

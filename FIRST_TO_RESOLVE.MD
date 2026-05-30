@@ -14,7 +14,20 @@ squashing. Ugly-but-correct > pretty-but-misleading.
 
 ## Task 1 — Remove the 200-commit cap; scroll through the whole history
 
-### Current behaviour
+> ✅ **RESOLVED.** The cap is gone: `App.svelte` requests `log` with `limit: 0`
+> and `internal/ipc/handler.go` passes `0` straight through (`git.Log` adds no
+> `--max-count`), so the **full history** loads. `LogPane.svelte` now
+> **virtualizes**: it renders only the rows in/near the viewport (`OVERSCAN`
+> buffer) plus the matching graph-SVG slice, while a full-height spacer
+> (`log-inner`, `height = commits.length * ROW_H`) drives the scrollbar.
+> `buildGraphSVG(commits, laneCount, startRow, endRow)` renders just the window
+> and still includes long edges / merge connectors whose span crosses it
+> (`overflow:visible`). Lanes stay global (`AssignLanes` runs on the whole set).
+> Covered by a `graphSvg.test.ts` windowing test and the rewritten
+> `graph-perf.spec.ts` (asserts full history loaded + small DOM + responsive
+> scroll). The "Scale note" below (100k+ → chunked/incremental) still stands.
+
+### Current behaviour (pre-fix, for reference)
 
 The log is hard-capped at 200 commits, and there is **no pagination or
 virtualization**:
