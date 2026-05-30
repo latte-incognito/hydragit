@@ -46,6 +46,10 @@
       {
         "command": "hydragit.copyCommitSha",
         "title": "HydraGit: Copy Commit SHA"
+      },
+      {
+        "command": "hydragit.lineHistory",
+        "title": "HydraGit: Line History"
       }
     ],
     "menus": {
@@ -74,6 +78,10 @@
       "commandPalette": [
         {
           "command": "hydragit.copyCommitSha",
+          "when": "false"
+        },
+        {
+          "command": "hydragit.lineHistory",
           "when": "false"
         }
       ],

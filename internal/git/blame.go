@@ -22,14 +22,23 @@ type BlameLine struct {
 
 // Blame returns per-line authorship for file.
 //
-// When contents is nil, git blames the file as it exists on disk. When contents
-// is non-nil, git blames those bytes instead via `git blame --contents -`,
-// keeping annotations correct for an editor buffer with unsaved edits
-// (buffer-aware blame). file must be repo-relative; it is still required with
-// --contents because it tells git which path the piped bytes represent.
-func Blame(repoPath, file string, contents []byte) ([]BlameLine, error) {
+// ref selects which version to blame: "" blames the working tree, while a
+// commit-ish (sha, "HEAD", …) blames the file as of that revision — used to
+// attribute the correct side of a diff editor.
+//
+// When contents is non-nil, git blames those bytes instead via
+// `git blame --contents -`, keeping annotations correct for an editor buffer
+// with unsaved edits (buffer-aware blame). contents is only meaningful for the
+// working tree, so it is ignored when ref is set. file must be repo-relative;
+// it is still required with --contents because it tells git which path the
+// piped bytes represent.
+func Blame(repoPath, file, ref string, contents []byte) ([]BlameLine, error) {
 	args := []string{"blame", "--porcelain"}
-	if contents != nil {
+	if ref != "" {
+		// A historical revision: --contents is not applicable.
+		args = append(args, ref)
+		contents = nil
+	} else if contents != nil {
 		args = append(args, "--contents", "-")
 	}
 	args = append(args, "--", file)

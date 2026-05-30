@@ -27,6 +27,28 @@ export interface LineCommit extends Commit {
   hunks: Hunk[];
 }
 
+// Avatar URLs for an author, resolved in the extension host (see avatar.ts).
+// Consumers render them as a fallback chain: github → gravatar → initialsSvg.
+export interface Avatar {
+  github?: string;
+  gravatar: string;
+  initials: string;
+  color: string;
+  initialsSvg: string;
+}
+
+// Per-line authorship from `git blame`, enriched with an avatar by the host.
+export interface BlameLine {
+  line: number;
+  commit: string;
+  author: string;
+  authorEmail: string;
+  authorTime: number; // unix epoch seconds
+  summary: string;
+  uncommitted: boolean;
+  avatar?: Avatar;
+}
+
 // One rendered row of the side-by-side viewer. A side may be absent (filler).
 export interface DiffRow {
   kind: 'ctx' | 'del' | 'add' | 'mod';

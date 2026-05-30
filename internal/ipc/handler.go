@@ -189,6 +189,7 @@ func handle(repoPath string, req Request) Response {
 	case "blame":
 		var p struct {
 			Path     string `json:"path"`
+			Ref      string `json:"ref"`      // "" = working tree, else a commit-ish
 			Contents string `json:"contents"` // editor buffer for unsaved files
 			Dirty    bool   `json:"dirty"`    // true → blame Contents, not disk
 		}
@@ -198,7 +199,7 @@ func handle(repoPath string, req Request) Response {
 			// non-nil (possibly empty) slice flips Blame into --contents - mode
 			contents = []byte(p.Contents)
 		}
-		lines, err := git.Blame(repoPath, p.Path, contents)
+		lines, err := git.Blame(repoPath, p.Path, p.Ref, contents)
 		if err != nil {
 			return fail(id, err)
 		}

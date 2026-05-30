@@ -3,6 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { GoProcess } from './goProcess';
 import { openDiff, openFile } from './panel';
+import { resolveAvatar } from './avatar';
+import type { BlameLine } from './blameAnnotation';
 
 type HistoryInit =
   | { mode: 'file'; file: string }
@@ -66,18 +68,11 @@ export class HistoryPanelManager {
     });
 
     if (!this.panel) {
-      this.panel = vscode.window.createWebviewPanel(
-        'hydragit.history',
-        title,
-        listColumn,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [
-            vscode.Uri.file(path.join(this.ctx.extensionPath, 'webview')),
-          ],
-        }
-      );
+      this.panel = vscode.window.createWebviewPanel('hydragit.history', title, listColumn, {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [vscode.Uri.file(path.join(this.ctx.extensionPath, 'webview'))],
+      });
 
       this.panel.webview.html = this.getHtml(this.panel.webview);
       this.panel.webview.onDidReceiveMessage((msg) => this.onMessage(msg));
@@ -120,7 +115,16 @@ export class HistoryPanelManager {
 
     try {
       const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
-      this.panel.webview.postMessage({ id: msg.id, ok: true, data });
+      // Blame rows feed the webview's hover card — enrich each with an avatar
+      // here (the webview can't run Node crypto for the Gravatar hash).
+      const enriched =
+        msg.cmd === 'blame' && Array.isArray(data)
+          ? (data as BlameLine[]).map((l) => ({
+              ...l,
+              avatar: resolveAvatar(l.author, l.authorEmail),
+            }))
+          : data;
+      this.panel.webview.postMessage({ id: msg.id, ok: true, data: enriched });
     } catch (err) {
       this.panel.webview.postMessage({
         id: msg.id,

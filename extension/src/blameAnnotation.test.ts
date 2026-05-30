@@ -4,6 +4,7 @@ import {
   formatRelative,
   buildAnnotation,
   buildHoverMarkdown,
+  resolveBlameTarget,
   type BlameLine,
 } from './blameAnnotation';
 
@@ -88,5 +89,55 @@ describe('buildHoverMarkdown', () => {
     const md = buildHoverMarkdown(line({ summary: 'fix [a](b) *bold*' }), NOW);
     expect(md).not.toContain('[a](b)');
     expect(md).toContain('\\[a\\]');
+  });
+
+  it('renders a 2-column table with the avatar on the right when given a url', () => {
+    const md = buildHoverMarkdown(line(), NOW, 'https://avatars.example/u/1');
+    expect(md).toContain('|:--|--:|'); // right-aligned avatar column
+    expect(md).toContain('![](https://avatars.example/u/1)');
+    expect(md).toContain('Fix null check');
+  });
+});
+
+describe('resolveBlameTarget', () => {
+  const ROOT = '/repo';
+
+  it('maps a file: document to the working tree', () => {
+    expect(resolveBlameTarget('file', '/repo/src/a.ts', '', ROOT)).toEqual({
+      rel: 'src/a.ts',
+      ref: '',
+    });
+  });
+
+  it('rejects files outside the workspace', () => {
+    expect(resolveBlameTarget('file', '/elsewhere/a.ts', '', ROOT)).toBeNull();
+  });
+
+  it('reads the ref from a git: diff URI query', () => {
+    const query = JSON.stringify({ path: '/repo/src/a.ts', ref: 'abc1234' });
+    expect(resolveBlameTarget('git', '/repo/src/a.ts', query, ROOT)).toEqual({
+      rel: 'src/a.ts',
+      ref: 'abc1234',
+    });
+  });
+
+  it('decodes a URL-encoded git: query', () => {
+    const query = encodeURIComponent(JSON.stringify({ path: '/repo/src/a.ts', ref: 'HEAD' }));
+    expect(resolveBlameTarget('git', '/repo/src/a.ts', query, ROOT)).toEqual({
+      rel: 'src/a.ts',
+      ref: 'HEAD',
+    });
+  });
+
+  it('treats the index ref "~" and empty ref as the working tree', () => {
+    const tilde = JSON.stringify({ path: '/repo/a.ts', ref: '~' });
+    const empty = JSON.stringify({ path: '/repo/a.ts', ref: '' });
+    expect(resolveBlameTarget('git', '/repo/a.ts', tilde, ROOT)?.ref).toBe('');
+    expect(resolveBlameTarget('git', '/repo/a.ts', empty, ROOT)?.ref).toBe('');
+  });
+
+  it('returns null for unknown schemes and malformed git queries', () => {
+    expect(resolveBlameTarget('untitled', '/repo/a.ts', '', ROOT)).toBeNull();
+    expect(resolveBlameTarget('git', '/repo/a.ts', 'not-json', ROOT)).toBeNull();
   });
 });

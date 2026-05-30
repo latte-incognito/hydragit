@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { GoProcess } from './goProcess';
+import { resolveAvatar, bestAvatarUrl } from './avatar';
 import { Logger } from './Logger';
 
 /** Mirror of Go's git.BlameLine (internal/git/blame.go). */
@@ -67,26 +68,37 @@ export function buildAnnotation(blame: BlameLine, currentEmail: string, nowMs: n
 
 /**
  * buildHoverMarkdown produces the markdown body of the hover card (sha, author,
- * absolute + relative time, full summary). Returned as a plain string so it is
- * pure and unit-testable; the controller wraps it in a vscode.MarkdownString and
- * appends command links.
+ * absolute + relative time, full summary). When avatarUrl is given the body is a
+ * 2-column table with the avatar on the right — the closest a MarkdownString can
+ * get to a corner avatar (it has no CSS positioning), and it requires
+ * supportHtml on the MarkdownString for the in-cell <br> breaks. Returned as a
+ * plain string so it is pure and unit-testable; the controller wraps it in a
+ * vscode.MarkdownString and appends command links.
  */
-export function buildHoverMarkdown(blame: BlameLine, nowMs: number): string {
+export function buildHoverMarkdown(blame: BlameLine, nowMs: number, avatarUrl?: string): string {
   if (blame.uncommitted || blame.commit === ZERO_SHA) {
     return '**Not Committed Yet**\n\nThis line has uncommitted changes.';
   }
   const shortSha = blame.commit.slice(0, 8);
   const when = formatRelative(blame.authorTime, nowMs);
   const absolute = new Date(blame.authorTime * 1000).toLocaleString();
-  const lines = [
-    `**${escapeMd(blame.summary || '(no message)')}**`,
+  const summary = escapeMd(blame.summary || '(no message)');
+  const author = escapeMd(blame.author);
+  const email = escapeMd(blame.authorEmail);
+
+  if (avatarUrl) {
+    const text = `**${summary}**<br>${author}<br>${email}<br>${when} — ${absolute}<br>\`${shortSha}\``;
+    return ['|  |  |', '|:--|--:|', `| ${text} | ![](${avatarUrl}) |`].join('\n');
+  }
+
+  return [
+    `**${summary}**`,
     '',
-    `${escapeMd(blame.author)} <${escapeMd(blame.authorEmail)}>`,
+    `${author} <${email}>`,
     `${when} — ${absolute}`,
     '',
     `\`${shortSha}\``,
-  ];
-  return lines.join('\n');
+  ].join('\n');
 }
 
 // Escape only the characters that carry markdown meaning or could inject a link
@@ -95,6 +107,77 @@ export function buildHoverMarkdown(blame: BlameLine, nowMs: number): string {
 // `[x](command:…)` link. Dots, dashes, etc. are left intact so emails render cleanly.
 function escapeMd(s: string): string {
   return s.replace(/[\\`*_[\]()<>]/g, (m) => '\\' + m);
+}
+
+/** What to blame: a repo-relative path plus the ref ("" = working tree). */
+export interface BlameTarget {
+  rel: string;
+  ref: string;
+}
+
+/**
+ * resolveBlameTarget maps an editor document to a blame target, or null when the
+ * document can't/shouldn't be blamed (outside the workspace, unknown scheme).
+ *
+ * - `file:` documents → the working tree (ref "").
+ * - `git:` documents (a diff pane / opened revision) → the ref encoded in the
+ *   built-in Git extension's URI query (`{"path","ref"}`), so each side of a
+ *   diff is attributed at its own revision. The index ref "~" and empty refs
+ *   fall back to the working tree.
+ *
+ * Kept pure (no vscode import) so the URI/ref parsing is unit-testable.
+ */
+export function resolveBlameTarget(
+  scheme: string,
+  fsPath: string,
+  query: string,
+  workspaceRoot: string
+): BlameTarget | null {
+  const relTo = (abs: string): string | null => {
+    const rel = path.relative(workspaceRoot, abs);
+    if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+    return rel.split(path.sep).join('/');
+  };
+
+  if (scheme === 'file') {
+    const rel = relTo(fsPath);
+    return rel ? { rel, ref: '' } : null;
+  }
+
+  if (scheme === 'git') {
+    const parsed = parseGitQuery(query);
+    if (!parsed) return null;
+    const rel = relTo(parsed.path);
+    if (!rel) return null;
+    // "~" is the staged/index version; treat it (and empty) as the working tree.
+    const ref = !parsed.ref || parsed.ref === '~' ? '' : parsed.ref;
+    return { rel, ref };
+  }
+
+  return null;
+}
+
+function parseGitQuery(query: string): { path: string; ref: string } | null {
+  if (!query) return null;
+  for (const candidate of [query, safeDecode(query)]) {
+    try {
+      const obj = JSON.parse(candidate);
+      if (obj && typeof obj.path === 'string') {
+        return { path: obj.path, ref: typeof obj.ref === 'string' ? obj.ref : '' };
+      }
+    } catch {
+      // try the next candidate
+    }
+  }
+  return null;
+}
+
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
 }
 
 interface CacheEntry {
@@ -152,10 +235,9 @@ export class BlameController implements vscode.Disposable {
         if (e.document === vscode.window.activeTextEditor?.document) this.scheduleRefresh();
       }),
       vscode.workspace.onDidCloseTextDocument((doc) => this.cache.delete(doc.uri.toString())),
-      vscode.languages.registerHoverProvider(
-        { scheme: 'file' },
-        { provideHover: (doc, pos) => this.provideHover(doc, pos) }
-      )
+      vscode.languages.registerHoverProvider([{ scheme: 'file' }, { scheme: 'git' }], {
+        provideHover: (doc, pos) => this.provideHover(doc, pos),
+      })
     );
 
     this.scheduleRefresh();
@@ -178,25 +260,29 @@ export class BlameController implements vscode.Disposable {
     this.debounceTimer = setTimeout(() => void this.refresh(), 200);
   }
 
-  /** repo-relative, forward-slashed path, or null if outside the workspace. */
-  private relativePath(doc: vscode.TextDocument): string | null {
-    if (doc.uri.scheme !== 'file') return null;
-    const rel = path.relative(this.workspaceRoot, doc.uri.fsPath);
-    if (rel.startsWith('..') || path.isAbsolute(rel)) return null;
-    return rel.split(path.sep).join('/');
-  }
-
   private async getBlame(doc: vscode.TextDocument): Promise<BlameLine[] | null> {
-    const rel = this.relativePath(doc);
-    if (!rel) return null;
+    const target = resolveBlameTarget(
+      doc.uri.scheme,
+      doc.uri.fsPath,
+      doc.uri.query,
+      this.workspaceRoot
+    );
+    if (!target) return null;
 
+    // The cache key includes the URI query, so each diff revision caches apart.
     const key = doc.uri.toString();
     const cached = this.cache.get(key);
     if (cached && cached.version === doc.version) return cached.lines;
 
-    const params = doc.isDirty
-      ? { path: rel, contents: doc.getText(), dirty: true }
-      : { path: rel };
+    const params: { path: string; ref?: string; contents?: string; dirty?: boolean } = {
+      path: target.rel,
+    };
+    if (target.ref) params.ref = target.ref;
+    // Buffer-aware blame only applies to the editable working-tree file.
+    if (doc.uri.scheme === 'file' && doc.isDirty) {
+      params.contents = doc.getText();
+      params.dirty = true;
+    }
 
     try {
       const lines = (await this.go.send('blame', params)) as BlameLine[];
@@ -204,7 +290,7 @@ export class BlameController implements vscode.Disposable {
       return lines;
     } catch (e) {
       // Untracked files and non-repo paths error from git — expected, stay quiet.
-      Logger.info('blame', `blame failed for ${rel}: ${String(e)}`);
+      Logger.info('blame', `blame failed for ${target.rel}@${target.ref || 'work'}: ${String(e)}`);
       return null;
     }
   }
@@ -253,14 +339,23 @@ export class BlameController implements vscode.Disposable {
     const blame = cached?.lines[position.line];
     if (!blame) return undefined;
 
-    const md = new vscode.MarkdownString(buildHoverMarkdown(blame, Date.now()));
+    const committed = !blame.uncommitted && blame.commit !== ZERO_SHA;
+    const avatarUrl = committed
+      ? bestAvatarUrl(resolveAvatar(blame.author, blame.authorEmail))
+      : undefined;
+
+    const md = new vscode.MarkdownString(buildHoverMarkdown(blame, Date.now(), avatarUrl));
     md.isTrusted = true;
+    md.supportHtml = true; // for the <br> breaks in the avatar table cell
     if (!blame.uncommitted && blame.commit !== ZERO_SHA) {
       const copyArg = encodeURIComponent(JSON.stringify(blame.commit));
       // fileHistory with no args falls back to the active editor — i.e. this file.
+      // lineHistory needs the file + the hovered line (1-based for git).
+      const lineArg = encodeURIComponent(JSON.stringify([doc.uri.toString(), position.line + 1]));
       md.appendMarkdown(
         `\n\n[Copy SHA](command:hydragit.copyCommitSha?${copyArg}) · ` +
-          `[File History](command:hydragit.fileHistory)`
+          `[File History](command:hydragit.fileHistory) · ` +
+          `[Line History](command:hydragit.lineHistory?${lineArg})`
       );
     }
     return new vscode.Hover(md, doc.lineAt(position.line).range);

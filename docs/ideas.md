@@ -11,7 +11,6 @@ implementable under the `os/exec + git CLI only` constraint.
 
 | Feature | What it does | PyCharm equivalent |
 |---|---|---|
-| **Inline blame & hovers** | Per-line "who changed this + which commit" | `Annotate with Git Blame` |
 | **Revision navigation** | Step back/forward through a file's history in the editor | History tab + diff arrows |
 | **Worktree management UI** | Create / switch / remove worktrees visually | `Git → Manage Worktrees` |
 | **Interactive rebase editor** | Drag-to-reorder / squash UI | Interactive rebase dialog |
