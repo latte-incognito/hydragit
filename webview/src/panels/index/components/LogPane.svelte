@@ -190,11 +190,17 @@
     });
   }
 
+  // ── Branch-line highlight ────────────────────────────────────────────────
+  // Hovering a row highlights its branch line (segment) and dims the rest.
+  let hoveredSeg: number | null = null;
+  function hoverRow(i: number) { hoveredSeg = commits[i]?.seg ?? null; }
+  function clearHover() { hoveredSeg = null; }
+
   $: totalH   = commits.length * ROW_H;
   $: winStart = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
   $: winEnd   = Math.min(commits.length, Math.ceil((scrollTop + viewportH) / ROW_H) + OVERSCAN);
   $: winTopPx = winStart * ROW_H;
-  $: graphSVG = buildGraphSVG(commits, laneCount, winStart, winEnd);
+  $: graphSVG = buildGraphSVG(commits, laneCount, winStart, winEnd, hoveredSeg);
   // Indices of the rows to render (avoids slicing/cloning commit objects).
   $: visible = (() => {
     const out: number[] = [];
@@ -339,7 +345,7 @@
     <div class="lch-col" style="width:{dateW}px">Date</div>
   </div>
 
-  <div class="log-scroll" bind:this={scroller} on:scroll={onScroll} bind:clientHeight={viewportH}>
+  <div class="log-scroll" bind:this={scroller} on:scroll={onScroll} on:mouseleave={clearHover} bind:clientHeight={viewportH}>
     {#if commits.length === 0}
       <div class="log-empty">No commits</div>
     {:else}
@@ -355,9 +361,11 @@
             <div
               class="crow"
               class:sel={selectedIdx === i}
+              class:dim={hoveredSeg !== null && c.seg !== hoveredSeg}
               style="top:{i * ROW_H}px"
               on:click={() => onSelect(i)}
               on:contextmenu={(e) => showCtx(e, i)}
+              on:mouseenter={() => hoverRow(i)}
               role="option"
               aria-selected={selectedIdx === i}
               tabindex="0"
@@ -504,6 +512,8 @@
   }
   .crow:hover { background: var(--vscode-list-hoverBackground, #2a2a2a); }
   .crow.sel   { background: #0e2030; border-left-color: #56c8e8; }
+  /* Dim rows that aren't on the hovered branch line. */
+  .crow.dim   { opacity: 0.4; }
 
   .col-spacer {
     width: 5px;

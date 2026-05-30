@@ -11,6 +11,7 @@ export interface GraphEdge {
   fromLane: number;
   toLane: number;
   color: string;
+  seg?: number;
 }
 
 export interface MergePath {
@@ -19,6 +20,7 @@ export interface MergePath {
   fromRow: number;
   toRow: number;
   color: string;
+  seg?: number;
 }
 
 export interface Commit {
@@ -30,6 +32,7 @@ export interface Commit {
   refs: string[];
   parents: string[];
   lane?: number;
+  seg?: number;
   color?: string;
   edges?: GraphEdge[];
   mergePaths?: MergePath[];
