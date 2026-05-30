@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { GoProcess } from './goProcess';
-import { resolveAvatar, bestAvatarUrl } from './avatar';
 import { Logger } from './Logger';
 
 /** Mirror of Go's git.BlameLine (internal/git/blame.go). */
@@ -68,33 +67,22 @@ export function buildAnnotation(blame: BlameLine, currentEmail: string, nowMs: n
 
 /**
  * buildHoverMarkdown produces the markdown body of the hover card (sha, author,
- * absolute + relative time, full summary). When avatarUrl is given the body is a
- * 2-column table with the avatar on the right — the closest a MarkdownString can
- * get to a corner avatar (it has no CSS positioning), and it requires
- * supportHtml on the MarkdownString for the in-cell <br> breaks. Returned as a
- * plain string so it is pure and unit-testable; the controller wraps it in a
- * vscode.MarkdownString and appends command links.
+ * absolute + relative time, full summary). Returned as a plain string so it is
+ * pure and unit-testable; the controller wraps it in a vscode.MarkdownString and
+ * appends command links.
  */
-export function buildHoverMarkdown(blame: BlameLine, nowMs: number, avatarUrl?: string): string {
+export function buildHoverMarkdown(blame: BlameLine, nowMs: number): string {
   if (blame.uncommitted || blame.commit === ZERO_SHA) {
     return '**Not Committed Yet**\n\nThis line has uncommitted changes.';
   }
   const shortSha = blame.commit.slice(0, 8);
   const when = formatRelative(blame.authorTime, nowMs);
   const absolute = new Date(blame.authorTime * 1000).toLocaleString();
-  const summary = escapeMd(blame.summary || '(no message)');
-  const author = escapeMd(blame.author);
-  const email = escapeMd(blame.authorEmail);
-
-  if (avatarUrl) {
-    const text = `**${summary}**<br>${author}<br>${email}<br>${when} — ${absolute}<br>\`${shortSha}\``;
-    return ['|  |  |', '|:--|--:|', `| ${text} | ![](${avatarUrl}) |`].join('\n');
-  }
 
   return [
-    `**${summary}**`,
+    `**${escapeMd(blame.summary || '(no message)')}**`,
     '',
-    `${author} <${email}>`,
+    `${escapeMd(blame.author)} <${escapeMd(blame.authorEmail)}>`,
     `${when} — ${absolute}`,
     '',
     `\`${shortSha}\``,
@@ -339,14 +327,8 @@ export class BlameController implements vscode.Disposable {
     const blame = cached?.lines[position.line];
     if (!blame) return undefined;
 
-    const committed = !blame.uncommitted && blame.commit !== ZERO_SHA;
-    const avatarUrl = committed
-      ? bestAvatarUrl(resolveAvatar(blame.author, blame.authorEmail))
-      : undefined;
-
-    const md = new vscode.MarkdownString(buildHoverMarkdown(blame, Date.now(), avatarUrl));
+    const md = new vscode.MarkdownString(buildHoverMarkdown(blame, Date.now()));
     md.isTrusted = true;
-    md.supportHtml = true; // for the <br> breaks in the avatar table cell
     if (!blame.uncommitted && blame.commit !== ZERO_SHA) {
       const copyArg = encodeURIComponent(JSON.stringify(blame.commit));
       // fileHistory with no args falls back to the active editor — i.e. this file.

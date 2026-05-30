@@ -90,13 +90,6 @@ describe('buildHoverMarkdown', () => {
     expect(md).not.toContain('[a](b)');
     expect(md).toContain('\\[a\\]');
   });
-
-  it('renders a 2-column table with the avatar on the right when given a url', () => {
-    const md = buildHoverMarkdown(line(), NOW, 'https://avatars.example/u/1');
-    expect(md).toContain('|:--|--:|'); // right-aligned avatar column
-    expect(md).toContain('![](https://avatars.example/u/1)');
-    expect(md).toContain('Fix null check');
-  });
 });
 
 describe('resolveBlameTarget', () => {
