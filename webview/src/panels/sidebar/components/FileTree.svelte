@@ -98,7 +98,12 @@
     return root;
   }
 
-  $: tree = buildTree(files);
+  // Two sections: staged files (in stagedPaths) and the rest. Each gets its own
+  // folder tree; clicking a file's checkbox moves it between sections.
+  $: stagedFiles  = files.filter((f) => stagedPaths.has(f.path));
+  $: changesFiles = files.filter((f) => !stagedPaths.has(f.path));
+  $: stagedTree   = buildTree(stagedFiles);
+  $: changesTree  = buildTree(changesFiles);
 
   // ── Folder helpers ────────────────────────────────────────────────────────
   function allFilesInFolder(node: TreeFolder): string[] {
@@ -275,7 +280,39 @@
       {/if}
     {/snippet}
 
-    {@render renderFolder(tree, 0)}
+    {#if stagedFiles.length > 0}
+      <div class="group-header">
+        <span class="group-label">Staged Changes</span>
+        <span class="group-count">{stagedFiles.length}</span>
+        <button
+          class="group-action"
+          title="Unstage all"
+          on:click={() => onStageFolder(stagedFiles.map((f) => f.path), false)}
+        >
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path d="M2.2 6h7.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      {@render renderFolder(stagedTree, 0)}
+    {/if}
+
+    {#if changesFiles.length > 0}
+      <div class="group-header">
+        <span class="group-label">Changes</span>
+        <span class="group-count">{changesFiles.length}</span>
+        <button
+          class="group-action"
+          title="Stage all"
+          on:click={() => onStageFolder(changesFiles.map((f) => f.path), true)}
+        >
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path d="M6 2.2v7.6M2.2 6h7.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      {@render renderFolder(changesTree, 0)}
+    {/if}
   {/if}
 </div>
 
@@ -316,6 +353,57 @@
   }
   .welcome-btn:hover {
     background: var(--vscode-button-hoverBackground, #1177bb);
+  }
+
+  /* ── Section group header (Staged Changes / Changes) ── */
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px 3px;
+    font-size: var(--hg-font-xxs, 10px);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--vscode-descriptionForeground, #8c8c8c);
+    user-select: none;
+  }
+  .group-count {
+    font-size: var(--hg-font-xxs, 10px);
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--vscode-badge-foreground, #9fd0e0);
+    background: var(--vscode-badge-background, #2a3a44);
+    border-radius: 8px;
+    padding: 0 6px;
+    line-height: 14px;
+  }
+  /* Same visual size/treatment as the file checkboxes, with a bold +/- glyph. */
+  .group-action {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    padding: 0;
+    border: 1px solid var(--vscode-checkbox-border, #6b6b6b);
+    border-radius: 3px;
+    background: var(--vscode-checkbox-background, #3c3c3c);
+    color: var(--vscode-foreground, #cccccc);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.1s, background 0.1s, border-color 0.1s;
+  }
+  .group-header:hover .group-action,
+  .group-action:focus-visible {
+    opacity: 1;
+  }
+  .group-action:hover {
+    background: var(--vscode-checkbox-selectBackground, #0078d4);
+    border-color: var(--vscode-checkbox-selectBackground, #0078d4);
+    color: #ffffff;
   }
 
   /* ── Folder row ── */

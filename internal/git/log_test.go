@@ -43,6 +43,59 @@ func initRepo(t *testing.T) string {
 	return dir
 }
 
+func TestLogFilters(t *testing.T) {
+	dir := initRepo(t)
+	commitAs := func(name, msg string) {
+		t.Helper()
+		cmd := exec.Command("git", "-C", dir, "commit", "--allow-empty", "-m", msg)
+		cmd.Env = append(cmd.Environ(),
+			"GIT_AUTHOR_NAME="+name, "GIT_AUTHOR_EMAIL="+name+"@x.com",
+			"GIT_COMMITTER_NAME="+name, "GIT_COMMITTER_EMAIL="+name+"@x.com")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("commit %q: %s", msg, out)
+		}
+	}
+	commitAs("Alice", "feat: add login")
+	commitAs("Bob", "fix: logout bug")
+	commitAs("Alice", "docs: readme")
+
+	// Filter by message.
+	byMsg, err := LogWith(dir, LogOptions{Grep: "logout"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(byMsg) != 1 || byMsg[0].Message != "fix: logout bug" {
+		t.Fatalf("grep 'logout': expected 1 commit, got %d", len(byMsg))
+	}
+
+	// Filter by author.
+	byAuthor, err := LogWith(dir, LogOptions{Author: "Alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(byAuthor) != 2 {
+		t.Fatalf("author Alice: expected 2 commits, got %d", len(byAuthor))
+	}
+
+	// Message + author combine with AND.
+	both, err := LogWith(dir, LogOptions{Author: "Alice", Grep: "readme"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(both) != 1 || both[0].Message != "docs: readme" {
+		t.Fatalf("Alice+readme: expected 1 commit, got %d", len(both))
+	}
+
+	// Grep is case-insensitive.
+	ci, err := LogWith(dir, LogOptions{Grep: "LOGOUT"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ci) != 1 {
+		t.Fatalf("case-insensitive grep: expected 1 commit, got %d", len(ci))
+	}
+}
+
 func TestLog(t *testing.T) {
 	dir := initRepo(t)
 	exec.Command("git", "-C", dir, "commit", "--allow-empty", "-m", "second").Run()

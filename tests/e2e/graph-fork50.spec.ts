@@ -22,22 +22,33 @@ test.describe("fork-merge graph — 50 developers (compact)", () => {
     const renderMs = Date.now() - start;
     console.log(`fork50 first rows visible after ${renderMs}ms`);
 
-    // 50 branches × (2 commits + 1 merge) + base = 151 commits (under the 200 cap).
-    const rows = await frame.locator(".crow").count();
-    expect(rows).toBe(151);
+    // Full history is loaded: 50 branches × (2 commits + 1 merge) + base = 151
+    // commits. The log is now virtualized, so the row DOM holds only the visible
+    // window — assert the full count via the scroll spacer, not the .crow count.
+    const innerH = await frame
+      .locator(".log-inner")
+      .evaluate((el: HTMLElement) => el.clientHeight);
+    expect(Math.round(innerH / 22)).toBe(151);
 
-    // The win: branches sharing the base collapse into a few reused lanes
-    // instead of 50 parallel rails. Assert a tight ceiling.
+    // Virtualization: only the viewport's worth of rows is in the DOM, not 151.
+    const rows = await frame.locator(".crow").count();
+    console.log(`fork50 rendered rows = ${rows}`);
+    expect(rows).toBeGreaterThan(0);
+    expect(rows).toBeLessThan(151);
+
+    // The point of this test: branches sharing the base collapse into a few
+    // reused lanes instead of 50 parallel rails. Assert a tight lane ceiling.
     const lanes = await graphLaneCount(frame);
     console.log(`fork50 lane count = ${lanes}`);
     expect(lanes).toBeLessThanOrEqual(8);
 
-    // Scroll to the bottom, confirm responsiveness.
+    // Scroll to the bottom, confirm responsiveness and that rows still render.
     const scroller = frame.locator(".log-scroll");
     const t0 = Date.now();
     await scroller.evaluate((el: HTMLElement) => el.scrollTo(0, el.scrollHeight));
     await mainWindow.waitForTimeout(300);
     console.log(`fork50 scroll settled in ${Date.now() - t0}ms`);
+    expect(await frame.locator(".crow").count()).toBeGreaterThan(0);
 
     expect(renderMs).toBeLessThan(30_000);
   });

@@ -5,6 +5,7 @@ import { GoProcess } from './goProcess';
 import { HydraBadgeTreeProvider, HydraSidebarProvider, HydraViewProvider } from './panel';
 import { HistoryPanelManager } from './historyPanel';
 import { HydraStatusService } from './HydraStatusService';
+import { BlameController } from './blameAnnotation';
 import { Logger } from './Logger';
 
 let goProcess: GoProcess | undefined;
@@ -17,7 +18,10 @@ export function activate(ctx: vscode.ExtensionContext): void {
   // and HydraStatusService can use it immediately.
   Logger.init(output);
 
-  Logger.info('extension', `activating version=${buildInfo.version} commit=${buildInfo.commit} built=${buildInfo.buildTime} dirty=${buildInfo.dirty}`);
+  Logger.info(
+    'extension',
+    `activating version=${buildInfo.version} commit=${buildInfo.commit} built=${buildInfo.buildTime} dirty=${buildInfo.dirty}`
+  );
 
   const logDir = ctx.logUri.fsPath;
 
@@ -37,10 +41,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }),
 
     vscode.commands.registerCommand('hydragit.openLogs', async () => {
-      await vscode.commands.executeCommand(
-        'revealFileInOS',
-        vscode.Uri.file(logDir)
-      );
+      await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(logDir));
     })
   );
 
@@ -75,6 +76,18 @@ export function activate(ctx: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('hydragit.revealAll', async () => {
       await vscode.commands.executeCommand('workbench.view.extension.hydragit');
       await vscode.commands.executeCommand('hydragit.mainView.focus');
+    })
+  );
+
+  // Inline blame: faint trailing annotation on the active editor line + hover.
+  const blameController = new BlameController(goProcess, workspaceRoot);
+  ctx.subscriptions.push(
+    blameController,
+    vscode.commands.registerCommand('hydragit.toggleLineBlame', () => blameController.toggle()),
+    vscode.commands.registerCommand('hydragit.copyCommitSha', async (sha?: string) => {
+      if (!sha) return;
+      await vscode.env.clipboard.writeText(sha);
+      vscode.window.setStatusBarMessage(`Copied ${sha.slice(0, 8)}`, 2000);
     })
   );
 

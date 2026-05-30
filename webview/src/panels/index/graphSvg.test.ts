@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildGraphSVG, cx, cy } from './graphSvg';
+import { buildGraphSVG, cx, cy, ROW_H } from './graphSvg';
 import type { Commit } from './types';
 
 // Structural tests for the commit-graph SVG builder. These are the cheap,
@@ -93,5 +93,54 @@ describe('buildGraphSVG', () => {
     const svg = parse(buildGraphSVG([], 0));
     expect(svg).toBeTruthy();
     expect(nodeMarkers(svg)).toBe(0);
+  });
+
+  it('dims elements not on the highlighted branch line', () => {
+    // Two segments: seg 0 (a → base) and seg 1 (b, a feature off base).
+    const commits: Commit[] = [
+      { hash: 'a', parents: ['b', 'base'], lane: 0, seg: 0, color: '#f00',
+        edges: [{ fromLane: 0, toLane: 0, color: '#f00', seg: 0 }],
+        mergePaths: [{ fromLane: 0, toLane: 1, fromRow: 0, toRow: 1, color: '#0f0', seg: 1 }] },
+      { hash: 'b', parents: ['base'], lane: 1, seg: 1, color: '#0f0',
+        edges: [{ fromLane: 1, toLane: 1, color: '#0f0', seg: 1 }] },
+      { hash: 'base', parents: [], lane: 0, seg: 0, color: '#f00' },
+    ] as Commit[];
+
+    // No highlight → nothing dimmed.
+    const plain = buildGraphSVG(commits, 2);
+    expect(plain.includes('opacity="0.16"')).toBe(false);
+
+    // Highlight seg 0 → seg-1 elements (b's dot, b's edge, the merge connector)
+    // get dimmed; seg-0 elements do not.
+    const hi = parse(buildGraphSVG(commits, 2, 0, commits.length, 0));
+    const dimmed = hi.querySelectorAll('[opacity="0.16"]').length;
+    const undimmed = [...hi.querySelectorAll('circle, path, line')].filter(
+      (el) => el.getAttribute('opacity') !== '0.16',
+    ).length;
+    expect(dimmed).toBeGreaterThan(0);   // some seg-1 elements dimmed
+    expect(undimmed).toBeGreaterThan(0); // seg-0 elements stay lit
+  });
+
+  it('renders only the requested row window (virtual scrolling)', () => {
+    // A 6-commit linear chain.
+    const commits: Commit[] = [];
+    for (let i = 0; i < 6; i++) {
+      commits.push({
+        hash: `c${i}`,
+        parents: i < 5 ? [`c${i + 1}`] : [],
+        lane: 0,
+        color: '#f00',
+        edges: i < 5 ? [{ fromLane: 0, toLane: 0, color: '#f00' }] : [],
+      } as Commit);
+    }
+
+    // Full render: one node marker per commit.
+    expect(nodeMarkers(parse(buildGraphSVG(commits, 1)))).toBe(6);
+
+    // Window [2, 4): only rows 2 and 3 get node markers, and the SVG is sized
+    // to the window (2 rows tall) — not the whole history.
+    const win = parse(buildGraphSVG(commits, 1, 2, 4));
+    expect(nodeMarkers(win)).toBe(2);
+    expect(Number(win.getAttribute('height'))).toBe(2 * ROW_H);
   });
 });
