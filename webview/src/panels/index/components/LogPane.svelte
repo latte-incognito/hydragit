@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Commit } from '../types';
-  import { buildGraphSVG, LANE_W, PAD } from '../graphSvg';
+  import { buildGraphSVG, LANE_W, PAD, ROW_H } from '../graphSvg';
 
   export let commits: Commit[] = [];
   export let selectedIdx: number | null = null;
@@ -169,8 +169,48 @@
   // ── Derived ───────────────────────────────────────────────────────────────
   $: maxLane  = commits.reduce((m, c) => Math.max(m, c.lane ?? 0), 0);
   $: laneCount = maxLane + 1;
-  $: graphSVG  = buildGraphSVG(commits, laneCount);
   $: graphW    = Math.max(28, laneCount * LANE_W + PAD * 2);
+
+  // ── Virtual scrolling ───────────────────────────────────────────────────────
+  // The whole history is loaded, but we only render the rows in (and a little
+  // around) the viewport — both the commit rows and the graph SVG slice — so the
+  // DOM stays small no matter how many commits there are.
+  const OVERSCAN = 8;                       // extra rows rendered above/below
+  let scroller: HTMLElement;
+  let scrollTop = 0;
+  let viewportH = 0;
+  let rafPending = false;
+
+  function onScroll() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      scrollTop = scroller?.scrollTop ?? 0;
+      rafPending = false;
+    });
+  }
+
+  $: totalH   = commits.length * ROW_H;
+  $: winStart = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
+  $: winEnd   = Math.min(commits.length, Math.ceil((scrollTop + viewportH) / ROW_H) + OVERSCAN);
+  $: winTopPx = winStart * ROW_H;
+  $: graphSVG = buildGraphSVG(commits, laneCount, winStart, winEnd);
+  // Indices of the rows to render (avoids slicing/cloning commit objects).
+  $: visible = (() => {
+    const out: number[] = [];
+    for (let i = winStart; i < winEnd; i++) out.push(i);
+    return out;
+  })();
+
+  // Keep the selected row on screen (e.g. keyboard navigation into an off-screen row).
+  function ensureVisible(idx: number) {
+    if (!scroller || idx < 0) return;
+    const top = idx * ROW_H;
+    const bottom = top + ROW_H;
+    if (top < scroller.scrollTop) scroller.scrollTop = top;
+    else if (bottom > scroller.scrollTop + viewportH) scroller.scrollTop = bottom - viewportH;
+  }
+  $: if (selectedIdx != null) ensureVisible(selectedIdx);
 </script>
 
 <svelte:window on:keydown={onKeyDown} />
@@ -299,21 +339,23 @@
     <div class="lch-col" style="width:{dateW}px">Date</div>
   </div>
 
-  <div class="log-scroll">
+  <div class="log-scroll" bind:this={scroller} on:scroll={onScroll} bind:clientHeight={viewportH}>
     {#if commits.length === 0}
       <div class="log-empty">No commits</div>
     {:else}
-      <div class="log-inner">
-        <div class="graph-col" style="width:{graphW}px">
+      <div class="log-inner" style="height:{totalH}px">
+        <div class="graph-col" style="width:{graphW}px; transform:translateY({winTopPx}px)">
           {@html graphSVG}
         </div>
 
-        <div class="rows-col" bind:clientWidth={containerW}>
-          {#each commits as c, i}
+        <div class="rows-col" style="left:{graphW}px" bind:clientWidth={containerW}>
+          {#each visible as i (i)}
+            {@const c = commits[i]}
             {@const isMerge = (c.parents ?? []).length > 1}
             <div
               class="crow"
               class:sel={selectedIdx === i}
+              style="top:{i * ROW_H}px"
               on:click={() => onSelect(i)}
               on:contextmenu={(e) => showCtx(e, i)}
               role="option"
@@ -420,28 +462,35 @@
     font-style: italic;
   }
 
+  /* Virtual scroll: log-inner is the full-height spacer; graph + rows are
+     absolutely positioned slices of it. */
   .log-inner {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
+    position: relative;
+    width: 100%;
   }
 
   .graph-col {
+    position: absolute;
+    top: 0;
+    left: 0;
     flex-shrink: 0;
-    align-self: flex-start;
     overflow: visible;
     line-height: 0;
+    will-change: transform;
   }
 
   .rows-col {
-    flex: 1;
+    position: absolute;
+    top: 0;
+    right: 0;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
   }
 
   /* ── Commit row ── */
   .crow {
+    position: absolute;
+    left: 0;
+    right: 0;
     display: flex;
     align-items: center;
     box-sizing: border-box;
@@ -452,7 +501,6 @@
     border-bottom: 0.5px solid var(--vscode-editorGroup-border, #1f1f1f);
     border-left: 2px solid transparent;
     padding-right: 10px;
-    flex-shrink: 0;
   }
   .crow:hover { background: var(--vscode-list-hoverBackground, #2a2a2a); }
   .crow.sel   { background: #0e2030; border-left-color: #56c8e8; }

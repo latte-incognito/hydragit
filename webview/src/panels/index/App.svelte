@@ -85,7 +85,7 @@
       if (current) activeBranch = current.name;
       else if (status.branch) activeBranch = status.branch;
 
-      const rawCommits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 200 });
+      const rawCommits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 0 });
 
       sbBranch    = status.branch || activeBranch;
       sbInfo      = status.ahead || status.behind ? ` · ↑${status.ahead} ↓${status.behind}` : '';
@@ -122,7 +122,7 @@
     allBranches = v;
     selCommitIdx = null; diffFiles = []; diffHunks = [];
     try {
-      commits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 200 });
+      commits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 0 });
       applyFilter();
     } catch (e: unknown) {
       flash('Log error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
@@ -135,7 +135,7 @@
     activeBranch = name;
     selCommitIdx = null; selFile = null; diffFiles = []; diffHunks = [];
     try {
-      commits = await send<Commit[]>('log', { branch: allBranches ? '' : name, limit: 200 });
+      commits = await send<Commit[]>('log', { branch: allBranches ? '' : name, limit: 0 });
       applyFilter();
     } catch (e: unknown) {
       flash('Log error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
