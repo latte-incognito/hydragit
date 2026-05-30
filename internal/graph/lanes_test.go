@@ -431,6 +431,52 @@ func TestTwoFeaturesFromSameBase(t *testing.T) {
 	assert(t, hasConn(intoBase, laneB, 0), "featureB should connect to M0 (lane 0)")
 }
 
+// ── segments (branch-line identity) ───────────────────────────────────────────
+
+// TestSegmentsIdentifyBranchLines checks that each contiguous branch line gets
+// its own stable segment id (and color), independent of lane reuse — this is
+// what the webview colors by and highlights on hover.
+func TestSegmentsIdentifyBranchLines(t *testing.T) {
+	// Two features off one base, each merged back (same shape as
+	// TestTwoFeaturesFromSameBase).
+	commits := []git.Commit{
+		{Hash: "MB", Parents: []string{"MA", "B2"}},
+		{Hash: "B2", Parents: []string{"B1"}},
+		{Hash: "B1", Parents: []string{"M0"}},
+		{Hash: "MA", Parents: []string{"M0", "A2"}},
+		{Hash: "A2", Parents: []string{"A1"}},
+		{Hash: "A1", Parents: []string{"M0"}},
+		{Hash: "M0", Parents: []string{}},
+	}
+	result := AssignLanes(commits)
+
+	segOf := func(hash string) int {
+		for _, c := range result {
+			if c.Hash == hash {
+				return c.Seg
+			}
+		}
+		t.Fatalf("commit %s not found", hash)
+		return -1
+	}
+
+	// The trunk line (MB → MA → M0, all first-parent) shares one segment.
+	assert(t, segOf("MB") == segOf("MA"), "trunk merges should share a segment")
+	assert(t, segOf("MA") == segOf("M0"), "trunk should run through to the base")
+
+	// Each feature's two commits share a segment, distinct from the trunk and
+	// from each other.
+	assert(t, segOf("B1") == segOf("B2"), "featureB commits share a segment")
+	assert(t, segOf("A1") == segOf("A2"), "featureA commits share a segment")
+	assert(t, segOf("A1") != segOf("B1"), "the two features are different lines")
+	assert(t, segOf("A1") != segOf("MB"), "a feature line differs from the trunk")
+
+	// Color tracks the segment.
+	for _, c := range result {
+		assert(t, c.Color == segColor(c.Seg), "commit color should be its segment color")
+	}
+}
+
 // ── lane recycling (a freed lane is reused, not leaked) ───────────────────────
 
 func TestLaneRecycling(t *testing.T) {

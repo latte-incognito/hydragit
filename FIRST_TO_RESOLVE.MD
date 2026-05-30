@@ -260,6 +260,23 @@ edges). Re-check all `internal/graph` lane tests and
 
 ### Task 5 — Branch highlight + color + filter (interaction; highest UX value)
 
+> ✅ **DONE (highlight, color, filter).** Implemented via **segments** (branch
+> lines): `AssignLanes` assigns each contiguous branch line a stable segment id
+> and colors by segment, not lane (lanes are reused, so lane-color was ambiguous
+> after Task 4) — see `TestSegmentsIdentifyBranchLines`. The webview dims
+> everything off the hovered row's segment (`buildGraphSVG(..., highlightSeg)` +
+> `.crow.dim`), so hovering a commit highlights its branch line. **Filter** by
+> message (`--grep`) and author (`--author`) is server-side (`git.LogWith` /
+> `LogOptions`, `TestLogFilters`): the existing search box's msg/author modes now
+> re-run the log so Go recomputes lanes over the matching commits (a client-side
+> row filter would desync the graph). Branch filtering already existed (the
+> all-branches/branch-select combobox). **Deferred:** focus / linear / hide-merges
+> view (low value now that the graph is compact).
+>
+> How GitLens/GitKraken do it: color the branch *line*, not the lane, and dim
+> other lines on hover — exactly the segment approach above. IntelliJ filters its
+> Git log by author/message/path the same way (server-side `git log` flags).
+
 The honest answer to "a busy graph is messy" is interaction, not layout. Even a
 wide graph is usable if the user can isolate one branch. Independent of Tasks 3/4.
 

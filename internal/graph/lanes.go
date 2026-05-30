@@ -17,10 +17,21 @@ func laneColor(lane int) string {
 	return LaneColors[lane%len(LaneColors)]
 }
 
+// segColor colors a branch line ("segment"). Color follows the line, not the
+// lane — lanes are reused by many lines (Task 4), so coloring by lane would be
+// ambiguous. Each segment gets a stable color from the palette.
+func segColor(seg int) string {
+	return LaneColors[seg%len(LaneColors)]
+}
+
+// Seg fields below identify the branch line an element belongs to. The webview
+// uses them to color each line consistently and to highlight one line on hover.
+
 type Edge struct {
 	FromLane int    `json:"fromLane"`
 	ToLane   int    `json:"toLane"`
 	Color    string `json:"color"`
+	Seg      int    `json:"seg"`
 }
 
 type MergePath struct {
@@ -29,11 +40,13 @@ type MergePath struct {
 	FromRow  int    `json:"fromRow"`
 	ToRow    int    `json:"toRow"`
 	Color    string `json:"color"`
+	Seg      int    `json:"seg"`
 }
 
 type LaidOutCommit struct {
 	git.Commit
 	Lane       int         `json:"lane"`
+	Seg        int         `json:"seg"`
 	Color      string      `json:"color"`
 	Edges      []Edge      `json:"edges"`
 	MergePaths []MergePath `json:"mergePaths,omitempty"`
@@ -46,17 +59,6 @@ func findInColumns(columns []string, hash string) int {
 		}
 	}
 	return -1
-}
-
-func allocColumn(columns []string, hash string) ([]string, int) {
-	for i, h := range columns {
-		if h == "" {
-			columns[i] = hash
-			return columns, i
-		}
-	}
-	columns = append(columns, hash)
-	return columns, len(columns) - 1
 }
 
 type pendingMergeEntry struct {
@@ -72,23 +74,46 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 	}
 
 	result := make([]*LaidOutCommit, n)
-	var columns []string
+	var columns []string // hash each lane currently expects next ("" = free)
+	var colSeg []int     // segment (branch-line id) currently on each lane
+	nextSeg := 0
 	pending := map[string][]pendingMergeEntry{}
 
 	for i, c := range commits {
+		// Place the commit: continue an existing lane that expects it, or open a
+		// new lane (reusing a freed slot). Opening a lane starts a new branch-line
+		// segment; continuing a lane inherits that lane's segment.
 		myLane := findInColumns(columns, c.Hash)
+		var seg int
 		if myLane == -1 {
-			columns, myLane = allocColumn(columns, c.Hash)
+			for j := range columns {
+				if columns[j] == "" {
+					myLane = j
+					break
+				}
+			}
+			if myLane == -1 {
+				columns = append(columns, "")
+				colSeg = append(colSeg, 0)
+				myLane = len(columns) - 1
+			}
+			columns[myLane] = c.Hash
+			seg = nextSeg
+			nextSeg++
+			colSeg[myLane] = seg
+		} else {
+			seg = colSeg[myLane]
 		}
 
 		result[i] = &LaidOutCommit{
 			Commit: c,
 			Lane:   myLane,
-			Color:  laneColor(myLane),
+			Seg:    seg,
+			Color:  segColor(seg),
 		}
 
-		// Resolve pending merges: a merge commit recorded this hash as
-		// a second parent; now that it appeared, draw the connector.
+		// Resolve pending merges: a merge commit recorded this hash as a second
+		// parent; now that it appeared, draw the connector in this line's color.
 		if entries, ok := pending[c.Hash]; ok {
 			for _, pm := range entries {
 				result[pm.mergeRow].MergePaths = append(
@@ -98,7 +123,8 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 						ToLane:   myLane,
 						FromRow:  pm.mergeRow,
 						ToRow:    i,
-						Color:    laneColor(myLane),
+						Color:    segColor(seg),
+						Seg:      seg,
 					},
 				)
 			}
@@ -168,7 +194,8 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 					ToLane:   pLane,
 					FromRow:  i,
 					ToRow:    i,
-					Color:    laneColor(pLane),
+					Color:    segColor(colSeg[pLane]),
+					Seg:      colSeg[pLane],
 				})
 			} else {
 				pending[p] = append(pending[p], pendingMergeEntry{i, myLane})
@@ -176,18 +203,20 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 		}
 
 		// Edges from this row to the next: either a straight continuation of this
-		// lane (if held) or a short diagonal merging back into the bundle lane
-		// (if freed), plus a pass-through for every other still-active lane.
+		// line (if held) or a short diagonal merging back into the bundle lane
+		// (if freed), plus a pass-through for every other still-active line. Each
+		// edge carries its line's segment + color so the webview can highlight one
+		// branch line and color it consistently.
 		var edges []Edge
 		switch {
 		case columns[myLane] != "":
-			edges = append(edges, Edge{myLane, myLane, laneColor(myLane)})
+			edges = append(edges, Edge{myLane, myLane, segColor(seg), seg})
 		case mergeBack != -1:
-			edges = append(edges, Edge{myLane, mergeBack, laneColor(mergeBack)})
+			edges = append(edges, Edge{myLane, mergeBack, segColor(seg), seg})
 		}
 		for j, h := range columns {
 			if h != "" && j != myLane {
-				edges = append(edges, Edge{j, j, laneColor(j)})
+				edges = append(edges, Edge{j, j, segColor(colSeg[j]), colSeg[j]})
 			}
 		}
 		result[i].Edges = edges

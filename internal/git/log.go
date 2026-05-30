@@ -173,18 +173,37 @@ func LineHistory(repoPath, filePath string, start, end int) ([]LineCommit, error
 	}
 	return result, nil
 }
-func Log(repoPath, branch string, limit int) ([]Commit, error) {
+// LogOptions controls which commits Log returns. Zero values mean "no filter".
+type LogOptions struct {
+	Branch string // a branch/ref, or "" for --all
+	Limit  int    // max commits, or 0 for no limit
+	Grep   string // filter by commit message (case-insensitive)
+	Author string // filter by author (case-insensitive)
+}
+
+// LogWith returns the commit log filtered by opt. Grep/Author combine with AND
+// (commits matching both), matching git's default behaviour.
+func LogWith(repoPath string, opt LogOptions) ([]Commit, error) {
 	args := []string{
 		"log",
 		"--topo-order",
 		"--format=" + commitFormat,
 		"--date=iso-strict",
 	}
-	if limit > 0 {
-		args = append(args, "--max-count="+strconv.Itoa(limit))
+	if opt.Grep != "" || opt.Author != "" {
+		args = append(args, "--regexp-ignore-case")
 	}
-	if branch != "" {
-		args = append(args, branch)
+	if opt.Grep != "" {
+		args = append(args, "--grep="+opt.Grep)
+	}
+	if opt.Author != "" {
+		args = append(args, "--author="+opt.Author)
+	}
+	if opt.Limit > 0 {
+		args = append(args, "--max-count="+strconv.Itoa(opt.Limit))
+	}
+	if opt.Branch != "" {
+		args = append(args, opt.Branch)
 	} else {
 		args = append(args, "--all")
 	}
@@ -194,4 +213,9 @@ func Log(repoPath, branch string, limit int) ([]Commit, error) {
 		return nil, err
 	}
 	return parseCommitLines(out), nil
+}
+
+// Log is the unfiltered convenience wrapper around LogWith.
+func Log(repoPath, branch string, limit int) ([]Commit, error) {
+	return LogWith(repoPath, LogOptions{Branch: branch, Limit: limit})
 }

@@ -105,11 +105,18 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Branch string `json:"branch"`
 			Limit  int    `json:"limit"`
+			Grep   string `json:"grep"`
+			Author string `json:"author"`
 		}
 		json.Unmarshal(req.Params, &p)
 		// p.Limit == 0 means "no limit" — load the full history. The webview
 		// virtualizes rendering (LogPane), so it can hold the whole log.
-		commits, err := git.Log(repoPath, p.Branch, p.Limit)
+		commits, err := git.LogWith(repoPath, git.LogOptions{
+			Branch: p.Branch,
+			Limit:  p.Limit,
+			Grep:   p.Grep,
+			Author: p.Author,
+		})
 		if err != nil {
 			return fail(id, err)
 		}
