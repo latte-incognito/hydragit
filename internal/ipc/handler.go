@@ -179,6 +179,32 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, files)
 
+	case "user":
+		u, err := git.User(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, u)
+
+	case "blame":
+		var p struct {
+			Path     string `json:"path"`
+			Ref      string `json:"ref"`      // "" = working tree, else a commit-ish
+			Contents string `json:"contents"` // editor buffer for unsaved files
+			Dirty    bool   `json:"dirty"`    // true → blame Contents, not disk
+		}
+		json.Unmarshal(req.Params, &p)
+		var contents []byte
+		if p.Dirty {
+			// non-nil (possibly empty) slice flips Blame into --contents - mode
+			contents = []byte(p.Contents)
+		}
+		lines, err := git.Blame(repoPath, p.Path, p.Ref, contents)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, lines)
+
 	case "stash":
 		entries, err := git.StashList(repoPath)
 		if err != nil {

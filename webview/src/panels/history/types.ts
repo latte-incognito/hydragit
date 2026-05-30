@@ -27,6 +27,17 @@ export interface LineCommit extends Commit {
   hunks: Hunk[];
 }
 
+// Per-line authorship from `git blame`, used by the side-by-side hover card.
+export interface BlameLine {
+  line: number;
+  commit: string;
+  author: string;
+  authorEmail: string;
+  authorTime: number; // unix epoch seconds
+  summary: string;
+  uncommitted: boolean;
+}
+
 // One rendered row of the side-by-side viewer. A side may be absent (filler).
 export interface DiffRow {
   kind: 'ctx' | 'del' | 'add' | 'mod';

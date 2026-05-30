@@ -66,18 +66,11 @@ export class HistoryPanelManager {
     });
 
     if (!this.panel) {
-      this.panel = vscode.window.createWebviewPanel(
-        'hydragit.history',
-        title,
-        listColumn,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [
-            vscode.Uri.file(path.join(this.ctx.extensionPath, 'webview')),
-          ],
-        }
-      );
+      this.panel = vscode.window.createWebviewPanel('hydragit.history', title, listColumn, {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [vscode.Uri.file(path.join(this.ctx.extensionPath, 'webview'))],
+      });
 
       this.panel.webview.html = this.getHtml(this.panel.webview);
       this.panel.webview.onDidReceiveMessage((msg) => this.onMessage(msg));

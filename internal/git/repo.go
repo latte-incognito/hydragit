@@ -23,8 +23,20 @@ var logSilentGitCmds = map[string]bool{
 // Successful executions of commands in logSilentGitCmds are not logged.
 // Errors are always logged.
 func run(repoPath string, args ...string) (string, error) {
+	return runStdin(repoPath, nil, args...)
+}
+
+// runStdin is run() with optional stdin. When stdin is non-nil it is fed to the
+// git process — used by buffer-aware blame (`git blame --contents -`) to score
+// unsaved editor contents. All git CLI calls still funnel through this one
+// exec point. When stdin is nil it behaves exactly like run().
+func runStdin(repoPath string, stdin []byte, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = repoPath
+
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
