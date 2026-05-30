@@ -4,10 +4,11 @@ const REPO_DIR = "/tmp/hydragit-test-repo";
 const PERF_REPO_DIR = "/tmp/hydragit-perf-repo";
 const FORK3_REPO_DIR = "/tmp/hydragit-fork3-repo";
 const FORK50_REPO_DIR = "/tmp/hydragit-fork50-repo";
+const CONFLICT_REPO_DIR = "/tmp/hydragit-conflict-repo";
 const EXTENSION_DIR = __dirname;
 
 // Specs that belong to their own dedicated-fixture project, not the default one.
-const DEDICATED_SPECS = /graph-perf\.spec\.ts|graph-fork\d+\.spec\.ts/;
+const DEDICATED_SPECS = /graph-perf\.spec\.ts|graph-fork\d+\.spec\.ts|conflict\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -65,6 +66,17 @@ export default defineConfig({
         repoPath: FORK50_REPO_DIR,
         fixtureScript: "tests/fixtures/create-fork-merge-repo.sh",
         fixtureArgs: "50",
+      } as any,
+    },
+    {
+      // Conflict project: repo left in a conflicted merge (UU). Exercises the
+      // sidebar's merge-conflict handling (BUGS.MD #19).
+      name: "vscode-conflict",
+      testMatch: /conflict\.spec\.ts/,
+      use: {
+        extensionPath: EXTENSION_DIR,
+        repoPath: CONFLICT_REPO_DIR,
+        fixtureScript: "tests/fixtures/create-conflict-repo.sh",
       } as any,
     },
   ],
