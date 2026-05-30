@@ -10,13 +10,14 @@ import (
 	"hydragit/internal/git"
 )
 
-// TestManyBranchesRenderWide verifies the post-fix behaviour (FIRST_TO_RESOLVE.MD
-// Task 2): when 50 branches fork from a common base and each cross-merges its
-// neighbour without squashing, the graph renders WIDE — one lane per concurrent
-// branch — rather than collapsing branches together. Wide-but-correct beats
-// narrow-but-misleading. End-to-end through git.Log + AssignLanes so it reflects
-// real `git log --topo-order` output, not synthetic structs.
-func TestManyBranchesRenderWide(t *testing.T) {
+// TestManyBranchesRenderCompact verifies the Task 4 behaviour: when 50 branches
+// fork from a common base and each cross-merges its neighbour without squashing,
+// the graph renders COMPACT — branches that share an ancestor have their lanes
+// freed and reused (with long edges to the real ancestor), rather than holding
+// 50 dedicated lanes. This is correct (no false connections — see
+// TestTwoFeaturesFromSameBase) AND narrow, matching git's own `git log --graph`.
+// End-to-end through git.Log + AssignLanes so it reflects real output.
+func TestManyBranchesRenderCompact(t *testing.T) {
 	dir := t.TempDir()
 
 	run := func(args ...string) {
@@ -71,10 +72,9 @@ func TestManyBranchesRenderWide(t *testing.T) {
 	max := maxLane(laid)
 	t.Logf("commits=%d maxLane=%d laneCount=%d", len(commits), max, max+1)
 
-	// 50 concurrent branches should produce many lanes. Assert a generous floor
-	// (not the exact 49) so the test isn't brittle to ordering details, while
-	// still proving the graph no longer collapses everything into a few lanes.
-	if max < 20 {
-		t.Fatalf("expected a wide graph (>=20 lanes) for 50 branches, got maxLane=%d", max)
+	// Branches sharing the base collapse into a handful of reused lanes. Assert a
+	// generous ceiling: if width blows up again, lane reuse regressed.
+	if max > 8 {
+		t.Fatalf("expected a compact graph (<=8 lanes) for 50 branches, got maxLane=%d", max)
 	}
 }

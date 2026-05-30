@@ -105,14 +105,18 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 			delete(pending, c.Hash)
 		}
 
-		// Collapse: other columns expecting the same hash merge into myLane.
+		// Collapse: other columns expecting the same hash converge into myLane at
+		// this commit. Redirect every previous-row edge that pointed at the
+		// converging lane — both its pass-through and any branch that merged back
+		// into it on that row — so nothing is left dangling at a lane that ends
+		// here. (This is what keeps the last feature merging into a bundle lane
+		// from dead-ending when the bundle itself terminates at the same row.)
 		for j := range columns {
 			if j != myLane && columns[j] == c.Hash {
 				if i > 0 {
-					for k, e := range result[i-1].Edges {
-						if e.FromLane == j && e.ToLane == j {
+					for k := range result[i-1].Edges {
+						if result[i-1].Edges[k].ToLane == j {
 							result[i-1].Edges[k].ToLane = myLane
-							break
 						}
 					}
 				}
@@ -125,18 +129,33 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 			continue
 		}
 
-		// First parent inherits this lane.
+		// First parent: continue this lane toward it, UNLESS a lower lane is
+		// already heading to the same parent — then this commit is a branch
+		// merging back.
 		//
-		// We deliberately do NOT collapse other columns that merely await the
-		// same parent hash here. Folding them together at this row would draw an
-		// unrelated branch as if it joined this commit — e.g. two features that
-		// forked from the same base would appear to connect through whichever
-		// merge commit comes first, instead of at their real fork point. Each
-		// lane instead passes straight through and converges only when its real
-		// parent commit is actually reached (the "Resolve pending"/collapse
-		// logic at the top of the loop). The graph may get wide; that is
-		// correct. See FIRST_TO_RESOLVE.MD, Task 2.
-		columns[myLane] = c.Parents[0]
+		// We never fold a branch into an unrelated merge node (the Task 2 fix —
+		// see TestTwoFeaturesFromSameBase). But holding a dedicated lane all the
+		// way down to a distant shared ancestor makes the graph needlessly wide
+		// (50 features off one base = 50 lanes). So when a lower "bundle" lane is
+		// already heading to this first parent, merge into it with a short
+		// one-row diagonal and free this lane for reuse. The bundle lane carries
+		// the shared path to the real ancestor; the join happens mid-line (never
+		// at an unrelated commit), so no false connection is implied. This is the
+		// `| |/` pattern git/IntelliJ use to keep such histories compact — one
+		// bundle line + short diagonals, not a fan of long overlapping edges.
+		// See FIRST_TO_RESOLVE.MD, Task 4.
+		p0 := c.Parents[0]
+		mergeBack := -1
+		for j := 0; j < myLane; j++ {
+			if columns[j] == p0 {
+				mergeBack = j // keep the LAST (nearest-left) match, not the first
+			}
+		}
+		if mergeBack != -1 {
+			columns[myLane] = "" // free this lane; short diagonal into the bundle
+		} else {
+			columns[myLane] = p0 // continue this lane straight down
+		}
 
 		// Additional parents (merges): connect to each. If the parent already
 		// occupies a lane, draw the connector now; otherwise defer until it
@@ -156,10 +175,16 @@ func AssignLanes(commits []git.Commit) []*LaidOutCommit {
 			}
 		}
 
-		// Edges: straight continuation of this lane + a pass-through for every
-		// other still-active lane.
+		// Edges from this row to the next: either a straight continuation of this
+		// lane (if held) or a short diagonal merging back into the bundle lane
+		// (if freed), plus a pass-through for every other still-active lane.
 		var edges []Edge
-		edges = append(edges, Edge{myLane, myLane, laneColor(myLane)})
+		switch {
+		case columns[myLane] != "":
+			edges = append(edges, Edge{myLane, myLane, laneColor(myLane)})
+		case mergeBack != -1:
+			edges = append(edges, Edge{myLane, mergeBack, laneColor(mergeBack)})
+		}
 		for j, h := range columns {
 			if h != "" && j != myLane {
 				edges = append(edges, Edge{j, j, laneColor(j)})

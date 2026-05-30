@@ -166,3 +166,130 @@ Cost: one extra lane through the middle rows. That is acceptable.
 
 Should "wide but correct" be the only mode, or do we offer a **collapsed/compact
 view toggle** (current behaviour) in addition? Default should be correct.
+
+---
+
+## Wide-graph follow-ups (UX cost of the Task 2 fix)
+
+Task 2 made the graph correct, but a pathological history (e.g. 50 developers all
+forking from one commit and merging back — see
+`tests/e2e/graph-fork50.spec.ts`, which renders ~51 lanes) now draws very wide
+and busy. These three tasks address that. Order of value: 5 (interaction) and 3
+(compression) are cheap and high-impact; 4 is the deep fix.
+
+**Important framing:** none of this is novel research. Lane assignment is
+essentially **interval-graph coloring** (textbook). The hard part — long-edge
+routing — is already solved in readable open-source implementations we can study
+and reimplement in Go (we do NOT import a graph dependency without sign-off):
+
+- `mhutchie/vscode-git-graph` (TypeScript, MIT) — same problem, VS Code context.
+- `mlange-42/git-graph` (Rust, MIT) — full commit-graph layout engine.
+- `intellij-community` `platform/vcs-log/graph` (Apache-2.0) — IntelliJ's
+  production algorithm.
+- git's own `graph.c` (`git log --graph`) — canonical reference (ASCII-oriented).
+
+### Task 3 — Compress lane spacing when the graph is wide (cheap)
+
+The graph column width is `laneCount * LANE_W + PAD * 2`
+(`webview/src/panels/index/graphSvg.ts`). At 50 lanes that is ~808px, which
+shoves the commit/author/date columns off-screen in `LogPane.svelte`.
+
+- Make `LANE_W` adaptive: shrink it (e.g. 16 → 8px) as `laneCount` grows so a
+  wide graph stays within a bounded gutter and the message columns stay visible.
+- Optionally cap visible lanes with a "+N more" affordance.
+- **Horizontal scroll is the fallback, not the goal.** If we add it, scroll the
+  graph *gutter only* (keep the message columns row-aligned and in place) — never
+  H-scroll the whole row, or the user loses the commit messages. Following a
+  branch by scrolling sideways is the UX both IntelliJ and GitLens avoid.
+
+### Task 4 — Long-edge routing + lane freeing (the deep fix; "Task 2b")
+
+> ✅ **RESOLVED.** `internal/graph/lanes.go` now frees a branch's lane when its
+> first parent is already awaited by a lower "bundle" lane, and merges into that
+> bundle with a **short one-row diagonal** (the `| |/` pattern git uses) — the
+> bundle carries the shared path to the real ancestor. Result: 50 developers
+> forking from one base render in **3 lanes** with one bundle line + short
+> diagonals, byte-for-byte the shape `git log --graph` draws — and with no false
+> connections (`TestTwoFeaturesFromSameBase`). Genuinely-parallel branches with
+> distinct ancestors still render wide (`TestWideConcurrency`), which is correct.
+> Covered by `TestManyBranchesRenderCompact` (Go) and `graph-fork50.spec.ts`
+> (asserts ≤8 lanes). Validated row-by-row against `git log --graph`.
+>
+> An earlier attempt drew a *long* edge from each freed lane to the ancestor,
+> which produced a fan of overlapping lines down the reused lane (visually buggy,
+> edges not aligned with dots). The bundle/short-diagonal approach above fixes
+> that. (Genuine merge connectors to a *distant* second parent are still long
+> curves — that is correct, and is what git draws too.)
+
+The real reason the fork-50 graph is 50 lanes wide: every feature lane stays
+reserved from its last commit down to the shared base `M0` (the last row), so all
+50 pile up near the bottom. But the features' *commit rows don't overlap* — only
+their "waiting for M0" reservation does.
+
+What mature renderers do instead:
+
+- **Free a branch's lane right after its last commit** and draw a **long edge**
+  that travels back toward the ancestor's lane (the trunk, where `M0` lives),
+  converging at the real ancestor commit. The freed lane is then **recycled** by
+  the next branch. Result: ~2–3 side lanes + a fan of edges into `M0`, instead of
+  50 parallel rails — **correct AND compact**.
+- The genuinely fiddly part is **collision-free routing**: a long edge crosses
+  rows where a recycled lane now has nodes, so the edge needs offsets/curves or a
+  transient routing slot. This is the part to lift from the references above.
+
+This stays within the Task 2 invariant (edges land only on real parents) — it is
+a smarter way to free lanes, not a return to the buggy collapse.
+
+Effort: real engineering (adapt a known algorithm into `internal/graph`), not a
+one-liner. Touches `lanes.go` and likely `graphSvg.ts` (to draw long/curved
+edges). Re-check all `internal/graph` lane tests and
+`tests/e2e/graph-fork*.spec.ts` width assertions when it lands.
+
+### Task 5 — Branch highlight + color + filter (interaction; highest UX value)
+
+The honest answer to "a busy graph is messy" is interaction, not layout. Even a
+wide graph is usable if the user can isolate one branch. Independent of Tasks 3/4.
+
+- **Hover a commit/branch → highlight that branch's full path, dim the rest.**
+- Stable **per-branch color** (we already have `LaneColors`; tie color to branch
+  identity, not just lane index).
+- **Filter** the log by branch / author / path (`git log --grep/--author`,
+  already feasible per the CLAUDE.md constraints).
+- Optional **"show only this branch"** focus mode and a **linear / hide-merges**
+  view for when topology doesn't matter.
+
+### Task 6 — Lane straightening: last feature on the bundle lane (pixel-parity with git)
+
+Polish left over from Task 4. The compaction is correct and compact, but the
+**last feature before a shared ancestor** is laid out imperfectly. Concretely
+(fork-N, all branches off one base `M0`):
+
+- All features but the last merge cleanly into the blue "bundle" lane that
+  carries down to `M0`. ✅
+- The bundle lane terminates into the trunk *at* `M0`. The last feature sits on a
+  separate temp lane right above `M0`, so when it merges back it either dangles
+  (if drawn into the bundle, which vanishes that same row) or crosses the bundle
+  to reach `M0` directly. We currently ship the second (no dangle, but the last
+  feature crosses a short "ghost" bundle segment instead of riding it).
+
+git avoids this by drawing the last feature **on the bundle lane itself** (its
+`|/|` reshuffle), giving one clean blue line into `M0`.
+
+**Approach — a post-layout straightening pass** over the result of `AssignLanes`:
+
+1. Detect the pattern: a contiguous run of commits on a temp lane `H` running
+   parallel to a *ghost* segment of a lower lane `L` (L holds a hash over those
+   rows but has no commits there), where both converge at the same ancestor.
+2. If L is free of commits across H's rows, **move H's commits onto L**: rewrite
+   each affected commit's `Lane`, the pass-through edges on `L`, the continuation
+   edges on `H`, and the merge connector (`MergePath`) that points at H so it
+   now lands on L.
+3. The temp lane `H` is then free and the bundle reads as one straight line into
+   the ancestor — matching git.
+
+**Scope / risk:** ~40–60 lines, but it rewrites edge/merge-path bookkeeping, so
+it needs its own tests (extend `internal/graph/lanes_test.go` and the
+`graph-fork*` specs) and careful validation against `git log --graph` on the
+fork-N fixtures. Treat as a focused change, not a quick patch. Lane *count* and
+correctness are already done; this is purely visual straightening of the final
+junction. Independent of Tasks 3/5.
