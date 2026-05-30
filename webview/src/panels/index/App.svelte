@@ -72,13 +72,21 @@
   // ── Load everything ───────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [status, brs, rawCommits, rawStashes, rawTags] = await Promise.all([
+      const [status, brs, rawStashes, rawTags] = await Promise.all([
         send<GitStatus>('status'),
         send<Branch[]>('branches'),
-        send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 200 }),
         send<Stash[]>('stash'),
         send<Tag[]>('tags'),
       ]);
+      // Resolve the current branch before requesting its log, so the initial
+      // graph shows HEAD's branch rather than the hardcoded default (and so
+      // we don't try to `git log master` in a repo that has no master).
+      const current = brs.find(b => b.isCurrent);
+      if (current) activeBranch = current.name;
+      else if (status.branch) activeBranch = status.branch;
+
+      const rawCommits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 0 });
+
       sbBranch    = status.branch || activeBranch;
       sbInfo      = status.ahead || status.behind ? ` · ↑${status.ahead} ↓${status.behind}` : '';
       hasPending  = (status.behind ?? 0) > 0;
@@ -87,10 +95,8 @@
       stashes     = rawStashes;
       tags        = rawTags ?? [];
       sbCounts    = `${commits.length} commits · ${branches.filter(b => !b.isRemote).length} branches`;
-      const current = branches.find(b => b.isCurrent);
-      if (current) activeBranch = current.name;
       // Re-apply active search filter
-      applyFilter();
+      reapplySearch();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes('not a git repository')) {
@@ -116,8 +122,8 @@
     allBranches = v;
     selCommitIdx = null; diffFiles = []; diffHunks = [];
     try {
-      commits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 200 });
-      applyFilter();
+      commits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 0 });
+      reapplySearch();
     } catch (e: unknown) {
       flash('Log error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
     }
@@ -129,25 +135,52 @@
     activeBranch = name;
     selCommitIdx = null; selFile = null; diffFiles = []; diffHunks = [];
     try {
-      commits = await send<Commit[]>('log', { branch: allBranches ? '' : name, limit: 200 });
-      applyFilter();
+      commits = await send<Commit[]>('log', { branch: allBranches ? '' : name, limit: 0 });
+      reapplySearch();
     } catch (e: unknown) {
       flash('Log error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
     }
   }
 
   // ── Search / filter ───────────────────────────────────────────────────────
+  // Client-side filter — used for hash-prefix jumps and as the "no query" reset.
   function applyFilter() {
     if (fileSearchActive) return; // file mode uses its own commits list
     const q = searchQuery.trim().toLowerCase();
     if (!q) { filtered = [...commits]; return; }
-    filtered = commits.filter(c => {
-      if (searchMode === 'msg')    return (c.message ?? '').toLowerCase().includes(q);
-      if (searchMode === 'hash')   return (c.hash ?? '').toLowerCase().startsWith(q);
-      if (searchMode === 'author') return (c.author ?? '').toLowerCase().includes(q);
-      return true;
-    });
+    if (searchMode === 'hash') {
+      filtered = commits.filter(c => (c.hash ?? '').toLowerCase().startsWith(q));
+    } else {
+      filtered = [...commits];
+    }
     selCommitIdx = null; diffFiles = []; diffHunks = [];
+  }
+
+  // Server-side filter for message/author — re-runs `git log --grep/--author` so
+  // the Go side recomputes lane layout over the matching commits. A client-side
+  // row filter would desync the graph (lanes are laid out over the full set).
+  let filterTimer: ReturnType<typeof setTimeout>;
+  async function runServerFilter() {
+    const q = searchQuery.trim();
+    if (!q) { filtered = [...commits]; selCommitIdx = null; return; }
+    const params: Record<string, unknown> = { branch: allBranches ? '' : activeBranch, limit: 0 };
+    if (searchMode === 'msg')    params.grep = q;
+    if (searchMode === 'author') params.author = q;
+    try {
+      filtered = await send<Commit[]>('log', params);
+      selCommitIdx = null; diffFiles = []; diffHunks = [];
+    } catch (e: unknown) {
+      flash('Filter error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // Re-apply whatever filter is active (after a branch switch or log reload).
+  function reapplySearch() {
+    if ((searchMode === 'msg' || searchMode === 'author') && searchQuery.trim()) {
+      runServerFilter();
+    } else {
+      applyFilter();
+    }
   }
 
   async function handleSearch(q: string) {
@@ -163,7 +196,10 @@
       // file search triggers on Enter — see handleSearchKey
       return;
     }
-    applyFilter();
+    if (searchMode === 'hash') { applyFilter(); return; }
+    // message / author → debounced server-side filter (keeps the graph correct).
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(runServerFilter, 250);
   }
 
   async function handleSearchKey(e: KeyboardEvent) {
@@ -185,8 +221,9 @@
   function handleModeChange(m: SearchMode) {
     searchMode = m;
     searchQuery = '';
-    // Leaving file mode — restore log
-    if (m !== 'file' && fileSearchActive) {
+    // Switching to any non-file mode clears the active filter → show the full
+    // log (the query is reset, so there's nothing to filter by yet).
+    if (m !== 'file') {
       fileSearchActive = false;
       fileSearchPath   = '';
       filtered = [...commits];

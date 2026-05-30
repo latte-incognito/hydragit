@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Commit } from '../types';
+  import { buildGraphSVG, LANE_W, PAD, ROW_H } from '../graphSvg';
 
   export let commits: Commit[] = [];
   export let selectedIdx: number | null = null;
@@ -8,81 +9,6 @@
   export let onCommitAction: (action: string, commit: Commit) => void = () => {};
   export let fileSearchActive: boolean = false;
   export let fileSearchPath: string = '';
-
-  // ── Graph constants ───────────────────────────────────────────────────────
-  const ROW_H = 22;
-  const LANE_W = 16;
-  const PAD = 4;
-
-  function cx(lane: number) { return PAD + lane * LANE_W + LANE_W / 2; }
-  function cy(row: number)  { return row * ROW_H + ROW_H / 2; }
-
-  const DASH = '5,3';
-  const LINE_W = 1.6;
-  const ATTR = `stroke-width="${LINE_W}" stroke-dasharray="${DASH}" stroke-linecap="round"`;
-
-  function arcEdge(x1: number, y1: number, x2: number, y2: number, color: string): string {
-    const dx = x2 - x1;
-    if (dx === 0) {
-      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" ${ATTR}/>`;
-    }
-    const span = y2 - y1;
-    const r  = Math.abs(dx);
-    if (r <= span) {
-      const pad = (span - r) / 2;
-      const sweep = dx > 0 ? 1 : 0;
-      return `<path d="M${x1},${y1} L${x1},${y1 + pad} A${r},${r} 0 0,${sweep} ${x2},${y2 - pad} L${x2},${y2}" fill="none" stroke="${color}" ${ATTR}/>`;
-    }
-    // Multi-lane jump wider than row height — fallback to Bézier
-    const third = span / 3;
-    return `<path d="M${x1},${y1} C${x1},${y1 + third} ${x2},${y2 - third} ${x2},${y2}" fill="none" stroke="${color}" ${ATTR}/>`;
-  }
-
-  function buildGraphSVG(commits: Commit[], laneCount: number): string {
-    const svgW = Math.max(28, laneCount * LANE_W + PAD * 2);
-    const svgH = commits.length * ROW_H;
-    let edgeStr = '';
-    let dotStr  = '';
-
-    // Pass 1: per-row edges (row i → row i+1)
-    for (let i = 0; i < commits.length; i++) {
-      for (const e of commits[i].edges ?? []) {
-        edgeStr += arcEdge(cx(e.fromLane), cy(i), cx(e.toLane), cy(i + 1), e.color);
-      }
-    }
-
-    // Pass 1b: merge connectors (curves from merge commit to branch tip)
-    for (let i = 0; i < commits.length; i++) {
-      for (const mp of commits[i].mergePaths ?? []) {
-        const x1 = cx(mp.fromLane), y1 = cy(mp.fromRow);
-        const x2 = cx(mp.toLane),   y2 = cy(mp.toRow);
-        if (mp.fromRow === mp.toRow) {
-          const midY = y1 + ROW_H / 2;
-          edgeStr += `<path d="M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}" fill="none" stroke="${mp.color}" ${ATTR}/>`;
-        } else {
-          edgeStr += arcEdge(x1, y1, x2, y2, mp.color);
-        }
-      }
-    }
-
-    // Pass 2: dots
-    for (let i = 0; i < commits.length; i++) {
-      const c     = commits[i];
-      const color = c.color ?? '#e8873e';
-      const x     = cx(c.lane ?? 0);
-      const y     = cy(i);
-      const isMerge = (c.parents ?? []).length > 1;
-
-      if (isMerge) {
-        dotStr += `<circle cx="${x}" cy="${y}" r="5" fill="var(--vscode-editor-background, #1e1e1e)" stroke="${color}" stroke-width="2"/>
-          <circle cx="${x}" cy="${y}" r="1.5" fill="${color}"/>`;
-      } else {
-        dotStr += `<circle cx="${x}" cy="${y}" r="3.5" fill="${color}"/>`;
-      }
-    }
-
-    return `<svg width="${svgW}" height="${svgH}" style="display:block">${edgeStr}${dotStr}</svg>`;
-  }
 
   // ── Pill helpers ──────────────────────────────────────────────────────────
   function pillClass(r: string) {
@@ -243,8 +169,54 @@
   // ── Derived ───────────────────────────────────────────────────────────────
   $: maxLane  = commits.reduce((m, c) => Math.max(m, c.lane ?? 0), 0);
   $: laneCount = maxLane + 1;
-  $: graphSVG  = buildGraphSVG(commits, laneCount);
   $: graphW    = Math.max(28, laneCount * LANE_W + PAD * 2);
+
+  // ── Virtual scrolling ───────────────────────────────────────────────────────
+  // The whole history is loaded, but we only render the rows in (and a little
+  // around) the viewport — both the commit rows and the graph SVG slice — so the
+  // DOM stays small no matter how many commits there are.
+  const OVERSCAN = 8;                       // extra rows rendered above/below
+  let scroller: HTMLElement;
+  let scrollTop = 0;
+  let viewportH = 0;
+  let rafPending = false;
+
+  function onScroll() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      scrollTop = scroller?.scrollTop ?? 0;
+      rafPending = false;
+    });
+  }
+
+  // ── Branch-line highlight ────────────────────────────────────────────────
+  // Hovering a row highlights its branch line (segment) and dims the rest.
+  let hoveredSeg: number | null = null;
+  function hoverRow(i: number) { hoveredSeg = commits[i]?.seg ?? null; }
+  function clearHover() { hoveredSeg = null; }
+
+  $: totalH   = commits.length * ROW_H;
+  $: winStart = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
+  $: winEnd   = Math.min(commits.length, Math.ceil((scrollTop + viewportH) / ROW_H) + OVERSCAN);
+  $: winTopPx = winStart * ROW_H;
+  $: graphSVG = buildGraphSVG(commits, laneCount, winStart, winEnd, hoveredSeg);
+  // Indices of the rows to render (avoids slicing/cloning commit objects).
+  $: visible = (() => {
+    const out: number[] = [];
+    for (let i = winStart; i < winEnd; i++) out.push(i);
+    return out;
+  })();
+
+  // Keep the selected row on screen (e.g. keyboard navigation into an off-screen row).
+  function ensureVisible(idx: number) {
+    if (!scroller || idx < 0) return;
+    const top = idx * ROW_H;
+    const bottom = top + ROW_H;
+    if (top < scroller.scrollTop) scroller.scrollTop = top;
+    else if (bottom > scroller.scrollTop + viewportH) scroller.scrollTop = bottom - viewportH;
+  }
+  $: if (selectedIdx != null) ensureVisible(selectedIdx);
 </script>
 
 <svelte:window on:keydown={onKeyDown} />
@@ -373,23 +345,27 @@
     <div class="lch-col" style="width:{dateW}px">Date</div>
   </div>
 
-  <div class="log-scroll">
+  <div class="log-scroll" bind:this={scroller} on:scroll={onScroll} on:mouseleave={clearHover} bind:clientHeight={viewportH}>
     {#if commits.length === 0}
       <div class="log-empty">No commits</div>
     {:else}
-      <div class="log-inner">
-        <div class="graph-col" style="width:{graphW}px">
+      <div class="log-inner" style="height:{totalH}px">
+        <div class="graph-col" style="width:{graphW}px; transform:translateY({winTopPx}px)">
           {@html graphSVG}
         </div>
 
-        <div class="rows-col" bind:clientWidth={containerW}>
-          {#each commits as c, i}
+        <div class="rows-col" style="left:{graphW}px" bind:clientWidth={containerW}>
+          {#each visible as i (i)}
+            {@const c = commits[i]}
             {@const isMerge = (c.parents ?? []).length > 1}
             <div
               class="crow"
               class:sel={selectedIdx === i}
+              class:dim={hoveredSeg !== null && c.seg !== hoveredSeg}
+              style="top:{i * ROW_H}px"
               on:click={() => onSelect(i)}
               on:contextmenu={(e) => showCtx(e, i)}
+              on:mouseenter={() => hoverRow(i)}
               role="option"
               aria-selected={selectedIdx === i}
               tabindex="0"
@@ -494,28 +470,35 @@
     font-style: italic;
   }
 
+  /* Virtual scroll: log-inner is the full-height spacer; graph + rows are
+     absolutely positioned slices of it. */
   .log-inner {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
+    position: relative;
+    width: 100%;
   }
 
   .graph-col {
+    position: absolute;
+    top: 0;
+    left: 0;
     flex-shrink: 0;
-    align-self: flex-start;
     overflow: visible;
     line-height: 0;
+    will-change: transform;
   }
 
   .rows-col {
-    flex: 1;
+    position: absolute;
+    top: 0;
+    right: 0;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
   }
 
   /* ── Commit row ── */
   .crow {
+    position: absolute;
+    left: 0;
+    right: 0;
     display: flex;
     align-items: center;
     box-sizing: border-box;
@@ -526,10 +509,11 @@
     border-bottom: 0.5px solid var(--vscode-editorGroup-border, #1f1f1f);
     border-left: 2px solid transparent;
     padding-right: 10px;
-    flex-shrink: 0;
   }
   .crow:hover { background: var(--vscode-list-hoverBackground, #2a2a2a); }
   .crow.sel   { background: #0e2030; border-left-color: #56c8e8; }
+  /* Dim rows that aren't on the hovered branch line. */
+  .crow.dim   { opacity: 0.4; }
 
   .col-spacer {
     width: 5px;

@@ -2,7 +2,7 @@
   "name": "hydragit",
   "displayName": "HydraGit",
   "description": "The git panel IntelliJ has, inside VS Code. No paywall.",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "publisher": "vkushnarenko",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -30,8 +30,78 @@
       {
         "command": "hydragit.openLogs",
         "title": "HydraGit: Open Logs Folder"
+      },
+      {
+        "command": "hydragit.fileHistory",
+        "title": "HydraGit: File History"
+      },
+      {
+        "command": "hydragit.selectionHistory",
+        "title": "HydraGit: History for Selection"
+      },
+      {
+        "command": "hydragit.toggleLineBlame",
+        "title": "HydraGit: Toggle Line Blame"
+      },
+      {
+        "command": "hydragit.copyCommitSha",
+        "title": "HydraGit: Copy Commit SHA"
+      },
+      {
+        "command": "hydragit.lineHistory",
+        "title": "HydraGit: Line History"
       }
     ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "hydragit.fileHistory",
+          "when": "!explorerResourceIsFolder",
+          "group": "9_hydragit"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "hydragit.fileHistory",
+          "group": "9_hydragit"
+        },
+        {
+          "command": "hydragit.selectionHistory",
+          "when": "editorHasSelection",
+          "group": "9_hydragit"
+        },
+        {
+          "command": "hydragit.toggleLineBlame",
+          "group": "9_hydragit"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "hydragit.copyCommitSha",
+          "when": "false"
+        },
+        {
+          "command": "hydragit.lineHistory",
+          "when": "false"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "hydragit.fileHistory",
+          "group": "9_hydragit"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "HydraGit",
+      "properties": {
+        "hydragit.lineBlame.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inline git blame on the current editor line (author, relative time, and commit summary). Toggle per-session with the \"HydraGit: Toggle Line Blame\" command."
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -87,6 +157,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.8.9",
+    "@playwright/test": "^1.52.0",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.3.1",

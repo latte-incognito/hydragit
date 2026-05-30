@@ -105,12 +105,18 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Branch string `json:"branch"`
 			Limit  int    `json:"limit"`
+			Grep   string `json:"grep"`
+			Author string `json:"author"`
 		}
 		json.Unmarshal(req.Params, &p)
-		if p.Limit == 0 {
-			p.Limit = 200
-		}
-		commits, err := git.Log(repoPath, p.Branch, p.Limit)
+		// p.Limit == 0 means "no limit" — load the full history. The webview
+		// virtualizes rendering (LogPane), so it can hold the whole log.
+		commits, err := git.LogWith(repoPath, git.LogOptions{
+			Branch: p.Branch,
+			Limit:  p.Limit,
+			Grep:   p.Grep,
+			Author: p.Author,
+		})
 		if err != nil {
 			return fail(id, err)
 		}
@@ -128,6 +134,31 @@ func handle(repoPath string, req Request) Response {
 		}
 		laid := graph.AssignLanes(commits)
 		return ok(id, laid)
+
+	case "file.history":
+		var p struct {
+			Path string `json:"path"`
+			Ref  string `json:"ref"`
+		}
+		json.Unmarshal(req.Params, &p)
+		commits, err := git.FileHistory(repoPath, p.Ref, p.Path)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, commits)
+
+	case "line.history":
+		var p struct {
+			Path  string `json:"path"`
+			Start int    `json:"start"`
+			End   int    `json:"end"`
+		}
+		json.Unmarshal(req.Params, &p)
+		commits, err := git.LineHistory(repoPath, p.Path, p.Start, p.End)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, commits)
 
 	case "diff":
 		var p struct {
@@ -147,6 +178,32 @@ func handle(repoPath string, req Request) Response {
 			return fail(id, err)
 		}
 		return ok(id, files)
+
+	case "user":
+		u, err := git.User(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, u)
+
+	case "blame":
+		var p struct {
+			Path     string `json:"path"`
+			Ref      string `json:"ref"`      // "" = working tree, else a commit-ish
+			Contents string `json:"contents"` // editor buffer for unsaved files
+			Dirty    bool   `json:"dirty"`    // true → blame Contents, not disk
+		}
+		json.Unmarshal(req.Params, &p)
+		var contents []byte
+		if p.Dirty {
+			// non-nil (possibly empty) slice flips Blame into --contents - mode
+			contents = []byte(p.Contents)
+		}
+		lines, err := git.Blame(repoPath, p.Path, p.Ref, contents)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, lines)
 
 	case "stash":
 		entries, err := git.StashList(repoPath)
