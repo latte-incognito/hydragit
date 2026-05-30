@@ -140,14 +140,10 @@ func TestCollapseEdges(t *testing.T) {
 	assert(t, result[1].Lane == 1, "b on lane 1")
 	assert(t, result[2].Lane == 0, "c on lane 0 (first match)")
 
-	// Row 1 edges should have a merge curve from lane 1 → lane 0
-	hasMergeCurve := false
-	for _, e := range result[1].Edges {
-		if e.FromLane == 1 && e.ToLane == 0 {
-			hasMergeCurve = true
-		}
-	}
-	assert(t, hasMergeCurve, "expected collapse merge curve from lane 1 to lane 0")
+	// b connects down to its real parent c (lane 1 → lane 0). With lane reuse,
+	// b's lane is freed and the connection is drawn as a long curve (MergePath)
+	// rather than an inline edge — either form is a valid "b → c" curve.
+	assert(t, hasConn(result[1], 1, 0), "expected b to connect down to c (lane 1 → lane 0)")
 }
 
 // ── lazy allocation keeps lanes compact ──────────────────────────────────────
@@ -377,6 +373,21 @@ func hasEdge(c *LaidOutCommit, from, to int) bool {
 	return false
 }
 
+// hasConn reports whether commit c connects lane `from` to lane `to`, drawn
+// either as an inline edge or as a long curve (MergePath). Used where lane reuse
+// may render a connection either way.
+func hasConn(c *LaidOutCommit, from, to int) bool {
+	if hasEdge(c, from, to) {
+		return true
+	}
+	for _, mp := range c.MergePaths {
+		if mp.FromLane == from && mp.ToLane == to {
+			return true
+		}
+	}
+	return false
+}
+
 // TestTwoFeaturesFromSameBase is the regression test for the lane-collapse bug
 // (FIRST_TO_RESOLVE.MD Task 2). Two features fork from the same base M0 and each
 // merges back without squashing. The OLD eager-collapse folded featureB's tail
@@ -412,12 +423,12 @@ func TestTwoFeaturesFromSameBase(t *testing.T) {
 	assert(t, hasEdge(mergeARow, laneB, laneB),
 		"featureB must pass through the featureA-merge row, not fold into it")
 
-	// Both features converge into the trunk only at M0. M0 is the last row; the
-	// row feeding into it (A1, row 5) carries both features collapsing to lane 0.
+	// Both features connect down to M0 (their real parent), never to the
+	// featureA merge node. M0 is the last row; the row feeding into it is A1.
 	intoBase := result[5]
 	assert(t, intoBase.Hash == "A1", "row 5 should feed into M0")
-	assert(t, hasEdge(intoBase, laneA, 0), "featureA should converge to lane 0 at M0")
-	assert(t, hasEdge(intoBase, laneB, 0), "featureB should converge to lane 0 at M0")
+	assert(t, hasConn(intoBase, laneA, 0), "featureA should connect to M0 (lane 0)")
+	assert(t, hasConn(intoBase, laneB, 0), "featureB should connect to M0 (lane 0)")
 }
 
 // ── lane recycling (a freed lane is reused, not leaked) ───────────────────────

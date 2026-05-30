@@ -5,17 +5,17 @@ import { getLogFrame, graphLaneCount, revealHydraGitPanel } from "./webview-help
 // (fixture: create-fork-merge-repo.sh, 50 branches → 151 commits). Runs only
 // under the `vscode-fork50` project (see playwright.config.ts).
 //
-// This is the WIDE-graph perf/stress case. Post lane-fix (FIRST_TO_RESOLVE.MD
-// Task 2) the graph no longer collapses branches together, so it renders ~51
-// lanes. The test confirms the width is real and that drawing it stays
-// responsive — generous budget, this flags pathological slowness only.
+// Post Task 4 (FIRST_TO_RESOLVE.MD) these 50 branches all share the base, so
+// their lanes are freed and reused with long edges to the real ancestor — the
+// graph renders COMPACT (~3 lanes), not 50 wide, and without false connections.
+// This mirrors `git log --graph`, which also draws this in ~3 columns.
 
-test.describe("fork-merge graph — 50 developers (wide)", () => {
+test.describe("fork-merge graph — 50 developers (compact)", () => {
   test.beforeEach(async ({ mainWindow }) => {
     await revealHydraGitPanel(mainWindow);
   });
 
-  test("renders a wide ~50-lane graph within budget", async ({ mainWindow }) => {
+  test("renders 50 shared-base forks compactly within budget", async ({ mainWindow }) => {
     const start = Date.now();
     const frame = await getLogFrame(mainWindow);
     await expect(frame.locator(".crow").first()).toBeVisible({ timeout: 60_000 });
@@ -26,13 +26,13 @@ test.describe("fork-merge graph — 50 developers (wide)", () => {
     const rows = await frame.locator(".crow").count();
     expect(rows).toBe(151);
 
-    // The whole point: many concurrent lanes. Assert a generous floor, not the
-    // exact 51, so the test isn't brittle to ordering details.
+    // The win: branches sharing the base collapse into a few reused lanes
+    // instead of 50 parallel rails. Assert a tight ceiling.
     const lanes = await graphLaneCount(frame);
     console.log(`fork50 lane count = ${lanes}`);
-    expect(lanes).toBeGreaterThanOrEqual(20);
+    expect(lanes).toBeLessThanOrEqual(8);
 
-    // Render the wide graph + scroll to the bottom, confirm responsiveness.
+    // Scroll to the bottom, confirm responsiveness.
     const scroller = frame.locator(".log-scroll");
     const t0 = Date.now();
     await scroller.evaluate((el: HTMLElement) => el.scrollTo(0, el.scrollHeight));
