@@ -3,17 +3,22 @@ import { render, fireEvent } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import CommitArea from './CommitArea.svelte';
 
-// ── hint text ─────────────────────────────────────────────────────────────────
+// Helpers — find controls by role/placeholder so copy tweaks don't break tests.
+const commitBtn = (q: any) => q.getByRole('button', { name: /^commit/i }) as HTMLButtonElement;
+const pushBtn   = (q: any) => q.getByRole('button', { name: 'Push' }) as HTMLButtonElement;
+const msgBox    = (q: any) => q.getByPlaceholderText('Message') as HTMLTextAreaElement;
 
-describe('CommitArea — hint text', () => {
-  it('shows no changed files when hasFiles is false', () => {
+// ── meta line (branch chip + staged note) ─────────────────────────────────────
+
+describe('CommitArea — meta text', () => {
+  it('shows "No changes" when hasFiles is false', () => {
     const { getByText } = render(CommitArea, { hasFiles: false, stagedCount: 0 });
-    expect(getByText('No changed files')).toBeTruthy();
+    expect(getByText('No changes')).toBeTruthy();
   });
 
-  it('shows no files staged warning when hasFiles but stagedCount is 0', () => {
+  it('prompts to stage when files exist but none staged', () => {
     const { getByText } = render(CommitArea, { hasFiles: true, stagedCount: 0 });
-    expect(getByText('No files staged — check files above to stage')).toBeTruthy();
+    expect(getByText('Stage files to commit')).toBeTruthy();
   });
 
   it('shows staged count when files are staged', () => {
@@ -25,24 +30,29 @@ describe('CommitArea — hint text', () => {
     const { getByText } = render(CommitArea, { hasFiles: true, stagedCount: 1 });
     expect(getByText('1 file staged')).toBeTruthy();
   });
+
+  it('shows the branch name in the chip', () => {
+    const { getByText } = render(CommitArea, { hasFiles: true, stagedCount: 1, branch: 'develop' });
+    expect(getByText('develop')).toBeTruthy();
+  });
 });
 
 // ── button disabled state ─────────────────────────────────────────────────────
 
 describe('CommitArea — button states', () => {
   it('commit button is disabled when no staged files', () => {
-    const { getByText } = render(CommitArea, { hasFiles: true, stagedCount: 0 });
-    expect((getByText('Commit') as HTMLButtonElement).disabled).toBe(true);
+    const q = render(CommitArea, { hasFiles: true, stagedCount: 0 });
+    expect(commitBtn(q).disabled).toBe(true);
   });
 
-  it('commit button is disabled when message is empty even with staged files', async () => {
-    const { getByText } = render(CommitArea, { hasFiles: true, stagedCount: 2 });
-    expect((getByText('Commit') as HTMLButtonElement).disabled).toBe(true);
+  it('commit button is disabled when message is empty even with staged files', () => {
+    const q = render(CommitArea, { hasFiles: true, stagedCount: 2 });
+    expect(commitBtn(q).disabled).toBe(true);
   });
 
   it('textarea is disabled when hasFiles is false', () => {
-    const { getByPlaceholderText } = render(CommitArea, { hasFiles: false, stagedCount: 0 });
-    expect((getByPlaceholderText('Commit message') as HTMLTextAreaElement).disabled).toBe(true);
+    const q = render(CommitArea, { hasFiles: false, stagedCount: 0 });
+    expect(msgBox(q).disabled).toBe(true);
   });
 });
 
@@ -51,58 +61,34 @@ describe('CommitArea — button states', () => {
 describe('CommitArea — commit actions', () => {
   it('calls onCommit with message when commit button clicked', async () => {
     const onCommit = vi.fn();
-    const { getByText, getByPlaceholderText } = render(CommitArea, {
-      hasFiles: true,
-      stagedCount: 1,
-      onCommit,
-    });
-
-    await fireEvent.input(getByPlaceholderText('Commit message'), {
-      target: { value: 'fix: my change' },
-    });
-    await fireEvent.click(getByText('Commit'));
-
+    const q = render(CommitArea, { hasFiles: true, stagedCount: 1, onCommit });
+    await fireEvent.input(msgBox(q), { target: { value: 'fix: my change' } });
+    await fireEvent.click(commitBtn(q));
     expect(onCommit).toHaveBeenCalledWith('fix: my change');
   });
 
-  it('calls onCommitPush with message when commit & push clicked', async () => {
+  it('calls onCommitPush with message when push clicked', async () => {
     const onCommitPush = vi.fn();
-    const { getByText, getByPlaceholderText } = render(CommitArea, {
-      hasFiles: true,
-      stagedCount: 1,
-      hasUpstream: true,
-      onCommitPush,
+    const q = render(CommitArea, {
+      hasFiles: true, stagedCount: 1, hasUpstream: true, onCommitPush,
     });
-
-    await fireEvent.input(getByPlaceholderText('Commit message'), {
-      target: { value: 'feat: new thing' },
-    });
-    await fireEvent.click(getByText('Commit & Push'));
-
+    await fireEvent.input(msgBox(q), { target: { value: 'feat: new thing' } });
+    await fireEvent.click(pushBtn(q));
     expect(onCommitPush).toHaveBeenCalledWith('feat: new thing');
   });
 
   it('does not call onCommit when canCommit is false', async () => {
     const onCommit = vi.fn();
-    const { getByText } = render(CommitArea, { hasFiles: true, stagedCount: 0, onCommit });
-
-    await fireEvent.click(getByText('Commit'));
+    const q = render(CommitArea, { hasFiles: true, stagedCount: 0, onCommit });
+    await fireEvent.click(commitBtn(q));
     expect(onCommit).not.toHaveBeenCalled();
   });
 
   it('trims whitespace from message before committing', async () => {
     const onCommit = vi.fn();
-    const { getByText, getByPlaceholderText } = render(CommitArea, {
-      hasFiles: true,
-      stagedCount: 1,
-      onCommit,
-    });
-
-    await fireEvent.input(getByPlaceholderText('Commit message'), {
-      target: { value: '  fix: spaces  ' },
-    });
-    await fireEvent.click(getByText('Commit'));
-
+    const q = render(CommitArea, { hasFiles: true, stagedCount: 1, onCommit });
+    await fireEvent.input(msgBox(q), { target: { value: '  fix: spaces  ' } });
+    await fireEvent.click(commitBtn(q));
     expect(onCommit).toHaveBeenCalledWith('fix: spaces');
   });
 });
@@ -112,63 +98,41 @@ describe('CommitArea — commit actions', () => {
 describe('CommitArea — message preservation (bug #20/#22)', () => {
   it('bug-20: message stays after commit (parent clears via clearMessage)', async () => {
     const onCommit = vi.fn();
-    const { getByText, getByPlaceholderText } = render(CommitArea, {
-      hasFiles: true,
-      stagedCount: 1,
-      onCommit,
-    });
-
-    const textarea = getByPlaceholderText('Commit message') as HTMLTextAreaElement;
+    const q = render(CommitArea, { hasFiles: true, stagedCount: 1, onCommit });
+    const textarea = msgBox(q);
     await fireEvent.input(textarea, { target: { value: 'my commit' } });
-    await fireEvent.click(getByText('Commit'));
-
-    // Message should NOT be cleared by CommitArea itself — parent does it on success
+    await fireEvent.click(commitBtn(q));
     expect(textarea.value).toBe('my commit');
   });
 
   it('bug-20: clearMessage() resets the textarea', async () => {
-    const { getByPlaceholderText, component } = render(CommitArea, {
-      hasFiles: true,
-      stagedCount: 1,
-    });
-
-    const textarea = getByPlaceholderText('Commit message') as HTMLTextAreaElement;
+    const q = render(CommitArea, { hasFiles: true, stagedCount: 1 });
+    const textarea = msgBox(q);
     await fireEvent.input(textarea, { target: { value: 'my commit' } });
     expect(textarea.value).toBe('my commit');
-
-    (component as any).clearMessage();
+    (q.component as any).clearMessage();
     await tick();
     expect(textarea.value).toBe('');
   });
 });
 
-// ── bug #21: hide Commit & Push when no upstream ─────────────────────────────
+// ── bug #21: hide Push when no upstream ───────────────────────────────────────
 
 describe('CommitArea — upstream visibility (bug #21)', () => {
-  it('bug-21: hides Commit & Push button when hasUpstream is false', () => {
-    const { queryByText } = render(CommitArea, {
-      hasFiles: true,
-      stagedCount: 1,
-      hasUpstream: false,
+  it('bug-21: hides Push button when hasUpstream is false', () => {
+    const { queryByRole } = render(CommitArea, {
+      hasFiles: true, stagedCount: 1, hasUpstream: false,
     });
-    expect(queryByText('Commit & Push')).toBeFalsy();
+    expect(queryByRole('button', { name: 'Push' })).toBeFalsy();
   });
 
-  it('bug-21: shows Commit & Push button when hasUpstream is true', () => {
-    const { getByText } = render(CommitArea, {
-      hasFiles: true,
-      stagedCount: 1,
-      hasUpstream: true,
-    });
-    expect(getByText('Commit & Push')).toBeTruthy();
+  it('bug-21: shows Push button when hasUpstream is true', () => {
+    const q = render(CommitArea, { hasFiles: true, stagedCount: 1, hasUpstream: true });
+    expect(pushBtn(q)).toBeTruthy();
   });
 
   it('bug-21: always shows Commit button regardless of upstream', () => {
-    const { getByText } = render(CommitArea, {
-      hasFiles: true,
-      stagedCount: 1,
-      hasUpstream: false,
-    });
-    expect(getByText('Commit')).toBeTruthy();
+    const q = render(CommitArea, { hasFiles: true, stagedCount: 1, hasUpstream: false });
+    expect(commitBtn(q)).toBeTruthy();
   });
 });

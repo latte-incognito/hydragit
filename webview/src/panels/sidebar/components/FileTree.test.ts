@@ -219,16 +219,14 @@ describe('FileTree — folder staging', () => {
     expect(folderCb?.checked).toBe(true);
   });
 
-  it('folder checkbox is indeterminate when only some files are staged', () => {
-    const staged = new Set(['src/main.ts']); // only one of the two src files
-    const { getAllByRole } = render(FileTree, { files, stagedPaths: staged });
+  it('splits partially-staged files into Staged Changes and Changes sections', () => {
+    const staged = new Set(['src/main.ts']); // one staged, the rest not
+    const { getByText } = render(FileTree, { files, stagedPaths: staged });
 
-    const checkboxes = getAllByRole('checkbox') as HTMLInputElement[];
-    const folderCb = checkboxes.find(cb =>
-      cb.getAttribute('aria-label')?.includes('Stage all in src')
-    ) as HTMLInputElement | undefined;
-
-    expect(folderCb?.indeterminate).toBe(true);
+    // Both section headers appear; the staged file is no longer "partial" — it
+    // lives under Staged Changes while the rest live under Changes.
+    expect(getByText('Staged Changes')).toBeTruthy();
+    expect(getByText('Changes')).toBeTruthy();
   });
 });
 

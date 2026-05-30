@@ -3,15 +3,14 @@
   import { on, send } from '$shared/messageBus';
   import type { GitFile, GitStatus } from './types';
 
-  import SectionHeader from './components/SectionHeader.svelte';
   import FileTree      from './components/FileTree.svelte';
   import CommitArea    from './components/CommitArea.svelte';
 
   // ── State ──────────────────────────────────────────────────────────────────
   let files: GitFile[] = [];
+  let branch = '';
   let hasUpstream = false;
   let noRepo = false;
-  let sectionOpen = true;
   let loading = true;
 
   // Staged paths — webview-only, separate from git state
@@ -33,6 +32,7 @@
     stagedPaths = new Set([...stagedPaths].filter((p) => nextPaths.has(p)));
 
     hasUpstream = s.hasUpstream ?? false;
+    branch = s.branch ?? branch;
     files = nextFiles;
     loading = false;
   }
@@ -66,25 +66,6 @@
     collapsed = collapsed; // trigger reactivity
   }
 
-  function handleExpandAll() {
-    collapsed = new Set();
-  }
-
-  function handleCollapseAll() {
-    // Collect all folder keys from current tree — build from files
-    const keys = new Set<string>();
-    for (const f of files) {
-      const parts = f.path.split('/');
-      parts.pop();
-      let acc = '';
-      for (const p of parts) {
-        acc = acc ? acc + '/' + p : p;
-        keys.add(acc);
-      }
-    }
-    collapsed = keys;
-  }
-
   // ── Staging ────────────────────────────────────────────────────────────────
   function handleToggleStage(path: string) {
     const next = new Set(stagedPaths);
@@ -98,16 +79,6 @@
       stage ? next.add(p) : next.delete(p);
     }
     stagedPaths = next;
-  }
-
-  function handleToggleAll(stage: boolean) {
-    stagedPaths = stage ? new Set(files.map((f) => f.path)) : new Set();
-  }
-
-  function handleRefresh(e: MouseEvent) {
-    e.stopPropagation();
-    loading = true;
-    loadChanges();
   }
 
   // ── Diff ───────────────────────────────────────────────────────────────────
@@ -143,8 +114,6 @@
 
   // ── Derived ────────────────────────────────────────────────────────────────
   $: stagedCount = stagedPaths.size;
-  $: allStaged   = files.length > 0 && files.every((f) => stagedPaths.has(f.path));
-  $: someStaged  = files.some((f) => stagedPaths.has(f.path));
 </script>
 
 
@@ -157,38 +126,24 @@
     collapsed={new Set()}
   />
 {:else}
-  <SectionHeader
-    title="Changes"
-    count={files.length > 0 ? files.length : null}
-    open={sectionOpen}
-    {allStaged}
-    {someStaged}
-    onToggle={() => { sectionOpen = !sectionOpen; }}
-    onRefresh={handleRefresh}
-    onToggleAll={handleToggleAll}
-    onExpandAll={handleExpandAll}
-    onCollapseAll={handleCollapseAll}
+  <FileTree
+    {files}
+    {loading}
+    {noRepo}
+    {stagedPaths}
+    {collapsed}
+    onToggleStage={handleToggleStage}
+    onToggleFolder={handleToggleFolder}
+    onStageFolder={handleStageFolder}
+    onOpenDiff={handleOpenDiff}
   />
-
-  {#if sectionOpen}
-    <FileTree
-      {files}
-      {loading}
-      {noRepo}
-      {stagedPaths}
-      {collapsed}
-      onToggleStage={handleToggleStage}
-      onToggleFolder={handleToggleFolder}
-      onStageFolder={handleStageFolder}
-      onOpenDiff={handleOpenDiff}
-    />
-  {/if}
 
   <CommitArea
     bind:this={commitAreaRef}
     hasFiles={files.length > 0}
     {stagedCount}
     {hasUpstream}
+    {branch}
     error={commitError}
     onCommit={handleCommit}
     onCommitPush={handleCommitPush}
