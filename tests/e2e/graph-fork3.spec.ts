@@ -20,9 +20,13 @@ test.describe("fork-merge graph — 3 developers", () => {
     const renderMs = Date.now() - start;
     console.log(`fork3 first rows visible after ${renderMs}ms`);
 
-    // 3 branches × (2 commits + 1 merge) + base = 10 commits.
-    const rows = await frame.locator(".crow").count();
-    expect(rows).toBe(10);
+    // 3 branches × (2 commits + 1 merge) + base = 10 commits. Use the scroll
+    // spacer for the full count (the row DOM is virtualized).
+    const innerH = await frame
+      .locator(".log-inner")
+      .evaluate((el: HTMLElement) => el.clientHeight);
+    expect(Math.round(innerH / 22)).toBe(10);
+    expect(await frame.locator(".crow").count()).toBeGreaterThan(0);
 
     // main + 3 feature lanes. Allow a little slack but confirm it's not collapsed
     // to a single trunk and not blown up wider than the branch count warrants.
