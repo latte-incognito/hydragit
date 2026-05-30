@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { on, send } from '$shared/messageBus';
+  import { uiPrompt, uiConfirm } from '$shared/dialogs';
   import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag } from './types';
 
   import Toolbar     from './components/Toolbar.svelte';
@@ -331,7 +332,7 @@
 
   async function railAction(a: string) {
     if (a === 'branch.new') {
-      const name = prompt('New branch name:');
+      const name = await uiPrompt('New branch name:');
       if (name) {
         try {
           await send('branch.create', { name });
@@ -348,14 +349,14 @@
       // We can't call VS Code APIs directly from the webview, so we send a
       // special command to the extension host which shows the dialog and
       // only deletes if confirmed.
-      const name = prompt(`Delete branch — enter branch name (cannot delete current branch):`);
+      const name = await uiPrompt(`Delete branch — enter branch name (cannot delete current branch):`);
       if (!name) return;
       if (name === activeBranch) {
         flash(`Cannot delete the current branch: ${name}`, '#f07070');
         return;
       }
-      // Two-step confirmation: native confirm() as the webview-accessible fallback
-      const confirmed = confirm(
+      // Confirmation via the host (native VS Code modal) — see $shared/dialogs.
+      const confirmed = await uiConfirm(
         `Delete branch "${name}"?\n\nThis cannot be undone. The branch will be deleted locally.`
       );
       if (!confirmed) return;
@@ -367,7 +368,7 @@
       } catch (e: unknown) {
         // Likely "not fully merged" — offer force delete
         const msg = e instanceof Error ? e.message : String(e);
-        const force = confirm(
+        const force = await uiConfirm(
           `Could not delete "${name}":\n${msg}\n\nForce delete? (data may be lost)`
         );
         if (force) {
@@ -383,7 +384,7 @@
       return;
     }
     if (a === 'merge') {
-      const target = prompt('Merge branch into current — branch name:');
+      const target = await uiPrompt('Merge branch into current — branch name:');
       if (target) {
         flash(`Merging ${target}…`);
         try { await send('merge', { branch: target }); flash(`Merged ${target}`, '#4ec94e'); loadAll(); }
@@ -392,7 +393,7 @@
       return;
     }
     if (a === 'rebase') {
-      const onto = prompt('Rebase onto branch:');
+      const onto = await uiPrompt('Rebase onto branch:');
       if (onto) {
         flash(`Rebasing onto ${onto}…`);
         try { await send('rebase', { onto }); flash('Rebased', '#4ec94e'); loadAll(); }
@@ -401,9 +402,9 @@
       return;
     }
     if (a === 'tag') {
-      const name = prompt('New tag name (at HEAD):');
+      const name = await uiPrompt('New tag name (at HEAD):');
       if (!name) return;
-      const message = prompt(`Annotation message for "${name}" (leave empty for lightweight tag):`) ?? '';
+      const message = (await uiPrompt(`Annotation message for "${name}" (leave empty for lightweight tag):`)) ?? '';
       try {
         await send('tag.create', { name, commit: '', message });
         flash(`Created tag ${name}`, '#4ec94e');
@@ -455,16 +456,16 @@
         loadAll();
       },
       'new-branch': async () => {
-        const name = prompt('New branch name:');
+        const name = await uiPrompt('New branch name:');
         if (!name) return;
         await send('branch.create', { name, from: hash });
         flash(`Created ${name}`, '#4ec94e');
         loadAll();
       },
       'new-tag': async () => {
-        const name = prompt(`New tag at ${hash.slice(0, 7)}:`);
+        const name = await uiPrompt(`New tag at ${hash.slice(0, 7)}:`);
         if (!name) return;
-        const message = prompt(`Annotation message for "${name}" (leave empty for lightweight tag):`) ?? '';
+        const message = (await uiPrompt(`Annotation message for "${name}" (leave empty for lightweight tag):`)) ?? '';
         await send('tag.create', { name, commit: hash, message });
         flash(`Created tag ${name}`, '#4ec94e');
         loadAll();
@@ -473,7 +474,7 @@
         send('openCommitUrl', { commit: hash });
       },
       reset: async () => {
-        const raw = prompt(
+        const raw = await uiPrompt(
           `Reset current branch to ${hash.slice(0, 7)} — mode (soft / mixed / hard):`,
           'mixed'
         );
@@ -483,9 +484,9 @@
           flash(`Unknown reset mode: ${raw}`, '#f07070');
           return;
         }
-        if (mode === 'hard' && !confirm(
+        if (mode === 'hard' && !(await uiConfirm(
           `Hard reset to ${hash.slice(0, 7)}?\n\nUncommitted changes will be DISCARDED.`
-        )) return;
+        ))) return;
         await send('reset', { commit: hash, mode });
         flash(`Reset (${mode}) to ${hash.slice(0, 7)}`, '#4ec94e');
         loadAll();
@@ -519,11 +520,11 @@
       delete:    async () => { await send('branch.delete', { name: ctxBranch, force: false }); flash(`Deleted ${ctxBranch}`, '#f07070'); loadAll(); },
       copy:      async () => { flash(`Copied: ${ctxBranch}`, '#4ec94e'); },
       rename:    async () => {
-        const to = prompt('New name:');
+        const to = await uiPrompt('New name:');
         if (to) { await send('branch.rename', { from: ctxBranch, to }); flash(`Renamed to ${to}`, '#4ec94e'); loadAll(); }
       },
       'new-from': async () => {
-        const name = prompt('Branch name:');
+        const name = await uiPrompt('Branch name:');
         if (name) { await send('branch.create', { name, from: ctxBranch }); flash(`Created ${name}`, '#4ec94e'); loadAll(); }
       },
       'checkout-rebase': async () => {

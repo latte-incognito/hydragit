@@ -173,6 +173,25 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
         await openCommitUrl(msg.params);
         return;
       }
+      // Dialog seam: the webview asks the host to show native prompt/confirm UI
+      // and awaits the result over the same id-based bus (see webview dialogs.ts).
+      if (msg.cmd === 'ui.prompt') {
+        const value = await vscode.window.showInputBox({
+          prompt: msg.params?.message,
+          value: msg.params?.value ?? '',
+        });
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data: value ?? null });
+        return;
+      }
+      if (msg.cmd === 'ui.confirm') {
+        const pick = await vscode.window.showWarningMessage(
+          msg.params?.message ?? 'Are you sure?',
+          { modal: true },
+          'Yes'
+        );
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data: pick === 'Yes' });
+        return;
+      }
 
       try {
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
