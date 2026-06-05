@@ -30,10 +30,31 @@ test.describe("Merge conflict — sidebar (BUG #19)", () => {
       (await getSidebarFrame(mainWindow)) ?? (await getWebviewFrame(mainWindow, "sidebar"));
     expect(sidebar).not.toBeNull();
 
-    // A conflict badge / "U" (unmerged) indicator must be present for the file.
-    const conflictBadge = sidebar!.locator(
-      '[data-status="U"], [data-status="conflict"], .status-conflict, .file-conflict'
+    // The row carries data-status="!" (unmerged) — distinct from M/A/D and from
+    // untracked "U". resolveStatus maps every UU/AA/DD/AU/UA/DU/UD code to "!".
+    const conflictRow = sidebar!.locator('[data-status="!"]');
+    await expect(conflictRow.first()).toBeVisible({ timeout: 8000 });
+    await expect(conflictRow.first()).toHaveAttribute("data-path", "conflict.txt");
+  });
+
+  test("clicking the conflicted file opens the merge resolver", async ({ mainWindow }) => {
+    const sidebar =
+      (await getSidebarFrame(mainWindow)) ?? (await getWebviewFrame(mainWindow, "sidebar"));
+    expect(sidebar).not.toBeNull();
+
+    const conflictRow = sidebar!.locator('[data-path="conflict.txt"]');
+    await expect(conflictRow.first()).toBeVisible({ timeout: 8000 });
+    await conflictRow.first().click();
+
+    // A workbench editor opens for conflict.txt. Prefer VS Code's 3-way merge
+    // editor; accept the plain-editor / diff fallback (git.openMergeEditor may be
+    // unavailable, in which case openMergeEditor() falls back to vscode.open).
+    const editor = mainWindow.locator(
+      ".monaco-merge-editor, .editor-instance, .monaco-diff-editor"
     );
-    await expect(conflictBadge.first()).toBeVisible({ timeout: 8000 });
+    await expect(editor.first()).toBeVisible({ timeout: 8000 });
+
+    const tab = mainWindow.locator(".tab", { hasText: "conflict.txt" });
+    await expect(tab.first()).toBeVisible({ timeout: 8000 });
   });
 });

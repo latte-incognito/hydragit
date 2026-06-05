@@ -143,6 +143,7 @@
     D: { label: 'D', nameClass: 'fname-d', badgeClass: 'badge-d' },
     R: { label: 'R', nameClass: 'fname-r', badgeClass: 'badge-r' },
     C: { label: 'C', nameClass: 'fname-c', badgeClass: 'badge-c' },
+    '!': { label: '!', nameClass: 'fname-conflict', badgeClass: 'badge-conflict' },
   };
   function cfg(status: string) {
     return STATUS_CFG[status?.toUpperCase()?.[0] ?? 'M'] ?? STATUS_CFG['M'];
@@ -252,6 +253,8 @@
               on:click={() => onOpenDiff(f.path)}
               role="option"
               aria-selected={staged}
+              data-status={f.status}
+              data-path={f.path}
               tabindex="0"
             >
               <span class="badge {s.badgeClass}" title={s.label}>{s.label}</span>
@@ -479,6 +482,7 @@
   .badge-d { background: rgba(160,160,160,0.1); color: #888; border: 0.5px solid rgba(160,160,160,0.25); }
   .badge-r { background: rgba(74,156,214,0.15); color: #4a9cd6; border: 0.5px solid rgba(74,156,214,0.35); }
   .badge-c { background: rgba(224,160,48,0.13); color: #e0a030; border: 0.5px solid rgba(224,160,48,0.3); }
+  .badge-conflict { background: rgba(224,72,72,0.15); color: #e04848; border: 0.5px solid rgba(224,72,72,0.4); }
 
   /* ── File name ── */
   .fname {
@@ -495,6 +499,7 @@
   .fname-d-strike { text-decoration: line-through; }
   .fname-r { color: #4a9cd6; }
   .fname-c { color: #e0a030; }
+  .fname-conflict { color: #e04848; }
   .fname-old {
     color: var(--vscode-descriptionForeground, #888);
     font-family: var(--hg-font-family);

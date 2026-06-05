@@ -133,6 +133,19 @@ export async function openDiff(
   await vscode.commands.executeCommand('vscode.diff', gitUri(parent), gitUri(commit), title, show);
 }
 
+// openMergeEditor opens VS Code's built-in 3-way merge resolver for a conflicted
+// file. Falls back to opening the file (with inline conflict-marker CodeLens) if
+// the git extension's merge-editor command isn't available.
+export async function openMergeEditor(params: { file: string }): Promise<void> {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const uri = vscode.Uri.file(path.join(workspaceRoot, params.file));
+  try {
+    await vscode.commands.executeCommand('git.openMergeEditor', uri);
+  } catch {
+    await vscode.commands.executeCommand('vscode.open', uri);
+  }
+}
+
 export class HydraViewProvider implements vscode.WebviewViewProvider {
   private watcher: vscode.FileSystemWatcher | undefined;
 
@@ -314,6 +327,12 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
       // openDiff is handled in the extension host — same as main panel
       if (msg.cmd === 'openDiff') {
         await openDiff(msg.params);
+        return;
+      }
+
+      // Conflicted files route to VS Code's 3-way merge resolver.
+      if (msg.cmd === 'openMergeEditor') {
+        await openMergeEditor(msg.params);
         return;
       }
 

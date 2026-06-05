@@ -91,3 +91,25 @@ func TestResolveStatus_unmergedCodes(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveStatus_conflictDistinctFromUntracked locks in the exact conflict
+// marker. The sidebar routes "!" files to the merge resolver, so a conflict must
+// map to "!" and must NOT collide with untracked ("U") — the two are styled and
+// clicked differently.
+func TestResolveStatus_conflictDistinctFromUntracked(t *testing.T) {
+	for _, xy := range []string{"UU", "AA", "DD", "AU", "UA", "DU", "UD"} {
+		if got := resolveStatus(xy); got != "!" {
+			t.Errorf("resolveStatus(%q) = %q; want %q (conflict marker)", xy, got, "!")
+		}
+	}
+	if got := resolveStatus("??"); got != "U" {
+		t.Errorf("resolveStatus(%q) = %q; want %q (untracked)", "??", got, "U")
+	}
+	// Non-conflict codes must keep their plain meaning (no false positives).
+	if got := resolveStatus(" M"); got != "M" {
+		t.Errorf("resolveStatus(%q) = %q; want %q", " M", got, "M")
+	}
+	if got := resolveStatus("A "); got != "A" {
+		t.Errorf("resolveStatus(%q) = %q; want %q", "A ", got, "A")
+	}
+}
