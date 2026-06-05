@@ -116,29 +116,6 @@ function escapeMd(s: string): string {
   return s.replace(/[\\`*_[\]()<>]/g, (m) => '\\' + m);
 }
 
-/**
- * sleep resolves true after `ms`, or false the moment `token` is cancelled
- * (i.e. the user moved the mouse off the annotation). Used to delay the blame
- * hover so it only appears after the cursor has rested on the inline annotation.
- */
-function sleep(ms: number, token: vscode.CancellationToken): Promise<boolean> {
-  return new Promise<boolean>((resolve) => {
-    if (token.isCancellationRequested) {
-      resolve(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      sub.dispose();
-      resolve(true);
-    }, ms);
-    const sub = token.onCancellationRequested(() => {
-      clearTimeout(timer);
-      sub.dispose();
-      resolve(false);
-    });
-  });
-}
-
 /** What to blame: a repo-relative path plus the ref ("" = working tree). */
 export interface BlameTarget {
   rel: string;
@@ -229,15 +206,14 @@ export class BlameController implements vscode.Disposable {
   private enabled: boolean;
   private currentEmail = '';
   private debounceTimer: NodeJS.Timeout | undefined;
-  private hoverDelayMs: number;
 
   constructor(
     private readonly go: GoProcess,
     private readonly workspaceRoot: string
   ) {
-    const cfg = vscode.workspace.getConfiguration('hydragit');
-    this.enabled = cfg.get<boolean>('lineBlame.enabled', true);
-    this.hoverDelayMs = cfg.get<number>('lineBlame.hoverDelay', 5000);
+    this.enabled = vscode.workspace
+      .getConfiguration('hydragit')
+      .get<boolean>('lineBlame.enabled', true);
 
     this.decoration = vscode.window.createTextEditorDecorationType({
       after: {
@@ -266,15 +242,8 @@ export class BlameController implements vscode.Disposable {
         if (e.document === vscode.window.activeTextEditor?.document) this.scheduleRefresh();
       }),
       vscode.workspace.onDidCloseTextDocument((doc) => this.cache.delete(doc.uri.toString())),
-      vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('hydragit.lineBlame.hoverDelay')) {
-          this.hoverDelayMs = vscode.workspace
-            .getConfiguration('hydragit')
-            .get<number>('lineBlame.hoverDelay', 5000);
-        }
-      }),
       vscode.languages.registerHoverProvider([{ scheme: 'file' }, { scheme: 'git' }], {
-        provideHover: (doc, pos, token) => this.provideHover(doc, pos, token),
+        provideHover: (doc, pos) => this.provideHover(doc, pos),
       })
     );
 
@@ -368,21 +337,21 @@ export class BlameController implements vscode.Disposable {
     ]);
   }
 
-  private async provideHover(
+  // Surface the rich card immediately when the cursor is over our inline blame —
+  // the trailing annotation on the active line, past end-of-line — and never over
+  // the code. Synchronous: returning a pending promise would make VS Code show a
+  // "loading" hover widget.
+  private provideHover(
     doc: vscode.TextDocument,
-    position: vscode.Position,
-    token: vscode.CancellationToken
-  ): Promise<vscode.Hover | undefined> {
+    position: vscode.Position
+  ): vscode.Hover | undefined {
     if (!this.enabled) return undefined;
 
-    // Only surface the rich card when the cursor is actually over our inline
-    // blame — the trailing annotation on the active line — never over the code.
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document !== doc) return undefined;
+
     const lineLen = doc.lineAt(position.line).text.length;
-    if (
-      !hoverHitsAnnotation(lineLen, position.line, position.character, editor.selection.active.line)
-    ) {
+    if (!hoverHitsAnnotation(lineLen, position.line, position.character, editor.selection.active.line)) {
       return undefined;
     }
 
@@ -390,11 +359,15 @@ export class BlameController implements vscode.Disposable {
     const blame = cached?.lines[position.line];
     if (!blame) return undefined;
 
-    // Hold off until the cursor has rested on the annotation; bail the instant
-    // VS Code cancels (the mouse moved) so nothing flashes up. This is what keeps
-    // the popup from being distracting.
-    if (!(await sleep(this.hoverDelayMs, token))) return undefined;
+    return this.buildHover(doc, position, blame);
+  }
 
+  /** Build the rich blame card, anchored to the end-of-line annotation. */
+  private buildHover(
+    doc: vscode.TextDocument,
+    position: vscode.Position,
+    blame: BlameLine
+  ): vscode.Hover {
     const md = new vscode.MarkdownString(buildHoverMarkdown(blame, Date.now()));
     md.isTrusted = true;
     if (!blame.uncommitted && blame.commit !== ZERO_SHA) {
@@ -408,8 +381,6 @@ export class BlameController implements vscode.Disposable {
           `[Line History](command:hydragit.lineHistory?${lineArg})`
       );
     }
-    // Anchor the card to the end-of-line (where the annotation sits) rather than
-    // the whole line, so it points at the blame text it describes.
     const eol = doc.lineAt(position.line).range.end;
     return new vscode.Hover(md, new vscode.Range(eol, eol));
   }
