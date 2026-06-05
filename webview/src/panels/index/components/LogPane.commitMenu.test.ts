@@ -65,9 +65,10 @@ describe('Commit context menu — navigation items', () => {
 // do nothing when clicked. These FAIL by design (red CI), naming each dead item
 // so it gets wired or removed. Dimmed items (Undo/Fixup/Squash) are intentionally
 // disabled and excluded.
+// 'Show Repository at Revision' is intentionally deferred (dimmed/disabled), so
+// it joins Undo/Fixup/Squash in the excluded set rather than this bug-hunt list.
 const DEAD_BUT_ENABLED = [
   'Create Patch…',
-  'Show Repository at Revision',
   'Compare with Local',
   'Edit Commit Message…',
   'Drop Commit',

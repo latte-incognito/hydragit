@@ -242,7 +242,7 @@
       <span class="ci-text">Copy Revision Number</span>
       <span class="ci-shortcut">⌥⇧⌘C</span>
     </div>
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={() => runAction('create-patch')}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <line x1="7" y1="3" x2="7" y2="11" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
@@ -267,8 +267,8 @@
     <div class="ctx-divider"></div>
 
     <div class="ctx-item" on:click={() => runAction('checkout')}><span class="ci-icon"></span><span class="ci-text">Checkout Revision</span></div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Show Repository at Revision</span></div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Compare with Local</span></div>
+    <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Show Repository at Revision</span></div>
+    <div class="ctx-item" on:click={() => runAction('compare-local')}><span class="ci-icon"></span><span class="ci-text">Compare with Local</span></div>
 
     <div class="ctx-divider"></div>
 
@@ -294,7 +294,7 @@
     <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Squash Into…</span></div>
     <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Drop Commit</span></div>
     <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Interactively Rebase from Here…</span></div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Push All up to Here…</span></div>
+    <div class="ctx-item" on:click={() => runAction('push-here')}><span class="ci-icon"></span><span class="ci-text">Push All up to Here…</span></div>
 
     <div class="ctx-divider"></div>
 

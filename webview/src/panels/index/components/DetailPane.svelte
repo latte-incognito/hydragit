@@ -4,6 +4,9 @@
 
   export let commit: Commit | null = null;
   export let stash: any = null;
+  // Active ref/range comparison header (branch/tag/commit "Compare…"); when set,
+  // the pane shows the compared file list instead of a commit/stash.
+  export let compare: { title: string } | null = null;
   export let files: DiffFile[] = [];
   export let hunks: DiffHunk[] = [];
   export let selFile: string | null = null;
@@ -272,6 +275,26 @@
     send('openFile', { file: ctxFile, ref });
   }
 
+  // Compare the file's committed version (or the parent's, for "Before") against
+  // the current working-tree copy, in a VS Code diff editor.
+  function ctxCompareWithLocal() {
+    closeCtx();
+    if (!ctxFile) return;
+    const ref = isStash && stash ? `stash@{${stash.index ?? 0}}` : commit?.hash;
+    if (!ref) return;
+    send('openWorkingDiff', { file: ctxFile, ref });
+  }
+
+  function ctxCompareBeforeWithLocal() {
+    closeCtx();
+    if (!ctxFile) return;
+    const ref = isStash && stash
+      ? `stash@{${stash.index ?? 0}}^`
+      : (commit?.parents ?? [])[0];
+    if (!ref) return;
+    send('openWorkingDiff', { file: ctxFile, ref, label: 'before' });
+  }
+
   // Revert / cherry-pick operate at commit granularity (the changes this commit
   // introduced) — the same ops as the detail footer buttons. File-granular
   // selection is not supported by the backend yet.
@@ -322,8 +345,8 @@
       </span>
       <span class="ci-text">Show Diff in a New Tab</span>
     </div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Compare with Local</span></div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Compare Before with Local</span></div>
+    <div class="ctx-item" on:click={ctxCompareWithLocal}><span class="ci-icon"></span><span class="ci-text">Compare with Local</span></div>
+    <div class="ctx-item" on:click={ctxCompareBeforeWithLocal}><span class="ci-icon"></span><span class="ci-text">Compare Before with Local</span></div>
     <div class="ctx-item" on:click={ctxEditSource}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
@@ -483,7 +506,7 @@
 
     </div>
 
-  {:else if !commit}
+  {:else if !commit && !compare}
     <!-- ── Empty state ── -->
     <div class="detail-empty">
       {#if iconUri}<img class="detail-empty-icon" src={iconUri} alt="" />{/if}
@@ -607,29 +630,42 @@
         {/if}
       </div>
 
-      <!-- ── Commit meta ── -->
+      <!-- ── Meta: compare header or commit detail ── -->
       <div class="detail-meta">
-        <div class="dm-hash">{(commit.hash ?? '').slice(0, 8)}</div>
-        <div class="dm-msg">{commit.message ?? commit.msg ?? ''}</div>
-        <div class="dm-row"><span class="dm-label">Author</span>{commit.author ?? ''}</div>
-        <div class="dm-row"><span class="dm-label">Date</span>{commit.date ?? ''}</div>
-        {#if (commit.refs ?? []).length}
-          <div class="dm-row"><span class="dm-label">Refs</span>{(commit.refs ?? []).join(', ')}</div>
-        {/if}
-        {#if loading}
-          <div class="dm-stats"><span class="dm-stat-dim">Loading…</span></div>
-        {:else}
-          <div class="dm-stats">
-            <span class="stat-add">+{totalAdd}</span>
-            <span class="stat-del">-{totalDel}</span>
-            <span class="dm-stat-dim">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+        {#if compare}
+          <div class="dm-msg">{compare.title}</div>
+          {#if loading}
+            <div class="dm-stats"><span class="dm-stat-dim">Loading…</span></div>
+          {:else}
+            <div class="dm-stats">
+              <span class="stat-add">+{totalAdd}</span>
+              <span class="stat-del">-{totalDel}</span>
+              <span class="dm-stat-dim">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+            </div>
+          {/if}
+        {:else if commit}
+          <div class="dm-hash">{(commit.hash ?? '').slice(0, 8)}</div>
+          <div class="dm-msg">{commit.message ?? commit.msg ?? ''}</div>
+          <div class="dm-row"><span class="dm-label">Author</span>{commit.author ?? ''}</div>
+          <div class="dm-row"><span class="dm-label">Date</span>{commit.date ?? ''}</div>
+          {#if (commit.refs ?? []).length}
+            <div class="dm-row"><span class="dm-label">Refs</span>{(commit.refs ?? []).join(', ')}</div>
+          {/if}
+          {#if loading}
+            <div class="dm-stats"><span class="dm-stat-dim">Loading…</span></div>
+          {:else}
+            <div class="dm-stats">
+              <span class="stat-add">+{totalAdd}</span>
+              <span class="stat-del">-{totalDel}</span>
+              <span class="dm-stat-dim">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+            </div>
+          {/if}
+          <div class="dm-actions">
+            <button class="action-btn" on:click={() => onCommitAction('cherry-pick', commit?.hash ?? '')}>Cherry-pick</button>
+            <button class="action-btn" on:click={() => onCommitAction('revert', commit?.hash ?? '')}>Revert</button>
+            <button class="action-btn" on:click={() => onCommitAction('copy', commit?.hash ?? '')}>Copy hash</button>
           </div>
         {/if}
-        <div class="dm-actions">
-          <button class="action-btn" on:click={() => onCommitAction('cherry-pick', commit?.hash ?? '')}>Cherry-pick</button>
-          <button class="action-btn" on:click={() => onCommitAction('revert', commit?.hash ?? '')}>Revert</button>
-          <button class="action-btn" on:click={() => onCommitAction('copy', commit?.hash ?? '')}>Copy hash</button>
-        </div>
       </div>
 
     </div>

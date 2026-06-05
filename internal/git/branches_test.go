@@ -2,6 +2,7 @@ package git
 
 import (
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -246,6 +247,31 @@ func TestFetch(t *testing.T) {
 
 	if err := Fetch(local); err != nil {
 		t.Fatalf("Fetch failed: %v", err)
+	}
+}
+
+func TestPushCommit(t *testing.T) {
+	local := makeRepoWithRemote(t)
+
+	branchOut, _ := exec.Command("git", "-C", local, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	branch := strings.TrimSpace(string(branchOut))
+
+	// Two new local commits; we push only up to the FIRST one.
+	exec.Command("git", "-C", local, "commit", "--allow-empty", "-m", "c1").Run()
+	c1Out, _ := exec.Command("git", "-C", local, "rev-parse", "HEAD").Output()
+	c1 := strings.TrimSpace(string(c1Out))
+	exec.Command("git", "-C", local, "commit", "--allow-empty", "-m", "c2").Run()
+
+	if err := PushCommit(local, c1, branch); err != nil {
+		t.Fatalf("PushCommit failed: %v", err)
+	}
+
+	// The remote branch tip must be exactly c1 — not c2.
+	remoteURLOut, _ := exec.Command("git", "-C", local, "remote", "get-url", "origin").Output()
+	remoteTipOut, _ := exec.Command("git", "-C", strings.TrimSpace(string(remoteURLOut)),
+		"rev-parse", branch).Output()
+	if got := strings.TrimSpace(string(remoteTipOut)); got != c1 {
+		t.Fatalf("remote tip = %s; want c1 %s (only commits up to here should push)", got, c1)
 	}
 }
 

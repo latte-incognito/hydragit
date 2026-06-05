@@ -35,6 +35,42 @@ export async function openFile(params: { file: string; ref?: string }): Promise<
   await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(absPath));
 }
 
+// openWorkingDiff opens a diff editor comparing a file at a given revision (left)
+// against the current working-tree copy (right) — "Compare with Local". The ref
+// side is read-only via the built-in Git extension's `git:` scheme.
+export async function openWorkingDiff(params: {
+  file: string;
+  ref: string;
+  label?: string;
+}): Promise<void> {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const absPath = path.join(workspaceRoot, params.file);
+  const refUri = vscode.Uri.parse(`git:${absPath}`).with({
+    query: JSON.stringify({ path: absPath, ref: params.ref }),
+  });
+  const workingUri = vscode.Uri.file(absPath);
+  const label = params.label ?? params.ref.slice(0, 7);
+  const title = `${path.basename(params.file)} (${label} ↔ working tree)`;
+  await vscode.commands.executeCommand('vscode.diff', refUri, workingUri, title, { preview: true });
+}
+
+// savePatch prompts for a destination with a native save dialog and writes the
+// patch text there — the IntelliJ "Create Patch…" flow. Fire-and-forget from the
+// webview; feedback is shown natively.
+export async function savePatch(params: { content: string; name?: string }): Promise<void> {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const defaultUri = vscode.Uri.file(path.join(workspaceRoot, params.name ?? 'changes.patch'));
+  const target = await vscode.window.showSaveDialog({
+    defaultUri,
+    filters: { Patch: ['patch', 'diff'], 'All files': ['*'] },
+  });
+  if (!target) return; // user cancelled
+  // Ensure a trailing newline (run() trims it) so `git am` is happy.
+  const body = params.content.endsWith('\n') ? params.content : params.content + '\n';
+  await vscode.workspace.fs.writeFile(target, Buffer.from(body, 'utf8'));
+  vscode.window.showInformationMessage(`Patch saved to ${path.basename(target.fsPath)}`);
+}
+
 // Normalize a remote URL to its web (HTTPS) form. Supports the SSH and
 // scp-like shorthand used by GitHub/GitLab/Bitbucket; passes through HTTPS.
 function remoteUrlToWeb(raw: string): string | null {
@@ -189,6 +225,14 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       }
       if (msg.cmd === 'openFile') {
         await openFile(msg.params);
+        return;
+      }
+      if (msg.cmd === 'openWorkingDiff') {
+        await openWorkingDiff(msg.params);
+        return;
+      }
+      if (msg.cmd === 'savePatch') {
+        await savePatch(msg.params);
         return;
       }
       if (msg.cmd === 'openCommitUrl') {

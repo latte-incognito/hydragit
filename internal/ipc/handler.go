@@ -179,6 +179,56 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, files)
 
+	case "diff.ref":
+		var p struct {
+			Ref  string `json:"ref"`
+			File string `json:"file"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if p.File != "" {
+			hunks, err := git.DiffRefFile(repoPath, p.Ref, p.File)
+			if err != nil {
+				return fail(id, err)
+			}
+			return ok(id, hunks)
+		}
+		files, err := git.DiffRefFiles(repoPath, p.Ref)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, files)
+
+	case "diff.range":
+		var p struct {
+			Base string `json:"base"`
+			Head string `json:"head"`
+			File string `json:"file"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if p.File != "" {
+			hunks, err := git.DiffRangeFile(repoPath, p.Base, p.Head, p.File)
+			if err != nil {
+				return fail(id, err)
+			}
+			return ok(id, hunks)
+		}
+		files, err := git.DiffRangeFiles(repoPath, p.Base, p.Head)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, files)
+
+	case "patch.format":
+		var p struct {
+			Commit string `json:"commit"`
+		}
+		json.Unmarshal(req.Params, &p)
+		patch, err := git.FormatPatch(repoPath, p.Commit)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, patch)
+
 	case "user":
 		u, err := git.User(repoPath)
 		if err != nil {
@@ -393,6 +443,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Push(repoPath, p.Branch); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "push.upto":
+		var p struct {
+			Commit string `json:"commit"`
+			Branch string `json:"branch"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.PushCommit(repoPath, p.Commit, p.Branch); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)

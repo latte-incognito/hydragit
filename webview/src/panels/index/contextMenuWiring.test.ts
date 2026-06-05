@@ -18,12 +18,13 @@ import ContextMenu from './components/ContextMenu.svelte';
 const HANDLED_BRANCH = new Set([
   'checkout', 'merge', 'rebase', 'push', 'delete', 'copy',
   'rename', 'new-from', 'checkout-rebase', 'pull-rebase', 'pull-merge',
+  'compare', 'diff-working',
 ]);
 const HANDLED_STASH = new Set([
   'pop', 'apply', 'drop',
   'unstash', 'clear', 'show-diff', 'show-diff-tab',
 ]);
-const HANDLED_TAG = new Set(['checkout', 'merge', 'push', 'delete']);
+const HANDLED_TAG = new Set(['checkout', 'merge', 'push', 'delete', 'diff-working']);
 
 const branchMenu = {
   visible: true, x: 10, y: 10, branch: 'feat', isCurrent: false, current: 'main',

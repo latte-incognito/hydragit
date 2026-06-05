@@ -11,6 +11,8 @@ const HOST_ONLY_CMDS = new Set([
   'openDiff',
   'openMergeEditor',
   'openFile',
+  'openWorkingDiff',
+  'savePatch',
   'vscode.openFolder',
   'vscode.cloneRepo',
 ]);

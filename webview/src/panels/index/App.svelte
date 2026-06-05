@@ -25,6 +25,12 @@
   let selFile:      string | null = null;
   let diffFiles:    DiffFile[]    = [];
   let diffHunks:    DiffHunk[]    = [];
+  // Active ref/range comparison shown in the detail pane (branch/tag/commit
+  // "Compare…" / "Show Diff with Working Tree"); null when viewing a commit/stash.
+  type Compare =
+    | { kind: 'ref'; ref: string; title: string }
+    | { kind: 'range'; base: string; head: string; title: string };
+  let compare: Compare | null = null;
   let detailLoading = false;
   let hasPending    = false;   // ahead > 0 → pull button lit
 
@@ -133,6 +139,7 @@
   // ── Branch select ─────────────────────────────────────────────────────────
   async function selectBranch(name: string, _remote: boolean) {
     selStashIdx = null;
+    compare = null;
     activeBranch = name;
     selCommitIdx = null; selFile = null; diffFiles = []; diffHunks = [];
     try {
@@ -235,6 +242,7 @@
   // ── Commit select ─────────────────────────────────────────────────────────
   async function selectCommit(i: number) {
     selStashIdx = null;
+    compare = null;
     selCommitIdx = i;
     selFile = null; diffFiles = []; diffHunks = [];
     detailLoading = true;
@@ -253,6 +261,20 @@
   async function selectDiffFile(path: string) {
     selFile = path;
     diffHunks = [];
+    // Compare mode loads hunks from the ref/range diff, not a commit.
+    if (compare) {
+      try {
+        diffHunks = await send<DiffHunk[]>(
+          compare.kind === 'ref' ? 'diff.ref' : 'diff.range',
+          compare.kind === 'ref'
+            ? { ref: compare.ref, file: path }
+            : { base: compare.base, head: compare.head, file: path }
+        );
+      } catch (e: unknown) {
+        flash('Diff error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      }
+      return;
+    }
     if (selCommitIdx === null) return;
     try {
       diffHunks = await send<DiffHunk[]>('diff', {
@@ -261,6 +283,26 @@
       });
     } catch (e: unknown) {
       flash('Diff error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // Open a ref-vs-working or ref-vs-ref comparison in the detail pane.
+  async function startCompare(spec: Compare) {
+    selCommitIdx = null; selStashIdx = null; selFile = null;
+    diffFiles = []; diffHunks = [];
+    compare = spec;
+    detailLoading = true;
+    try {
+      const files = await send<DiffFile[]>(
+        spec.kind === 'ref' ? 'diff.ref' : 'diff.range',
+        spec.kind === 'ref' ? { ref: spec.ref } : { base: spec.base, head: spec.head }
+      );
+      diffFiles = files;
+      detailLoading = false;
+      if (files.length) selectDiffFile(files[0].path);
+    } catch (e: unknown) {
+      detailLoading = false;
+      flash('Compare failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
     }
   }
 
@@ -280,6 +322,7 @@
 
   // ── Stash ─────────────────────────────────────────────────────────────────
   async function selectStash(i: number) {
+    compare = null;
     selStashIdx = i;
     const s = stashes[i];
     const idx = s.index ?? i;
@@ -492,6 +535,23 @@
       'view-in-browser': async () => {
         send('openCommitUrl', { commit: hash });
       },
+      'compare-local': async () => {
+        await startCompare({ kind: 'ref', ref: hash, title: `${hash.slice(0, 7)} ↔ working tree` });
+      },
+      'create-patch': async () => {
+        const patch = await send<string>('patch.format', { commit: hash });
+        // savePatch is host-only (native save dialog) — fire and forget.
+        send('savePatch', { content: patch, name: `${hash.slice(0, 7)}.patch` });
+      },
+      'push-here': async () => {
+        if (!(await uiConfirm(
+          `Push all commits up to ${hash.slice(0, 7)} onto origin/${activeBranch}?`
+        ))) return;
+        flash(`Pushing up to ${hash.slice(0, 7)}…`);
+        await send('push.upto', { commit: hash, branch: activeBranch });
+        flash(`Pushed up to ${hash.slice(0, 7)}`, '#4ec94e');
+        loadAll();
+      },
       reset: async () => {
         const raw = await uiPrompt(
           `Reset current branch to ${hash.slice(0, 7)} — mode (soft / mixed / hard):`,
@@ -565,6 +625,13 @@
         flash('Pulled with merge', '#4ec94e');
         loadAll();
       },
+      'diff-working': async () => {
+        await startCompare({ kind: 'ref', ref: ctxBranch, title: `${ctxBranch} ↔ working tree` });
+      },
+      compare: async () => {
+        const base = branchMenu.current;
+        await startCompare({ kind: 'range', base, head: ctxBranch, title: `${base} … ${ctxBranch}` });
+      },
     };
     try { await acts[a]?.(); }
     catch (e: unknown) { flash(a + ' failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
@@ -611,7 +678,7 @@
           loadAll();
           break;
         case 'diff-working':
-          flash(`Diffing ${name} with working tree…`);
+          await startCompare({ kind: 'ref', ref: name, title: `${name} ↔ working tree` });
           break;
         case 'merge':
           await send('merge', { branch: name });
@@ -704,6 +771,7 @@
       <DetailPane
         commit={selCommitIdx !== null ? filtered[selCommitIdx] : null}
         stash={selStashIdx !== null ? stashes[selStashIdx] : null}
+        {compare}
         files={diffFiles}
         hunks={diffHunks}
         {selFile}
