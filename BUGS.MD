@@ -2,7 +2,7 @@ Result of manual testing:
  1. Blocker: Search by file name freezes UI and doesn't work
  2. Create tag button not working from side bar
  3. Show Diff nothing happens when click
- 19. Merge conflicts on side bar not ready
+ 
  20. If git statechanged by another plugin or commands hydragit can stuck
  21 why  inside branches star shows for master and develop what it even means
  22 ABSOLUTELY do for inlin blame rich poup should appear on 5 seconds only and when cursor is above our inline blame only because its really distracting 

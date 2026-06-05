@@ -5,6 +5,7 @@ import {
   buildAnnotation,
   buildHoverMarkdown,
   resolveBlameTarget,
+  hoverHitsAnnotation,
   type BlameLine,
 } from './blameAnnotation';
 
@@ -89,6 +90,32 @@ describe('buildHoverMarkdown', () => {
     const md = buildHoverMarkdown(line({ summary: 'fix [a](b) *bold*' }), NOW);
     expect(md).not.toContain('[a](b)');
     expect(md).toContain('\\[a\\]');
+  });
+});
+
+describe('hoverHitsAnnotation (BUG #22 — rich hover only over the inline blame)', () => {
+  // Line "const x = 1;" has length 12; the annotation sits at/after column 12.
+  const LEN = 12;
+  const ACTIVE = 4;
+
+  it('bites at end-of-line on the active line (over the annotation)', () => {
+    expect(hoverHitsAnnotation(LEN, ACTIVE, LEN, ACTIVE)).toBe(true);
+    expect(hoverHitsAnnotation(LEN, ACTIVE, LEN + 30, ACTIVE)).toBe(true); // deep in the margin
+  });
+
+  it('does NOT bite when hovering over the code itself', () => {
+    expect(hoverHitsAnnotation(LEN, ACTIVE, 0, ACTIVE)).toBe(false);
+    expect(hoverHitsAnnotation(LEN, ACTIVE, LEN - 1, ACTIVE)).toBe(false);
+  });
+
+  it('does NOT bite on any line other than the active one', () => {
+    // even at end-of-line, a non-active line has no annotation to hover
+    expect(hoverHitsAnnotation(LEN, ACTIVE + 1, LEN, ACTIVE)).toBe(false);
+    expect(hoverHitsAnnotation(LEN, ACTIVE - 1, LEN + 5, ACTIVE)).toBe(false);
+  });
+
+  it('treats an empty active line as hoverable (annotation starts at column 0)', () => {
+    expect(hoverHitsAnnotation(0, ACTIVE, 0, ACTIVE)).toBe(true);
   });
 });
 

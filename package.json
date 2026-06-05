@@ -99,6 +99,12 @@
           "type": "boolean",
           "default": true,
           "description": "Show inline git blame on the current editor line (author, relative time, and commit summary). Toggle per-session with the \"HydraGit: Toggle Line Blame\" command."
+        },
+        "hydragit.lineBlame.hoverDelay": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 0,
+          "description": "How long (in milliseconds) the cursor must rest on the inline blame annotation before the rich hover card appears. The card only shows when hovering directly over the annotation, never over the code."
         }
       }
     },
