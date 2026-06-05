@@ -415,6 +415,64 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "rebase.drop":
+		var p struct {
+			Commit string `json:"commit"`
+		}
+		json.Unmarshal(req.Params, &p)
+		conflict, err := git.DropCommit(repoPath, p.Commit)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"conflict": conflict})
+
+	case "rebase.interactive":
+		var p struct {
+			Base  string               `json:"base"`
+			Items []git.RebaseTodoItem `json:"items"`
+		}
+		json.Unmarshal(req.Params, &p)
+		conflict, err := git.RunInteractiveRebase(repoPath, p.Base, p.Items)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"conflict": conflict})
+
+	case "rebase.reword":
+		var p struct {
+			Commit  string `json:"commit"`
+			Message string `json:"message"`
+		}
+		json.Unmarshal(req.Params, &p)
+		conflict, err := git.RewordCommit(repoPath, p.Commit, p.Message)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"conflict": conflict})
+
+	case "rebase.continue":
+		conflict, err := git.RebaseContinue(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"conflict": conflict})
+
+	case "rebase.skip":
+		conflict, err := git.RebaseSkip(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"conflict": conflict})
+
+	case "rebase.abort":
+		if err := git.RebaseAbort(repoPath); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "rebase.status":
+		return ok(id, map[string]bool{"inProgress": git.RebaseInProgress(repoPath)})
+
 	case "fetch":
 		if err := git.Fetch(repoPath); err != nil {
 			return fail(id, err)

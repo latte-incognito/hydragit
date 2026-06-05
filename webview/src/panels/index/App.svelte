@@ -11,6 +11,7 @@
   import LogPane     from './components/LogPane.svelte';
   import DetailPane  from './components/DetailPane.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
+  import InteractiveRebase from './components/InteractiveRebase.svelte';
   import StatusBar   from './components/StatusBar.svelte';
 
   // ── Core state ────────────────────────────────────────────────────────────
@@ -31,6 +32,12 @@
     | { kind: 'ref'; ref: string; title: string }
     | { kind: 'range'; base: string; head: string; title: string };
   let compare: Compare | null = null;
+  // True while the repo is paused mid-rebase (conflict) — drives the
+  // Continue/Skip/Abort bar. See commitMenuAction 'drop'.
+  let rebaseInProgress = false;
+  // Open interactive-rebase editor (commits oldest-first + the base to rebase
+  // onto); null when closed.
+  let rebaseEditor: { base: string; commits: { sha: string; subject: string }[] } | null = null;
   let detailLoading = false;
   let hasPending    = false;   // ahead > 0 → pull button lit
 
@@ -102,6 +109,12 @@
       stashes     = rawStashes;
       tags        = rawTags ?? [];
       sbCounts    = `${commits.length} commits · ${branches.filter(b => !b.isRemote).length} branches`;
+      // Surface a paused rebase (e.g. a Drop/Edit that hit a conflict) so the
+      // Continue/Skip/Abort bar reappears across reloads.
+      try {
+        const rs = await send<{ inProgress: boolean }>('rebase.status');
+        rebaseInProgress = !!rs?.inProgress;
+      } catch { /* non-fatal */ }
       // Re-apply active search filter
       reapplySearch();
     } catch (e: unknown) {
@@ -538,6 +551,48 @@
       'compare-local': async () => {
         await startCompare({ kind: 'ref', ref: hash, title: `${hash.slice(0, 7)} ↔ working tree` });
       },
+      'interactive-rebase': async () => {
+        const idx = filtered.findIndex((c) => c.hash === hash);
+        if (idx < 0) return;
+        const base = (commit.parents ?? [])[0];
+        if (!base) { flash('Cannot interactively rebase the root commit', '#f07070'); return; }
+        // filtered is newest-first; the editor wants oldest-first.
+        const range = filtered.slice(0, idx + 1).slice().reverse();
+        rebaseEditor = {
+          base,
+          commits: range.map((c) => ({ sha: c.hash, subject: c.message ?? c.msg ?? '' })),
+        };
+      },
+      'edit-message': async () => {
+        const current = commit.message ?? commit.msg ?? '';
+        const msg = await uiPrompt('New commit message:', current);
+        if (msg === null) return;        // cancelled
+        if (!msg.trim()) { flash('Empty message — cancelled', '#f07070'); return; }
+        if (msg === current) return;      // unchanged
+        flash(`Rewording ${hash.slice(0, 7)}…`);
+        const res = await send<{ conflict: boolean }>('rebase.reword', { commit: hash, message: msg });
+        if (res?.conflict) {
+          rebaseInProgress = true;
+          flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
+        } else {
+          flash('Commit message updated', '#4ec94e');
+        }
+        loadAll();
+      },
+      drop: async () => {
+        if (!(await uiConfirm(
+          `Drop commit ${hash.slice(0, 7)}?\n\nThis rewrites history by rebasing later commits onto its parent.`
+        ))) return;
+        flash(`Dropping ${hash.slice(0, 7)}…`);
+        const res = await send<{ conflict: boolean }>('rebase.drop', { commit: hash });
+        if (res?.conflict) {
+          rebaseInProgress = true;
+          flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
+        } else {
+          flash(`Dropped ${hash.slice(0, 7)}`, '#4ec94e');
+        }
+        loadAll();
+      },
       'create-patch': async () => {
         const patch = await send<string>('patch.format', { commit: hash });
         // savePatch is host-only (native save dialog) — fire and forget.
@@ -575,6 +630,49 @@
       await acts[action]?.();
     } catch (e: unknown) {
       flash(action + ' failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // The editor's "Start Rebasing" is itself the review/confirm step (the full
+  // plan is shown), so no extra modal — matches IntelliJ/GitLens.
+  async function startInteractiveRebase(items: { sha: string; action: string }[]) {
+    const ed = rebaseEditor;
+    rebaseEditor = null;
+    if (!ed) return;
+    flash('Rebasing…');
+    try {
+      const res = await send<{ conflict: boolean }>('rebase.interactive', {
+        base: ed.base,
+        items,
+      });
+      if (res?.conflict) {
+        rebaseInProgress = true;
+        flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
+      } else {
+        flash('Interactive rebase complete', '#4ec94e');
+      }
+      loadAll();
+    } catch (e: unknown) {
+      flash('Rebase failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // ── Rebase conflict controls (GitLens/IntelliJ pause-on-conflict flow) ──────
+  async function rebaseControl(kind: 'continue' | 'skip' | 'abort') {
+    try {
+      if (kind === 'abort') {
+        await send('rebase.abort');
+        rebaseInProgress = false;
+        flash('Rebase aborted', '#4ec94e');
+      } else {
+        const res = await send<{ conflict: boolean }>(`rebase.${kind}`);
+        rebaseInProgress = !!res?.conflict;
+        flash(res?.conflict ? 'Still conflicting — resolve, then Continue' : 'Rebase complete',
+          res?.conflict ? '#e0a030' : '#4ec94e');
+      }
+      loadAll();
+    } catch (e: unknown) {
+      flash(`Rebase ${kind} failed: ` + (e instanceof Error ? e.message : String(e)), '#f07070');
     }
   }
 
@@ -732,6 +830,25 @@
     onSelectBranch={selectBranch}
   />
 
+  {#if rebaseEditor}
+    <InteractiveRebase
+      commits={rebaseEditor.commits}
+      onStart={startInteractiveRebase}
+      onCancel={() => (rebaseEditor = null)}
+    />
+  {/if}
+
+  {#if rebaseInProgress}
+    <div class="rebase-bar">
+      <span class="rebase-bar-msg">⚠ Rebase in progress — resolve conflicts, then continue.</span>
+      <div class="rebase-bar-actions">
+        <button class="rebase-btn" on:click={() => rebaseControl('continue')}>Continue</button>
+        <button class="rebase-btn" on:click={() => rebaseControl('skip')}>Skip</button>
+        <button class="rebase-btn rebase-btn--danger" on:click={() => rebaseControl('abort')}>Abort</button>
+      </div>
+    </div>
+  {/if}
+
   <div class="main">
     <ActionRail {hasPending} onAction={railAction} />
 
@@ -815,6 +932,31 @@
     min-height: 0;
     overflow: hidden;
   }
+  .rebase-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 12px;
+    background: rgba(224, 160, 48, 0.13);
+    border-bottom: 0.5px solid rgba(224, 160, 48, 0.4);
+    color: #e0a030;
+    font-size: var(--hg-font-sm);
+    flex-shrink: 0;
+  }
+  .rebase-bar-actions { display: flex; gap: 6px; }
+  .rebase-btn {
+    padding: 2px 10px;
+    font-size: var(--hg-font-xs);
+    color: var(--vscode-button-foreground, #fff);
+    background: var(--vscode-button-background, #0e639c);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .rebase-btn:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
+  .rebase-btn--danger { background: #a33; }
+  .rebase-btn--danger:hover { background: #c44; }
   .branch-wrap,
   .detail-wrap {
     display: flex;

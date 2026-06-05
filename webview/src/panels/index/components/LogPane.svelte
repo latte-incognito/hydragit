@@ -285,15 +285,15 @@
 
     <div class="ctx-divider"></div>
 
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={() => runAction('edit-message')}>
       <span class="ci-icon"></span>
       <span class="ci-text">Edit Commit Message…</span>
       <span class="ci-shortcut">F2</span>
     </div>
     <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Fixup…</span></div>
     <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Squash Into…</span></div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Drop Commit</span></div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Interactively Rebase from Here…</span></div>
+    <div class="ctx-item" on:click={() => runAction('drop')}><span class="ci-icon"></span><span class="ci-text">Drop Commit</span></div>
+    <div class="ctx-item" on:click={() => runAction('interactive-rebase')}><span class="ci-icon"></span><span class="ci-text">Interactively Rebase from Here…</span></div>
     <div class="ctx-item" on:click={() => runAction('push-here')}><span class="ci-icon"></span><span class="ci-text">Push All up to Here…</span></div>
 
     <div class="ctx-divider"></div>
