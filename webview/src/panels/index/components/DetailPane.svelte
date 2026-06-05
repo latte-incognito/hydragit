@@ -262,6 +262,29 @@
     if (ctxFile) send('openFile', { file: ctxFile });
   }
 
+  // Open the file's content as committed at this revision (read-only). Uses the
+  // commit hash, or the stash ref when viewing a stash.
+  function ctxOpenRepoVersion() {
+    closeCtx();
+    if (!ctxFile) return;
+    const ref = isStash && stash ? `stash@{${stash.index ?? 0}}` : commit?.hash;
+    if (!ref) return;
+    send('openFile', { file: ctxFile, ref });
+  }
+
+  // Revert / cherry-pick operate at commit granularity (the changes this commit
+  // introduced) — the same ops as the detail footer buttons. File-granular
+  // selection is not supported by the backend yet.
+  function ctxRevert() {
+    closeCtx();
+    if (commit?.hash) onCommitAction('revert', commit.hash);
+  }
+
+  function ctxCherryPick() {
+    closeCtx();
+    if (commit?.hash) onCommitAction('cherry-pick', commit.hash);
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') closeCtx();
   }
@@ -311,11 +334,11 @@
       <span class="ci-text">Edit Source</span>
       <span class="ci-shortcut">⌘↓</span>
     </div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Open Repository Version</span></div>
+    <div class="ctx-item" on:click={ctxOpenRepoVersion}><span class="ci-icon"></span><span class="ci-text">Open Repository Version</span></div>
 
     <div class="ctx-divider"></div>
 
-    <div class="ctx-item">
+    <div class="ctx-item" on:click={ctxRevert}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M3 7 L 6 4 M3 7 L 6 10 M3 7 H 9 a 3 3 0 0 1 0 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
@@ -323,7 +346,7 @@
       </span>
       <span class="ci-text">Revert Selected Changes</span>
     </div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Cherry-Pick Selected Changes</span></div>
+    <div class="ctx-item" on:click={ctxCherryPick}><span class="ci-icon"></span><span class="ci-text">Cherry-Pick Selected Changes</span></div>
     <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Extract Selected Changes to Separate Commit…</span></div>
     <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Drop Selected Changes</span></div>
     <div class="ctx-item">

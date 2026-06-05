@@ -51,6 +51,13 @@ func StashDrop(repoPath string, index int) error {
 	return err
 }
 
+// StashClear removes every stash entry (git stash clear). Irreversible — the
+// caller is responsible for confirming with the user.
+func StashClear(repoPath string) error {
+	_, err := run(repoPath, "stash", "clear")
+	return err
+}
+
 func StashShow(repoPath string, index int) ([]Hunk, error) {
 	out, err := run(repoPath, "stash", "show", "-p", fmt.Sprintf("stash@{%d}", index))
 	if err != nil {

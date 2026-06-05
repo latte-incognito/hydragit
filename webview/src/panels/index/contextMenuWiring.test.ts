@@ -19,7 +19,10 @@ const HANDLED_BRANCH = new Set([
   'checkout', 'merge', 'rebase', 'push', 'delete', 'copy',
   'rename', 'new-from', 'checkout-rebase', 'pull-rebase', 'pull-merge',
 ]);
-const HANDLED_STASH = new Set(['pop', 'apply', 'drop']);
+const HANDLED_STASH = new Set([
+  'pop', 'apply', 'drop',
+  'unstash', 'clear', 'show-diff', 'show-diff-tab',
+]);
 const HANDLED_TAG = new Set(['checkout', 'merge', 'push', 'delete']);
 
 const branchMenu = {

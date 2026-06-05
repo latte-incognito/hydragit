@@ -307,10 +307,29 @@
     if (selStashIdx === null) return;
     const s   = stashes[selStashIdx];
     const idx = s.index ?? selStashIdx;
-    const cmdMap: Record<string, string> = { pop: 'stash.pop', apply: 'stash.apply', drop: 'stash.drop' };
+
+    // Non-mutating: just render the stash's changes in the detail pane.
+    if (a === 'show-diff' || a === 'show-diff-tab') {
+      await selectStash(selStashIdx);
+      return;
+    }
+
+    // 'unstash' is the verbose form of pop (apply + remove); 'clear' drops every
+    // entry, so it takes no index.
+    const cmdMap: Record<string, string> = {
+      pop: 'stash.pop', apply: 'stash.apply', drop: 'stash.drop',
+      unstash: 'stash.pop', clear: 'stash.clear',
+    };
+    const cmd = cmdMap[a];
+    if (!cmd) return;
+    const target = a === 'clear' ? 'all stashes' : `stash@{${idx}}`;
+    // 'clear' deletes every stash and cannot be undone — confirm via the host.
+    if (a === 'clear' && !(await uiConfirm('Drop all stashes? This cannot be undone.'))) {
+      return;
+    }
     try {
-      await send(cmdMap[a], { index: idx });
-      flash(`${a} stash@{${idx}} done`, '#4ec94e');
+      await send(cmd, a === 'clear' ? {} : { index: idx });
+      flash(`${a} ${target} done`, '#4ec94e');
       loadAll();
     } catch (e: unknown) {
       flash(`${a} failed: ` + (e instanceof Error ? e.message : String(e)), '#f07070');

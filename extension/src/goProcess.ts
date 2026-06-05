@@ -44,11 +44,23 @@ export class GoProcess {
 
     this.proc.on('exit', (code, signal) => {
       Logger.warn('process', `Go process exited code=${code} signal=${signal}`);
+      // Settle every in-flight request — otherwise their promises hang forever
+      // and the UI gets stuck waiting on a process that will never reply (#20).
+      this.rejectAll(new Error(`Go process exited (code=${code}, signal=${signal})`));
     });
 
     this.proc.on('error', (err) => {
       Logger.error('process', `Go process error: ${err.message}`);
+      this.rejectAll(new Error(`Go process error: ${err.message}`));
     });
+  }
+
+  /** Reject and clear all pending requests — used when the process dies. */
+  private rejectAll(reason: Error): void {
+    if (this.pending.size === 0) return;
+    const pending = [...this.pending.values()];
+    this.pending.clear();
+    for (const p of pending) p.reject(reason);
   }
 
   send(cmd: string, params: object = {}): Promise<unknown> {

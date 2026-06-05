@@ -20,9 +20,18 @@ async function fileExistsAtRef(absPath: string, ref: string): Promise<boolean> {
   }
 }
 
-export async function openFile(params: { file: string }): Promise<void> {
+export async function openFile(params: { file: string; ref?: string }): Promise<void> {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
   const absPath = path.join(workspaceRoot, params.file);
+  // With a ref, open the file's content as it was at that revision (read-only),
+  // via the built-in Git extension's `git:` scheme — "Open Repository Version".
+  if (params.ref) {
+    const uri = vscode.Uri.parse(`git:${absPath}`).with({
+      query: JSON.stringify({ path: absPath, ref: params.ref }),
+    });
+    await vscode.commands.executeCommand('vscode.open', uri);
+    return;
+  }
   await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(absPath));
 }
 

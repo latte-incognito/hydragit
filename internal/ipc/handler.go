@@ -242,6 +242,12 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "stash.clear":
+		if err := git.StashClear(repoPath); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "stash.show":
 		var p struct {
 			Index int `json:"index"`
