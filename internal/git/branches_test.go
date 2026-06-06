@@ -394,6 +394,77 @@ func TestRenameBranchFolder(t *testing.T) {
 	}
 }
 
+// Switch-to-branch stash flow: a conflicting uncommitted change blocks Checkout
+// with git's "would be overwritten" error; stashing it first unblocks the
+// switch. The webview offers exactly this (stash or cancel) on a blocked switch.
+func TestCheckout_blockedByLocalChanges_stashUnblocks(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "f.txt", "base\n", "c1")
+	exec.Command("git", "-C", dir, "checkout", "-b", "other").Run()
+	commitFile(t, dir, "f.txt", "on-other\n", "c2")
+	exec.Command("git", "-C", dir, "checkout", "main").Run()
+
+	// Uncommitted change to f.txt conflicts with switching to 'other'.
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("dirty\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Checkout(dir, "other"); err == nil {
+		t.Fatal("expected checkout to be blocked by conflicting local changes")
+	}
+
+	// Stash, then the switch must succeed.
+	if err := StashSave(dir, "hydragit: auto-stash before switch"); err != nil {
+		t.Fatalf("StashSave failed: %v", err)
+	}
+	if err := Checkout(dir, "other"); err != nil {
+		t.Fatalf("checkout should succeed after stashing: %v", err)
+	}
+}
+
+// ── BUGS.md #6 — propagating a folder rename to the remote ────────────────────
+//
+// RenameBranchFolderRemote propagates the new names of a just-renamed folder to
+// the remote (push new + delete old) for every branch that tracks one, while
+// leaving untracked branches alone.
+func TestRenameBranchFolderRemote(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	// Two tracked branches under feature/, plus one local-only (untracked).
+	exec.Command("git", "-C", local, "checkout", "-b", "feature/alpha").Run()
+	exec.Command("git", "-C", local, "push", "-u", "origin", "feature/alpha").Run()
+	exec.Command("git", "-C", local, "checkout", "-b", "feature/beta").Run()
+	exec.Command("git", "-C", local, "push", "-u", "origin", "feature/beta").Run()
+	exec.Command("git", "-C", local, "checkout", "-b", "feature/local-only").Run()
+	exec.Command("git", "-C", local, "checkout", "main").Run()
+
+	if _, err := RenameBranchFolder(local, "feature", "feat"); err != nil {
+		t.Fatalf("RenameBranchFolder failed: %v", err)
+	}
+	propagated, err := RenameBranchFolderRemote(local, "feat")
+	if err != nil {
+		t.Fatalf("RenameBranchFolderRemote failed: %v", err)
+	}
+	if len(propagated) != 2 {
+		t.Fatalf("expected 2 tracked branches propagated, got %d: %v", len(propagated), propagated)
+	}
+
+	remoteURL, _ := exec.Command("git", "-C", local, "remote", "get-url", "origin").Output()
+	remote := strings.TrimSpace(string(remoteURL))
+	heads, _ := exec.Command("git", "-C", remote, "for-each-ref", "--format=%(refname:short)", "refs/heads/").Output()
+	all := string(heads)
+	for _, want := range []string{"feat/alpha", "feat/beta"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("remote should have %q; remote heads:\n%s", want, all)
+		}
+	}
+	if strings.Contains(all, "feature/") {
+		t.Errorf("remote should have no feature/* branch left; heads:\n%s", all)
+	}
+	// The local-only branch was never pushed, so it must not appear on the remote.
+	if strings.Contains(all, "local-only") {
+		t.Errorf("untracked branch should not be pushed; heads:\n%s", all)
+	}
+}
+
 func TestPushCommit(t *testing.T) {
 	local := makeRepoWithRemote(t)
 
@@ -452,5 +523,79 @@ func TestPull(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("expected remote commit to appear after pull")
+	}
+}
+
+// ── BUGS.md #1 & #2 — deleting a REMOTE branch ────────────────────────────────
+//
+// In the UI a remote-branch row carries a name like "origin/feature". The old
+// path sent that name through `branch.delete` → DeleteBranch →
+// `git branch -d origin/feature`, which only operates on local heads: git
+// errored "branch 'origin/feature' not found", the remote branch was never
+// removed, and the stale row stayed on screen. DeleteRemoteBranch fixes this by
+// running `git push <remote> --delete <branch>`, which removes the branch on the
+// server AND prunes the local tracking ref.
+func TestDeleteRemoteBranch_isRemovedFromRemote(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	exec.Command("git", "-C", local, "checkout", "-b", "feature").Run()
+	exec.Command("git", "-C", local, "push", "-u", "origin", "feature").Run()
+	exec.Command("git", "-C", local, "checkout", "main").Run()
+
+	if err := DeleteRemoteBranch(local, "origin", "feature"); err != nil {
+		t.Fatalf("DeleteRemoteBranch failed: %v", err)
+	}
+
+	remoteURL, _ := exec.Command("git", "-C", local, "remote", "get-url", "origin").Output()
+	remote := strings.TrimSpace(string(remoteURL))
+	heads, _ := exec.Command("git", "-C", remote, "for-each-ref", "--format=%(refname:short)", "refs/heads/").Output()
+	if strings.Contains(string(heads), "feature") {
+		t.Fatalf("remote branch 'feature' should be deleted; remote still has heads:\n%s", heads)
+	}
+}
+
+// Companion: the local remote-tracking ref must also be gone so Branches() stops
+// listing the deleted branch — the "still shown" half of #1.
+func TestDeleteRemoteBranch_prunesTrackingRef(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	exec.Command("git", "-C", local, "checkout", "-b", "feature").Run()
+	exec.Command("git", "-C", local, "push", "-u", "origin", "feature").Run()
+	exec.Command("git", "-C", local, "checkout", "main").Run()
+
+	if err := DeleteRemoteBranch(local, "origin", "feature"); err != nil {
+		t.Fatalf("DeleteRemoteBranch failed: %v", err)
+	}
+
+	branches, err := Branches(local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range branches {
+		if b.IsRemote && b.Name == "origin/feature" {
+			t.Fatalf("origin/feature still listed after remote delete (stale row — BUGS.md #1)")
+		}
+	}
+}
+
+// ── BUGS.md #5 — renaming a branch that tracks a remote ───────────────────────
+//
+// Characterization test (documents a known, intentional limitation): after a
+// LOCAL-only rename the renamed branch keeps tracking the OLD remote ref until
+// the rename is propagated. RenameRemoteBranch is the path that corrects it. We
+// chose to leave this tracking behaviour as-is (matches git) and instead fix the
+// "hangs ui" half of #5 with a network timeout (see runTimeout / networkTimeout
+// and TestRenameRemoteBranch). If this assertion ever changes, revisit #5.
+func TestRenameBranch_localOnlyKeepsOldUpstream(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	exec.Command("git", "-C", local, "checkout", "-b", "feature").Run()
+	exec.Command("git", "-C", local, "push", "-u", "origin", "feature").Run()
+
+	if err := RenameBranch(local, "feature", "feat"); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _ := exec.Command("git", "-C", local, "for-each-ref",
+		"--format=%(upstream:short)", "refs/heads/feat").Output()
+	if up := strings.TrimSpace(string(out)); up != "origin/feature" {
+		t.Fatalf("expected local-only rename to still track origin/feature, got %q", up)
 	}
 }

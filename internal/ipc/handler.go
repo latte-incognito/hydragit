@@ -362,6 +362,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "branch.delete.remote":
+		var p struct {
+			Remote string `json:"remote"`
+			Branch string `json:"branch"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.DeleteRemoteBranch(repoPath, p.Remote, p.Branch); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "branch.rename":
 		var p struct {
 			From string `json:"from"`
@@ -396,6 +407,17 @@ func handle(repoPath string, req Request) Response {
 			return fail(id, err)
 		}
 		return ok(id, renamed)
+
+	case "branch.rename.folder.remote":
+		var p struct {
+			NewPrefix string `json:"newPrefix"`
+		}
+		json.Unmarshal(req.Params, &p)
+		propagated, err := git.RenameBranchFolderRemote(repoPath, p.NewPrefix)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, propagated)
 
 	case "branch.containing":
 		var p struct {

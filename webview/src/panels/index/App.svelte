@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { on, send } from '$shared/messageBus';
-  import { uiPrompt, uiConfirm } from '$shared/dialogs';
+  import { uiPrompt, uiConfirm, uiPick } from '$shared/dialogs';
   import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag } from './types';
 
   import Toolbar     from './components/Toolbar.svelte';
@@ -464,6 +464,14 @@
       }
       return;
     }
+    if (a === 'branch.switch') {
+      // Filterable list of every branch except the one we're already on.
+      const names = branches.map((b) => b.name).filter((n) => n !== activeBranch);
+      const name = await uiPick(names, 'Checkout branch…');
+      if (!name) return;
+      await switchToBranch(name);
+      return;
+    }
     if (a === 'branch.new') {
       const name = await uiPrompt('New branch name:');
       if (name) {
@@ -484,6 +492,10 @@
       // only deletes if confirmed.
       const name = await uiPrompt(`Delete branch — enter branch name (cannot delete current branch):`);
       if (!name) return;
+      // If the name resolves to a remote branch, delete it on the remote instead
+      // of silently doing a local-only delete (BUGS.md #2).
+      const match = branches.find((b) => b.name === name);
+      if (match?.isRemote) { await deleteRemoteBranch(name); return; }
       if (name === activeBranch) {
         flash(`Cannot delete the current branch: ${name}`, '#f07070');
         return;
@@ -784,6 +796,11 @@
       prefix
     );
     if (!newPrefix || newPrefix === prefix) return;
+    // Which branches under this folder track a remote — captured BEFORE the
+    // rename, while `branches` still holds the old names + their upstreams.
+    const tracked = branches.filter(
+      (b) => !b.isRemote && (b.name === prefix || b.name.startsWith(prefix + '/')) && !!b.upstream
+    );
     try {
       const renamed = await send<string[]>('branch.rename.folder', {
         oldPrefix: prefix,
@@ -791,9 +808,92 @@
       });
       const n = renamed?.length ?? 0;
       flash(`Renamed ${n} branch${n === 1 ? '' : 'es'} to ${newPrefix}/`, '#4ec94e');
+
+      // Folder rename is local-only by default; offer to propagate to the remote
+      // for the branches that track one (#6). Reversible — rename the folder back.
+      if (tracked.length) {
+        const ok = await uiConfirm(
+          `Also rename on the remote?\n\n` +
+          `${tracked.length} branch${tracked.length === 1 ? '' : 'es'} under "${prefix}/" ` +
+          `track a remote. This pushes the new names and deletes the old remote ` +
+          `branches. Reversible: rename the folder back to restore.`
+        );
+        if (ok) {
+          flash('Renaming on remote…');
+          try {
+            const pushed = await send<string[]>('branch.rename.folder.remote', { newPrefix });
+            const m = pushed?.length ?? 0;
+            flash(`Renamed ${m} branch${m === 1 ? '' : 'es'} on the remote too`, '#4ec94e');
+          } catch (err: unknown) {
+            flash('Remote folder rename failed: ' + (err instanceof Error ? err.message : String(err)), '#f07070');
+          }
+        }
+      }
       loadAll();
     } catch (err: unknown) {
       flash('Folder rename failed: ' + (err instanceof Error ? err.message : String(err)), '#f07070');
+    }
+  }
+
+  // Delete a REMOTE branch row (name like "origin/feature"). Runs
+  // `git push <remote> --delete <branch>` via the host, which removes it on the
+  // server AND prunes the local tracking ref — fixing BUGS.md #1/#2 where the
+  // old path sent the tracking name to `git branch -d` (local-only) and failed.
+  async function deleteRemoteBranch(fullName: string) {
+    const slash = fullName.indexOf('/');
+    const remote = slash === -1 ? 'origin' : fullName.slice(0, slash);
+    const branch = slash === -1 ? fullName : fullName.slice(slash + 1);
+    const confirmed = await uiConfirm(
+      `Delete remote branch "${fullName}"?\n\n` +
+      `This runs 'git push ${remote} --delete ${branch}' and removes it on ${remote} ` +
+      `for everyone. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    flash(`Deleting ${fullName} on ${remote}…`);
+    try {
+      await send('branch.delete.remote', { remote, branch });
+      flash(`Deleted ${fullName}`, '#f07070');
+    } catch (e: unknown) {
+      flash('Remote delete failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+    loadAll();
+  }
+
+  // Switch to a branch, handling the common "local changes would be overwritten"
+  // failure by offering to stash first (or cancel). A remote row
+  // ("origin/feature") checks out as a local tracking branch of the same short
+  // name. Shared by the rail switch and the branch context-menu entry.
+  async function switchToBranch(name: string) {
+    const target = branches.find((b) => b.name === name)?.isRemote
+      ? name.slice(name.indexOf('/') + 1)
+      : name;
+    flash(`Checking out ${target}…`);
+    try {
+      await send('checkout', { branch: target });
+      flash(`Checked out ${target}`, '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // git refuses to switch when uncommitted changes would be clobbered.
+      const blocked = /overwritten by checkout|stash them before you switch/i.test(msg);
+      if (!blocked) {
+        flash('Checkout failed: ' + msg, '#f07070');
+        return;
+      }
+      const stash = await uiConfirm(
+        `Local changes would be overwritten by checking out "${target}".\n\n` +
+        `Stash them and check out? (Cancel to stay put — your changes are kept.)`
+      );
+      if (!stash) { flash('Checkout cancelled', '#e0a030'); return; }
+      try {
+        await send('stash.save', { message: `hydragit: auto-stash before checkout of ${target}` });
+        await send('checkout', { branch: target });
+        flash(`Stashed changes and checked out ${target}`, '#4ec94e');
+        loadAll();
+      } catch (e2: unknown) {
+        flash('Checkout failed: ' + (e2 instanceof Error ? e2.message : String(e2)), '#f07070');
+        loadAll();
+      }
     }
   }
 
@@ -811,11 +911,21 @@
   async function branchAction(a: string) {
     branchMenu = { ...branchMenu, visible: false };
     const acts: Record<string, () => Promise<void>> = {
-      checkout:  async () => { await send('checkout', { branch: ctxBranch });                flash(`Checked out ${ctxBranch}`, '#4ec94e'); loadAll(); },
+      checkout:  async () => { await switchToBranch(ctxBranch); },
       merge:     async () => { await send('merge',    { branch: ctxBranch });                flash(`Merged ${ctxBranch}`, '#4ec94e');     loadAll(); },
       rebase:    async () => { await send('rebase',   { onto:   ctxBranch });                flash('Rebased', '#4ec94e');                 loadAll(); },
       push:      async () => { await doPush(ctxBranch); },
-      delete:    async () => { await send('branch.delete', { name: ctxBranch, force: false }); flash(`Deleted ${ctxBranch}`, '#f07070'); loadAll(); },
+      delete:    async () => {
+        const b = branches.find((x) => x.name === ctxBranch);
+        if (b?.isRemote) { await deleteRemoteBranch(ctxBranch); return; }
+        try {
+          await send('branch.delete', { name: ctxBranch, force: false });
+          flash(`Deleted ${ctxBranch}`, '#f07070');
+        } catch (e: unknown) {
+          flash('Delete failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+        }
+        loadAll(); // refresh regardless of outcome so a failed delete never leaves a stale row
+      },
       copy:      async () => { flash(`Copied: ${ctxBranch}`, '#4ec94e'); },
       rename:    async () => {
         const from = ctxBranch;

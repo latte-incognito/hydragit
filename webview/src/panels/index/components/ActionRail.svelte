@@ -33,6 +33,13 @@
 
   <div class="rail-sep"></div>
 
+  <!-- Checkout — the most frequent action, kept prominent near the top. Opens a
+       searchable branch picker (the IntelliJ "Branches" popup equivalent). -->
+  <button class="rail-btn" aria-label="Checkout" on:click={() => onAction('branch.switch')}
+          on:mouseenter={(e) => showTip(e, 'Checkout')} on:mouseleave={hideTip}>
+    <i class="codicon codicon-arrow-swap"></i>
+  </button>
+
   <!-- Group 1: granular remote ops -->
   <button class="rail-btn" aria-label="Fetch" on:click={() => onAction('fetch')}
           on:mouseenter={(e) => showTip(e, 'Fetch')} on:mouseleave={hideTip}>

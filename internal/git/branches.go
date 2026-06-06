@@ -123,15 +123,28 @@ func RenameBranch(repoPath, from, to string) error {
 	return err
 }
 
+// DeleteRemoteBranch deletes a branch on the remote via
+// `git push <remote> --delete <branch>`. This also prunes the corresponding
+// local refs/remotes/<remote>/<branch> tracking ref, so the branch stops
+// appearing in Branches(). `branch` is the short name on the remote
+// (e.g. "feature"), NOT the "origin/feature" tracking name.
+//
+// Uses runTimeout: a remote push can otherwise block indefinitely waiting on
+// credentials when no terminal is attached (BUGS.md #5 "hangs ui").
+func DeleteRemoteBranch(repoPath, remote, branch string) error {
+	_, err := runTimeout(repoPath, networkTimeout, "push", remote, "--delete", branch)
+	return err
+}
+
 // RenameRemoteBranch propagates a local rename to the remote: push the (already
 // locally-renamed) branch under its new name with upstream tracking, then delete
 // the old remote branch. Call AFTER RenameBranch. Use only when the branch had
 // an upstream.
 func RenameRemoteBranch(repoPath, remote, oldName, newName string) error {
-	if _, err := run(repoPath, "push", remote, "-u", newName); err != nil {
+	if _, err := runTimeout(repoPath, networkTimeout, "push", remote, "-u", newName); err != nil {
 		return err
 	}
-	_, err := run(repoPath, "push", remote, "--delete", oldName)
+	_, err := runTimeout(repoPath, networkTimeout, "push", remote, "--delete", oldName)
 	return err
 }
 
@@ -160,6 +173,49 @@ func RenameBranchFolder(repoPath, oldPrefix, newPrefix string) ([]string, error)
 		renamed = append(renamed, newName)
 	}
 	return renamed, nil
+}
+
+// RenameBranchFolderRemote propagates a folder rename to the remote for every
+// renamed local branch that still tracks one. Call AFTER RenameBranchFolder: the
+// local `git branch -m` leaves each branch tracking its OLD remote ref, so for
+// every branch now under newPrefix we read that stale upstream, push the branch
+// under its new name with tracking, and delete the old remote branch. Branches
+// without an upstream are skipped. Returns the new names that were propagated.
+func RenameBranchFolderRemote(repoPath, newPrefix string) ([]string, error) {
+	newP := strings.TrimSuffix(newPrefix, "/") + "/"
+
+	out, err := run(repoPath, "for-each-ref",
+		"--format=%(refname:short)\t%(upstream:short)", "refs/heads/"+newP)
+	if err != nil {
+		return nil, err
+	}
+
+	propagated := []string{}
+	for _, line := range strings.Split(out, "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 2)
+		name := parts[0]
+		upstream := ""
+		if len(parts) == 2 {
+			upstream = parts[1]
+		}
+		if upstream == "" {
+			continue // not tracked → nothing to propagate
+		}
+		slash := strings.Index(upstream, "/")
+		if slash == -1 {
+			continue
+		}
+		remote := upstream[:slash]
+		oldRemoteName := upstream[slash+1:]
+		if err := RenameRemoteBranch(repoPath, remote, oldRemoteName, name); err != nil {
+			return propagated, err
+		}
+		propagated = append(propagated, name)
+	}
+	return propagated, nil
 }
 
 func Merge(repoPath, branch string) error {

@@ -2,6 +2,7 @@ package git
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,13 @@ import (
 
 	"hydragit/internal/logger"
 )
+
+// networkTimeout bounds git commands that talk to a remote (push/fetch/pull).
+// Without it a remote that prompts for credentials with no terminal attached
+// would block the process — and the webview awaiting it — indefinitely
+// (BUGS.md #5 "hangs ui"). On expiry the command is killed and an error is
+// returned so the UI can surface a toast instead of freezing.
+const networkTimeout = 30 * time.Second
 
 // logSilentGitCmds lists git subcommands whose successful executions are not
 // logged — they are called on a tight poll loop and would flood the log.
@@ -32,7 +40,7 @@ func run(repoPath string, args ...string) (string, error) {
 // unsaved editor contents. All git CLI calls still funnel through this one
 // exec point. When stdin is nil it behaves exactly like run().
 func runStdin(repoPath string, stdin []byte, args ...string) (string, error) {
-	return runCore(repoPath, stdin, nil, args...)
+	return runCore(repoPath, stdin, nil, 0, args...)
 }
 
 // runEnv is run() with extra environment variables appended to the inherited
@@ -40,12 +48,29 @@ func runStdin(repoPath string, stdin []byte, args ...string) (string, error) {
 // so `git rebase -i` and reword run non-interactively instead of hanging on an
 // editor. Still the single exec point.
 func runEnv(repoPath string, env []string, args ...string) (string, error) {
-	return runCore(repoPath, nil, env, args...)
+	return runCore(repoPath, nil, env, 0, args...)
 }
 
-// runCore is the one place os/exec is called. stdin and extraEnv are optional.
-func runCore(repoPath string, stdin []byte, extraEnv []string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+// runTimeout is run() bounded by a deadline — used for remote/network git
+// commands so they can't hang the process forever (see networkTimeout). A zero
+// or negative timeout means no deadline (same as run()).
+func runTimeout(repoPath string, timeout time.Duration, args ...string) (string, error) {
+	return runCore(repoPath, nil, nil, timeout, args...)
+}
+
+// runCore is the one place os/exec is called. stdin, extraEnv and timeout are
+// optional (nil / 0 disables each).
+func runCore(repoPath string, stdin []byte, extraEnv []string, timeout time.Duration, args ...string) (string, error) {
+	var cmd *exec.Cmd
+	var ctx context.Context
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		cmd = exec.CommandContext(ctx, "git", args...)
+	} else {
+		cmd = exec.Command("git", args...)
+	}
 	cmd.Dir = repoPath
 
 	if extraEnv != nil {
@@ -74,6 +99,11 @@ func runCore(repoPath string, stdin []byte, extraEnv []string, args ...string) (
 			exitCode = -1
 		}
 		errMsg := strings.TrimSpace(stderr.String())
+		// A killed-by-deadline command often leaves stderr empty — give the UI a
+		// meaningful message instead of an opaque empty error (BUGS.md #5).
+		if ctx != nil && ctx.Err() == context.DeadlineExceeded {
+			errMsg = fmt.Sprintf("git %s timed out after %s (remote not responding — check credentials/network)", args[0], timeout)
+		}
 		// errors are always logged, never silent
 		logger.GitCmd(cmdLabel, durationMs, exitCode, errMsg)
 		return "", fmt.Errorf("%s", errMsg)
