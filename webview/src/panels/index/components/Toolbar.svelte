@@ -226,20 +226,6 @@
 
   <div class="tb-spacer"></div>
 
-  <!-- Refresh -->
-  <button
-    class="icon-btn"
-    aria-label="Refresh"
-    on:click={() => onAction('refresh')}
-    on:mouseenter={(e) => showTip(e, 'Refresh')}
-    on:mouseleave={hideTip}
-  >
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M2 7a5 5 0 109-2.5M11 1v3.5H7.5"
-            stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  </button>
-
 </div>
 
 <style>
@@ -461,16 +447,6 @@
   }
   .filter-pill:hover { border-color: var(--vscode-focusBorder, #007fd4); color: var(--vscode-foreground, #ccc); }
   .filter-pill.active { background: rgba(86,200,232,0.08); border-color: #1a5a7a; color: #56c8e8; }
-
-  /* ── Icon buttons ── */
-  .icon-btn {
-    width: 24px; height: 24px;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 4px; cursor: pointer;
-    color: var(--vscode-disabledForeground, #555);
-    border: none; background: none; flex-shrink: 0;
-  }
-  .icon-btn:hover { background: var(--vscode-list-hoverBackground, #2a2a2a); color: var(--vscode-foreground, #ccc); }
 
   /* ── Tooltip ── */
   .hg-tooltip {

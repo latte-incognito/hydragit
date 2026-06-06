@@ -104,13 +104,25 @@ refreshed by the 3s status poll.
 ## Diff
 
 - **Commit diff** (`diff`) — changed-file list + per-file hunks.
-- File tree view of changes; inline diff rendering in the detail pane.
+- File tree view of changes; clicking a file opens its diff (preview tab;
+  double-click / "Show Diff in a New Tab" opens a persistent tab).
+
+## Compare (ref / working-tree diff)
+
+- **Branch / ref compare** (`diff.range`) — diff two refs; backs branch
+  "Compare with <branch>".
+- **Ref vs working tree** (`diff.ref`) — backs branch/tag "Show Diff with Working
+  Tree" and commit "Compare with Local"; multi-file results render in the detail
+  pane's compare view.
+- **File vs local** — "Compare with Local" / "Compare Before with Local" open a
+  file@revision ↔ working-tree diff editor (`openWorkingDiff`).
 
 ## Stash
 
 - **List** (`stash`), **save** (`stash.save`), **pop** (`stash.pop`),
-  **apply** (`stash.apply`), **drop** (`stash.drop`), **show**
-  (`stash.show`), **files in a stash** (`stash.files`).
+  **apply** (`stash.apply`), **drop** (`stash.drop`), **clear all**
+  (`stash.clear`, confirmed), **show** (`stash.show`), **files in a stash**
+  (`stash.files`).
 - Stash manager UI with diff preview.
 
 ## Commit (staging + committing)
@@ -121,6 +133,33 @@ refreshed by the 3s status poll.
 ## Merge / rebase / reset
 
 - **Merge** (`merge`), **rebase** (`rebase`), **reset** (`reset`).
+
+## Interactive rebase & history editing
+
+- **Interactive rebase editor** — a drag-to-reorder modal (`InteractiveRebase`)
+  with per-commit pick / squash / fixup / drop, driving `git rebase -i`
+  non-interactively (`rebase.interactive`).
+- **Drop commit** (`rebase.drop`) — removes a commit via `rebase --onto`.
+- **Edit commit message / reword** (`rebase.reword`) — `commit --amend` for HEAD,
+  scripted rebase reword otherwise.
+- **Pause-on-conflict flow** — a rebase that conflicts pauses (never auto-aborts)
+  and surfaces **Continue / Skip / Abort** (`rebase.continue` / `rebase.skip` /
+  `rebase.abort`), restored across reloads via `rebase.status`.
+- **Create patch** (`patch.format`) — `format-patch` of a commit to a `.patch`
+  file via a native save dialog.
+- **Push up to a commit** (`push.upto`) — publishes history up to a chosen commit.
+
+## HEAD undo timeline (reflog)
+
+- **`HEAD` row → undo timeline** — the branch tree's HEAD row swaps the commit
+  graph for `git reflog` (`reflog`) as a flat list; the detail pane hides for
+  room, and exiting (back button or selecting a branch) fully restores the view.
+- **Reset to any point** — per-row soft / mixed / hard buttons (green → amber →
+  red by destructiveness, themed via VS Code vars), one confirmation each.
+- **Auto-stash safety net** — a hard reset on a dirty tree auto-stashes tracked
+  changes first (`ResetWithAutostash`), so nothing is lost.
+- **Live refresh** — git activity (here or external) writes `.git/logs/HEAD`,
+  which the file watcher catches → the timeline reloads while open.
 
 ## Remotes
 
@@ -175,7 +214,6 @@ refreshed by the 3s status poll.
 
 ## Known follow-ups
 
-See `FIRST_TO_RESOLVE.MD` for the remaining polish: lane straightening for the
-last feature at a shared base (Task 6), wide-graph lane-width compression
-(Task 3), and the optional focus / linear / hide-merges view (deferred part of
-Task 5).
+Remaining graph polish: lane straightening for the last feature at a shared base,
+wide-graph lane-width compression, and an optional focus / linear / hide-merges
+view. Broader backlog (worktrees, reflog/undo timeline, etc.) → `docs/ideas.md`.

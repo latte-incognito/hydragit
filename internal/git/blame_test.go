@@ -46,7 +46,7 @@ func blameRepo(t *testing.T) string {
 func TestBlame(t *testing.T) {
 	dir := blameRepo(t)
 
-	lines, err := Blame(dir, "f.txt", nil)
+	lines, err := Blame(dir, "f.txt", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,6 +74,29 @@ func TestBlame(t *testing.T) {
 	}
 }
 
+// TestBlameAtRef verifies blaming a historical revision: at HEAD~1, before
+// Bob's edit existed, both lines are Alice's. This backs diff-editor blame,
+// where each pane is attributed at its own ref.
+func TestBlameAtRef(t *testing.T) {
+	dir := blameRepo(t)
+
+	lines, err := Blame(dir, "f.txt", "HEAD~1", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 blame lines, got %d", len(lines))
+	}
+	for i, l := range lines {
+		if l.Author != "Alice" {
+			t.Errorf("line %d at HEAD~1 should be Alice's, got %s", i+1, l.Author)
+		}
+		if l.Summary != "first" {
+			t.Errorf("line %d at HEAD~1 should be from commit 'first', got %q", i+1, l.Summary)
+		}
+	}
+}
+
 // TestBlameBufferAware verifies that piping unsaved buffer contents makes the
 // inserted line show as uncommitted and shifts existing lines down.
 func TestBlameBufferAware(t *testing.T) {
@@ -82,7 +105,7 @@ func TestBlameBufferAware(t *testing.T) {
 	// Simulate an editor buffer with a brand-new first line not yet on disk.
 	buf := []byte("brand new line\nline one\nline two edited\n")
 
-	lines, err := Blame(dir, "f.txt", buf)
+	lines, err := Blame(dir, "f.txt", "", buf)
 	if err != nil {
 		t.Fatal(err)
 	}

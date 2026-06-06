@@ -25,88 +25,64 @@
 
 <div class="rail">
 
-  <!-- Group 1: remote ops -->
-  <button class="rail-btn" on:click={() => onAction('fetch')}
+  <!-- Sync — the primary "bring me up to date" action (fetch + integrate). -->
+  <button class="rail-btn primary" aria-label="Sync" on:click={() => onAction('sync')}
+          on:mouseenter={(e) => showTip(e, 'Sync (fetch + pull)')} on:mouseleave={hideTip}>
+    <i class="codicon codicon-sync"></i>
+  </button>
+
+  <div class="rail-sep"></div>
+
+  <!-- Group 1: granular remote ops -->
+  <button class="rail-btn" aria-label="Fetch" on:click={() => onAction('fetch')}
           on:mouseenter={(e) => showTip(e, 'Fetch')} on:mouseleave={hideTip}>
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-      <path d="M2 7a5 5 0 109-2.5M11 1v3.5H7.5"
-            stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
+    <i class="codicon codicon-cloud-download"></i>
   </button>
 
-  <button class="rail-btn" class:pending={hasPending} on:click={() => onAction('pull')}
+  <button class="rail-btn" class:pending={hasPending} aria-label="Pull" on:click={() => onAction('pull')}
           on:mouseenter={(e) => showTip(e, 'Pull')} on:mouseleave={hideTip}>
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-      <path d="M7 9V2M4 6l3 3 3-3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M2 12h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-    </svg>
+    <i class="codicon codicon-repo-pull"></i>
   </button>
 
-  <button class="rail-btn" on:click={() => onAction('push')}
+  <button class="rail-btn" aria-label="Push" on:click={() => onAction('push')}
           on:mouseenter={(e) => showTip(e, 'Push')} on:mouseleave={hideTip}>
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-      <path d="M7 9V2M4 5l3-3 3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M2 12h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-    </svg>
+    <i class="codicon codicon-repo-push"></i>
   </button>
 
   <div class="rail-sep"></div>
 
   <!-- Group 2: branch ops -->
-  <button class="rail-btn" on:click={() => onAction('branch.new')}
+  <button class="rail-btn" aria-label="New branch" on:click={() => onAction('branch.new')}
           on:mouseenter={(e) => showTip(e, 'New branch')} on:mouseleave={hideTip}>
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-      <circle cx="4" cy="3" r="1.7" stroke="currentColor" stroke-width="1.2"/>
-      <circle cx="4" cy="11" r="1.7" stroke="currentColor" stroke-width="1.2"/>
-      <circle cx="10" cy="3" r="1.7" stroke="currentColor" stroke-width="1.2"/>
-      <path d="M4 4.7v4.6M4 9.3c0 1.2.9 1.7 3 1.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-      <path d="M9.5 1v4M7.5 3h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-    </svg>
+    <i class="codicon codicon-git-branch"></i>
   </button>
 
-  <button class="rail-btn" on:click={() => onAction('merge')}
+  <button class="rail-btn" aria-label="Merge branch" on:click={() => onAction('merge')}
           on:mouseenter={(e) => showTip(e, 'Merge branch')} on:mouseleave={hideTip}>
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-      <circle cx="4" cy="3" r="1.7" stroke="currentColor" stroke-width="1.2"/>
-      <circle cx="4" cy="11" r="1.7" stroke="currentColor" stroke-width="1.2"/>
-      <circle cx="10" cy="3" r="1.7" stroke="currentColor" stroke-width="1.2"/>
-      <path d="M4 4.7v4.6M10 4.7C10 7.5 7 9 4 9.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-    </svg>
+    <i class="codicon codicon-git-merge"></i>
   </button>
 
-  <button class="rail-btn" on:click={() => onAction('rebase')}
+  <button class="rail-btn" aria-label="Rebase" on:click={() => onAction('rebase')}
           on:mouseenter={(e) => showTip(e, 'Rebase')} on:mouseleave={hideTip}>
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-      <path d="M4 2v10M4 8l4-4M8 4h2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
+    <i class="codicon codicon-fold"></i>
   </button>
 
-  <button class="rail-btn danger" on:click={() => onAction('branch.delete')}
+  <button class="rail-btn danger" aria-label="Delete branch" on:click={() => onAction('branch.delete')}
           on:mouseenter={(e) => showTip(e, 'Delete branch')} on:mouseleave={hideTip}>
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-      <path d="M3 3h8M5 3V2h4v1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M5.5 6v4M8.5 6v4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-      <path d="M4 3l.7 8h4.6L10 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
+    <i class="codicon codicon-trash"></i>
   </button>
 
   <div class="rail-sep"></div>
 
   <!-- Group 3: stash / tag -->
-  <button class="rail-btn" on:click={() => onAction('stash.save')}
+  <button class="rail-btn" aria-label="Stash changes" on:click={() => onAction('stash.save')}
           on:mouseenter={(e) => showTip(e, 'Stash changes')} on:mouseleave={hideTip}>
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-      <rect x="2" y="5.5" width="10" height="6.5" rx="1" stroke="currentColor" stroke-width="1.2"/>
-      <path d="M5 5.5V4.5a2 2 0 014 0v1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-    </svg>
+    <i class="codicon codicon-git-stash"></i>
   </button>
 
-  <button class="rail-btn" on:click={() => onAction('tag')}
+  <button class="rail-btn" aria-label="Create tag" on:click={() => onAction('tag')}
           on:mouseenter={(e) => showTip(e, 'Create tag')} on:mouseleave={hideTip}>
-    <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-      <path d="M2 2h5l5 5-5 5-5-5V2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-      <circle cx="5" cy="5" r="1" fill="currentColor"/>
-    </svg>
+    <i class="codicon codicon-tag"></i>
   </button>
 
 </div>
@@ -157,6 +133,18 @@
   }
   .rail-btn.pending:hover {
     background: rgba(86,200,232,0.1);
+  }
+  /* Sync is the primary action — accented so it reads above the granular ops. */
+  .rail-btn.primary {
+    color: var(--vscode-textLink-foreground, #4daafc);
+  }
+  .rail-btn.primary:hover {
+    background: rgba(77, 170, 252, 0.12);
+    color: var(--vscode-textLink-activeForeground, #6cb6ff);
+  }
+  .rail-btn .codicon {
+    font-size: 16px;
+    line-height: 1;
   }
 
   .rail-sep {

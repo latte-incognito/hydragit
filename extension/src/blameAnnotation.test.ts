@@ -4,6 +4,8 @@ import {
   formatRelative,
   buildAnnotation,
   buildHoverMarkdown,
+  resolveBlameTarget,
+  hoverHitsAnnotation,
   type BlameLine,
 } from './blameAnnotation';
 
@@ -88,5 +90,74 @@ describe('buildHoverMarkdown', () => {
     const md = buildHoverMarkdown(line({ summary: 'fix [a](b) *bold*' }), NOW);
     expect(md).not.toContain('[a](b)');
     expect(md).toContain('\\[a\\]');
+  });
+});
+
+describe('hoverHitsAnnotation (BUG #22 — rich hover only over the inline blame)', () => {
+  // Line "const x = 1;" has length 12; the annotation sits at/after column 12.
+  const LEN = 12;
+  const ACTIVE = 4;
+
+  it('bites at end-of-line on the active line (over the annotation)', () => {
+    expect(hoverHitsAnnotation(LEN, ACTIVE, LEN, ACTIVE)).toBe(true);
+    expect(hoverHitsAnnotation(LEN, ACTIVE, LEN + 30, ACTIVE)).toBe(true); // deep in the margin
+  });
+
+  it('does NOT bite when hovering over the code itself', () => {
+    expect(hoverHitsAnnotation(LEN, ACTIVE, 0, ACTIVE)).toBe(false);
+    expect(hoverHitsAnnotation(LEN, ACTIVE, LEN - 1, ACTIVE)).toBe(false);
+  });
+
+  it('does NOT bite on any line other than the active one', () => {
+    // even at end-of-line, a non-active line has no annotation to hover
+    expect(hoverHitsAnnotation(LEN, ACTIVE + 1, LEN, ACTIVE)).toBe(false);
+    expect(hoverHitsAnnotation(LEN, ACTIVE - 1, LEN + 5, ACTIVE)).toBe(false);
+  });
+
+  it('treats an empty active line as hoverable (annotation starts at column 0)', () => {
+    expect(hoverHitsAnnotation(0, ACTIVE, 0, ACTIVE)).toBe(true);
+  });
+});
+
+describe('resolveBlameTarget', () => {
+  const ROOT = '/repo';
+
+  it('maps a file: document to the working tree', () => {
+    expect(resolveBlameTarget('file', '/repo/src/a.ts', '', ROOT)).toEqual({
+      rel: 'src/a.ts',
+      ref: '',
+    });
+  });
+
+  it('rejects files outside the workspace', () => {
+    expect(resolveBlameTarget('file', '/elsewhere/a.ts', '', ROOT)).toBeNull();
+  });
+
+  it('reads the ref from a git: diff URI query', () => {
+    const query = JSON.stringify({ path: '/repo/src/a.ts', ref: 'abc1234' });
+    expect(resolveBlameTarget('git', '/repo/src/a.ts', query, ROOT)).toEqual({
+      rel: 'src/a.ts',
+      ref: 'abc1234',
+    });
+  });
+
+  it('decodes a URL-encoded git: query', () => {
+    const query = encodeURIComponent(JSON.stringify({ path: '/repo/src/a.ts', ref: 'HEAD' }));
+    expect(resolveBlameTarget('git', '/repo/src/a.ts', query, ROOT)).toEqual({
+      rel: 'src/a.ts',
+      ref: 'HEAD',
+    });
+  });
+
+  it('treats the index ref "~" and empty ref as the working tree', () => {
+    const tilde = JSON.stringify({ path: '/repo/a.ts', ref: '~' });
+    const empty = JSON.stringify({ path: '/repo/a.ts', ref: '' });
+    expect(resolveBlameTarget('git', '/repo/a.ts', tilde, ROOT)?.ref).toBe('');
+    expect(resolveBlameTarget('git', '/repo/a.ts', empty, ROOT)?.ref).toBe('');
+  });
+
+  it('returns null for unknown schemes and malformed git queries', () => {
+    expect(resolveBlameTarget('untitled', '/repo/a.ts', '', ROOT)).toBeNull();
+    expect(resolveBlameTarget('git', '/repo/a.ts', 'not-json', ROOT)).toBeNull();
   });
 });

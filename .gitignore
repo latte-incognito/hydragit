@@ -1,5 +1,6 @@
-ore# Go
+# Go
 bin/
+hydragit-server
 *.exe
 *.test
 *.out

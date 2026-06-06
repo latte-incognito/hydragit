@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { on, send } from '$shared/messageBus';
+  import { uiPrompt, uiConfirm } from '$shared/dialogs';
   import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag } from './types';
 
   import Toolbar     from './components/Toolbar.svelte';
@@ -10,6 +11,8 @@
   import LogPane     from './components/LogPane.svelte';
   import DetailPane  from './components/DetailPane.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
+  import InteractiveRebase from './components/InteractiveRebase.svelte';
+  import ReflogPane  from './components/ReflogPane.svelte';
   import StatusBar   from './components/StatusBar.svelte';
 
   // ── Core state ────────────────────────────────────────────────────────────
@@ -24,6 +27,23 @@
   let selFile:      string | null = null;
   let diffFiles:    DiffFile[]    = [];
   let diffHunks:    DiffHunk[]    = [];
+  // Active ref/range comparison shown in the detail pane (branch/tag/commit
+  // "Compare…" / "Show Diff with Working Tree"); null when viewing a commit/stash.
+  type Compare =
+    | { kind: 'ref'; ref: string; title: string }
+    | { kind: 'range'; base: string; head: string; title: string };
+  let compare: Compare | null = null;
+  // True while the repo is paused mid-rebase (conflict) — drives the
+  // Continue/Skip/Abort bar. See commitMenuAction 'drop'.
+  let rebaseInProgress = false;
+  // "HEAD" undo timeline: when on, the commit graph is replaced by the reflog
+  // view and the detail pane is hidden for room. Entered from the HEAD row.
+  type ReflogEntry = { hash: string; selector: string; subject: string; date: string };
+  let headMode = false;
+  let reflog: ReflogEntry[] = [];
+  // Open interactive-rebase editor (commits oldest-first + the base to rebase
+  // onto); null when closed.
+  let rebaseEditor: { base: string; commits: { sha: string; subject: string }[] } | null = null;
   let detailLoading = false;
   let hasPending    = false;   // ahead > 0 → pull button lit
 
@@ -95,6 +115,19 @@
       stashes     = rawStashes;
       tags        = rawTags ?? [];
       sbCounts    = `${commits.length} commits · ${branches.filter(b => !b.isRemote).length} branches`;
+      // Surface a paused rebase (e.g. a Drop/Edit that hit a conflict) so the
+      // Continue/Skip/Abort bar reappears across reloads.
+      try {
+        const rs = await send<{ inProgress: boolean }>('rebase.status');
+        rebaseInProgress = !!rs?.inProgress;
+      } catch { /* non-fatal */ }
+      // Keep the HEAD undo timeline live while it's open — git activity (here or
+      // from another tool) writes the reflog, which loadAll re-reads.
+      if (headMode) {
+        try {
+          reflog = await send<ReflogEntry[]>('reflog');
+        } catch { /* non-fatal */ }
+      }
       // Re-apply active search filter
       reapplySearch();
     } catch (e: unknown) {
@@ -132,6 +165,8 @@
   // ── Branch select ─────────────────────────────────────────────────────────
   async function selectBranch(name: string, _remote: boolean) {
     selStashIdx = null;
+    compare = null;
+    headMode = false; // selecting a branch exits the undo timeline
     activeBranch = name;
     selCommitIdx = null; selFile = null; diffFiles = []; diffHunks = [];
     try {
@@ -234,6 +269,7 @@
   // ── Commit select ─────────────────────────────────────────────────────────
   async function selectCommit(i: number) {
     selStashIdx = null;
+    compare = null;
     selCommitIdx = i;
     selFile = null; diffFiles = []; diffHunks = [];
     detailLoading = true;
@@ -252,6 +288,20 @@
   async function selectDiffFile(path: string) {
     selFile = path;
     diffHunks = [];
+    // Compare mode loads hunks from the ref/range diff, not a commit.
+    if (compare) {
+      try {
+        diffHunks = await send<DiffHunk[]>(
+          compare.kind === 'ref' ? 'diff.ref' : 'diff.range',
+          compare.kind === 'ref'
+            ? { ref: compare.ref, file: path }
+            : { base: compare.base, head: compare.head, file: path }
+        );
+      } catch (e: unknown) {
+        flash('Diff error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      }
+      return;
+    }
     if (selCommitIdx === null) return;
     try {
       diffHunks = await send<DiffHunk[]>('diff', {
@@ -260,6 +310,26 @@
       });
     } catch (e: unknown) {
       flash('Diff error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // Open a ref-vs-working or ref-vs-ref comparison in the detail pane.
+  async function startCompare(spec: Compare) {
+    selCommitIdx = null; selStashIdx = null; selFile = null;
+    diffFiles = []; diffHunks = [];
+    compare = spec;
+    detailLoading = true;
+    try {
+      const files = await send<DiffFile[]>(
+        spec.kind === 'ref' ? 'diff.ref' : 'diff.range',
+        spec.kind === 'ref' ? { ref: spec.ref } : { base: spec.base, head: spec.head }
+      );
+      diffFiles = files;
+      detailLoading = false;
+      if (files.length) selectDiffFile(files[0].path);
+    } catch (e: unknown) {
+      detailLoading = false;
+      flash('Compare failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
     }
   }
 
@@ -279,6 +349,7 @@
 
   // ── Stash ─────────────────────────────────────────────────────────────────
   async function selectStash(i: number) {
+    compare = null;
     selStashIdx = i;
     const s = stashes[i];
     const idx = s.index ?? i;
@@ -306,10 +377,29 @@
     if (selStashIdx === null) return;
     const s   = stashes[selStashIdx];
     const idx = s.index ?? selStashIdx;
-    const cmdMap: Record<string, string> = { pop: 'stash.pop', apply: 'stash.apply', drop: 'stash.drop' };
+
+    // Non-mutating: just render the stash's changes in the detail pane.
+    if (a === 'show-diff' || a === 'show-diff-tab') {
+      await selectStash(selStashIdx);
+      return;
+    }
+
+    // 'unstash' is the verbose form of pop (apply + remove); 'clear' drops every
+    // entry, so it takes no index.
+    const cmdMap: Record<string, string> = {
+      pop: 'stash.pop', apply: 'stash.apply', drop: 'stash.drop',
+      unstash: 'stash.pop', clear: 'stash.clear',
+    };
+    const cmd = cmdMap[a];
+    if (!cmd) return;
+    const target = a === 'clear' ? 'all stashes' : `stash@{${idx}}`;
+    // 'clear' deletes every stash and cannot be undone — confirm via the host.
+    if (a === 'clear' && !(await uiConfirm('Drop all stashes? This cannot be undone.'))) {
+      return;
+    }
     try {
-      await send(cmdMap[a], { index: idx });
-      flash(`${a} stash@{${idx}} done`, '#4ec94e');
+      await send(cmd, a === 'clear' ? {} : { index: idx });
+      flash(`${a} ${target} done`, '#4ec94e');
       loadAll();
     } catch (e: unknown) {
       flash(`${a} failed: ` + (e instanceof Error ? e.message : String(e)), '#f07070');
@@ -317,8 +407,37 @@
   }
 
   // ── Toolbar / rail actions ────────────────────────────────────────────────
+  // Push with a safe force fallback: on a non-fast-forward rejection, offer a
+  // --force-with-lease push (won't clobber commits you haven't fetched).
+  async function doPush(branch?: string) {
+    flash('Pushing…');
+    const label = branch ?? 'current branch';
+    try {
+      await send('push', branch ? { branch } : {});
+      flash(`Pushed ${label}`, '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const rejected = /non-fast-forward|\brejected\b|fetch first|tip of your current branch is behind|behind its remote/i.test(msg);
+      if (!rejected) { flash('Push failed: ' + msg, '#f07070'); return; }
+      const ok = await uiConfirm(
+        `Push was rejected — your branch has diverged from the remote.\n\n` +
+        `Force push with lease? This updates the remote branch but refuses to overwrite commits you haven't fetched.`
+      );
+      if (!ok) { flash('Push cancelled', '#f07070'); return; }
+      try {
+        await send('push.force', branch ? { branch } : {});
+        flash(`Force-pushed ${label}`, '#e0a030');
+        loadAll();
+      } catch (e2: unknown) {
+        flash('Force push failed: ' + (e2 instanceof Error ? e2.message : String(e2)), '#f07070');
+      }
+    }
+  }
+
   async function tbAction(a: string) {
     if (a === 'refresh') { loadAll(); return; }
+    if (a === 'push') { await doPush(); return; }
     flash({ fetch: 'Fetching…', pull: 'Pulling…', push: 'Pushing…' }[a] ?? a);
     try {
       await send(a);
@@ -330,8 +449,23 @@
   }
 
   async function railAction(a: string) {
+    if (a === 'sync') {
+      // One-click "bring me up to date": fetch all remotes, then integrate the
+      // current branch (uses the user's configured pull mode). No push — that
+      // stays a deliberate, separate action.
+      flash('Syncing…');
+      try {
+        await send('fetch');
+        await send('pull');
+        flash('Synced', '#4ec94e');
+        loadAll();
+      } catch (e: unknown) {
+        flash('Sync failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      }
+      return;
+    }
     if (a === 'branch.new') {
-      const name = prompt('New branch name:');
+      const name = await uiPrompt('New branch name:');
       if (name) {
         try {
           await send('branch.create', { name });
@@ -348,14 +482,14 @@
       // We can't call VS Code APIs directly from the webview, so we send a
       // special command to the extension host which shows the dialog and
       // only deletes if confirmed.
-      const name = prompt(`Delete branch — enter branch name (cannot delete current branch):`);
+      const name = await uiPrompt(`Delete branch — enter branch name (cannot delete current branch):`);
       if (!name) return;
       if (name === activeBranch) {
         flash(`Cannot delete the current branch: ${name}`, '#f07070');
         return;
       }
-      // Two-step confirmation: native confirm() as the webview-accessible fallback
-      const confirmed = confirm(
+      // Confirmation via the host (native VS Code modal) — see $shared/dialogs.
+      const confirmed = await uiConfirm(
         `Delete branch "${name}"?\n\nThis cannot be undone. The branch will be deleted locally.`
       );
       if (!confirmed) return;
@@ -367,7 +501,7 @@
       } catch (e: unknown) {
         // Likely "not fully merged" — offer force delete
         const msg = e instanceof Error ? e.message : String(e);
-        const force = confirm(
+        const force = await uiConfirm(
           `Could not delete "${name}":\n${msg}\n\nForce delete? (data may be lost)`
         );
         if (force) {
@@ -383,7 +517,7 @@
       return;
     }
     if (a === 'merge') {
-      const target = prompt('Merge branch into current — branch name:');
+      const target = await uiPrompt('Merge branch into current — branch name:');
       if (target) {
         flash(`Merging ${target}…`);
         try { await send('merge', { branch: target }); flash(`Merged ${target}`, '#4ec94e'); loadAll(); }
@@ -392,7 +526,7 @@
       return;
     }
     if (a === 'rebase') {
-      const onto = prompt('Rebase onto branch:');
+      const onto = await uiPrompt('Rebase onto branch:');
       if (onto) {
         flash(`Rebasing onto ${onto}…`);
         try { await send('rebase', { onto }); flash('Rebased', '#4ec94e'); loadAll(); }
@@ -401,9 +535,9 @@
       return;
     }
     if (a === 'tag') {
-      const name = prompt('New tag name (at HEAD):');
+      const name = await uiPrompt('New tag name (at HEAD):');
       if (!name) return;
-      const message = prompt(`Annotation message for "${name}" (leave empty for lightweight tag):`) ?? '';
+      const message = (await uiPrompt(`Annotation message for "${name}" (leave empty for lightweight tag):`)) ?? '';
       try {
         await send('tag.create', { name, commit: '', message });
         flash(`Created tag ${name}`, '#4ec94e');
@@ -455,16 +589,16 @@
         loadAll();
       },
       'new-branch': async () => {
-        const name = prompt('New branch name:');
+        const name = await uiPrompt('New branch name:');
         if (!name) return;
         await send('branch.create', { name, from: hash });
         flash(`Created ${name}`, '#4ec94e');
         loadAll();
       },
       'new-tag': async () => {
-        const name = prompt(`New tag at ${hash.slice(0, 7)}:`);
+        const name = await uiPrompt(`New tag at ${hash.slice(0, 7)}:`);
         if (!name) return;
-        const message = prompt(`Annotation message for "${name}" (leave empty for lightweight tag):`) ?? '';
+        const message = (await uiPrompt(`Annotation message for "${name}" (leave empty for lightweight tag):`)) ?? '';
         await send('tag.create', { name, commit: hash, message });
         flash(`Created tag ${name}`, '#4ec94e');
         loadAll();
@@ -472,8 +606,67 @@
       'view-in-browser': async () => {
         send('openCommitUrl', { commit: hash });
       },
+      'compare-local': async () => {
+        await startCompare({ kind: 'ref', ref: hash, title: `${hash.slice(0, 7)} ↔ working tree` });
+      },
+      'interactive-rebase': async () => {
+        const idx = filtered.findIndex((c) => c.hash === hash);
+        if (idx < 0) return;
+        const base = (commit.parents ?? [])[0];
+        if (!base) { flash('Cannot interactively rebase the root commit', '#f07070'); return; }
+        // filtered is newest-first; the editor wants oldest-first.
+        const range = filtered.slice(0, idx + 1).slice().reverse();
+        rebaseEditor = {
+          base,
+          commits: range.map((c) => ({ sha: c.hash, subject: c.message ?? c.msg ?? '' })),
+        };
+      },
+      'edit-message': async () => {
+        const current = commit.message ?? commit.msg ?? '';
+        const msg = await uiPrompt('New commit message:', current);
+        if (msg === null) return;        // cancelled
+        if (!msg.trim()) { flash('Empty message — cancelled', '#f07070'); return; }
+        if (msg === current) return;      // unchanged
+        flash(`Rewording ${hash.slice(0, 7)}…`);
+        const res = await send<{ conflict: boolean }>('rebase.reword', { commit: hash, message: msg });
+        if (res?.conflict) {
+          rebaseInProgress = true;
+          flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
+        } else {
+          flash('Commit message updated', '#4ec94e');
+        }
+        loadAll();
+      },
+      drop: async () => {
+        if (!(await uiConfirm(
+          `Drop commit ${hash.slice(0, 7)}?\n\nThis rewrites history by rebasing later commits onto its parent.`
+        ))) return;
+        flash(`Dropping ${hash.slice(0, 7)}…`);
+        const res = await send<{ conflict: boolean }>('rebase.drop', { commit: hash });
+        if (res?.conflict) {
+          rebaseInProgress = true;
+          flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
+        } else {
+          flash(`Dropped ${hash.slice(0, 7)}`, '#4ec94e');
+        }
+        loadAll();
+      },
+      'create-patch': async () => {
+        const patch = await send<string>('patch.format', { commit: hash });
+        // savePatch is host-only (native save dialog) — fire and forget.
+        send('savePatch', { content: patch, name: `${hash.slice(0, 7)}.patch` });
+      },
+      'push-here': async () => {
+        if (!(await uiConfirm(
+          `Push all commits up to ${hash.slice(0, 7)} onto origin/${activeBranch}?`
+        ))) return;
+        flash(`Pushing up to ${hash.slice(0, 7)}…`);
+        await send('push.upto', { commit: hash, branch: activeBranch });
+        flash(`Pushed up to ${hash.slice(0, 7)}`, '#4ec94e');
+        loadAll();
+      },
       reset: async () => {
-        const raw = prompt(
+        const raw = await uiPrompt(
           `Reset current branch to ${hash.slice(0, 7)} — mode (soft / mixed / hard):`,
           'mixed'
         );
@@ -483,11 +676,16 @@
           flash(`Unknown reset mode: ${raw}`, '#f07070');
           return;
         }
-        if (mode === 'hard' && !confirm(
-          `Hard reset to ${hash.slice(0, 7)}?\n\nUncommitted changes will be DISCARDED.`
-        )) return;
-        await send('reset', { commit: hash, mode });
-        flash(`Reset (${mode}) to ${hash.slice(0, 7)}`, '#4ec94e');
+        if (mode === 'hard' && !(await uiConfirm(
+          `Hard reset to ${hash.slice(0, 7)}?\n\nAny uncommitted changes are auto-stashed first (recoverable).`
+        ))) return;
+        const res = await send<{ stashed: boolean }>('reset', { commit: hash, mode });
+        flash(
+          res?.stashed
+            ? `Reset (${mode}) to ${hash.slice(0, 7)} — changes auto-stashed`
+            : `Reset (${mode}) to ${hash.slice(0, 7)}`,
+          res?.stashed ? '#e0a030' : '#4ec94e'
+        );
         loadAll();
       },
     };
@@ -495,6 +693,107 @@
       await acts[action]?.();
     } catch (e: unknown) {
       flash(action + ' failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // The editor's "Start Rebasing" is itself the review/confirm step (the full
+  // plan is shown), so no extra modal — matches IntelliJ/GitLens.
+  async function startInteractiveRebase(items: { sha: string; action: string }[]) {
+    const ed = rebaseEditor;
+    rebaseEditor = null;
+    if (!ed) return;
+    flash('Rebasing…');
+    try {
+      const res = await send<{ conflict: boolean }>('rebase.interactive', {
+        base: ed.base,
+        items,
+      });
+      if (res?.conflict) {
+        rebaseInProgress = true;
+        flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
+      } else {
+        flash('Interactive rebase complete', '#4ec94e');
+      }
+      loadAll();
+    } catch (e: unknown) {
+      flash('Rebase failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // ── HEAD undo timeline (reflog) ─────────────────────────────────────────────
+  async function enterHeadMode() {
+    try {
+      reflog = await send<ReflogEntry[]>('reflog');
+      headMode = true;
+    } catch (e: unknown) {
+      flash('Reflog error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  function exitHeadMode() {
+    headMode = false;
+  }
+
+  async function reflogReset(hash: string, mode: 'soft' | 'mixed' | 'hard') {
+    const warn =
+      mode === 'hard'
+        ? `\n\nAny uncommitted changes are auto-stashed first (recoverable).`
+        : mode === 'mixed'
+          ? `\n\nChanges are kept but unstaged.`
+          : `\n\nChanges are kept and staged.`;
+    if (!(await uiConfirm(`${mode} reset to ${hash.slice(0, 7)}?${warn}`))) return;
+    try {
+      const res = await send<{ stashed: boolean }>('reset', { commit: hash, mode });
+      const msg = res?.stashed
+        ? `${mode} reset to ${hash.slice(0, 7)} — changes auto-stashed`
+        : `${mode} reset to ${hash.slice(0, 7)}`;
+      flash(msg, res?.stashed ? '#e0a030' : mode === 'hard' ? '#f07070' : '#4ec94e');
+      headMode = false;
+      loadAll();
+    } catch (e: unknown) {
+      flash('Reset failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // ── Rebase conflict controls (GitLens/IntelliJ pause-on-conflict flow) ──────
+  async function rebaseControl(kind: 'continue' | 'skip' | 'abort') {
+    try {
+      if (kind === 'abort') {
+        await send('rebase.abort');
+        rebaseInProgress = false;
+        flash('Rebase aborted', '#4ec94e');
+      } else {
+        const res = await send<{ conflict: boolean }>(`rebase.${kind}`);
+        rebaseInProgress = !!res?.conflict;
+        flash(res?.conflict ? 'Still conflicting — resolve, then Continue' : 'Rebase complete',
+          res?.conflict ? '#e0a030' : '#4ec94e');
+      }
+      loadAll();
+    } catch (e: unknown) {
+      flash(`Rebase ${kind} failed: ` + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // Rename a whole branch folder — renames every local branch under the prefix
+  // (feature/* → feat/*), preserving suffixes. Local-only.
+  async function handleFolderCtx(e: MouseEvent, prefix: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const newPrefix = await uiPrompt(
+      `Rename all branches under "${prefix}/" — new folder name:`,
+      prefix
+    );
+    if (!newPrefix || newPrefix === prefix) return;
+    try {
+      const renamed = await send<string[]>('branch.rename.folder', {
+        oldPrefix: prefix,
+        newPrefix,
+      });
+      const n = renamed?.length ?? 0;
+      flash(`Renamed ${n} branch${n === 1 ? '' : 'es'} to ${newPrefix}/`, '#4ec94e');
+      loadAll();
+    } catch (err: unknown) {
+      flash('Folder rename failed: ' + (err instanceof Error ? err.message : String(err)), '#f07070');
     }
   }
 
@@ -515,15 +814,39 @@
       checkout:  async () => { await send('checkout', { branch: ctxBranch });                flash(`Checked out ${ctxBranch}`, '#4ec94e'); loadAll(); },
       merge:     async () => { await send('merge',    { branch: ctxBranch });                flash(`Merged ${ctxBranch}`, '#4ec94e');     loadAll(); },
       rebase:    async () => { await send('rebase',   { onto:   ctxBranch });                flash('Rebased', '#4ec94e');                 loadAll(); },
-      push:      async () => { await send('push',     { branch: ctxBranch });                flash(`Pushed ${ctxBranch}`, '#4ec94e');     loadAll(); },
+      push:      async () => { await doPush(ctxBranch); },
       delete:    async () => { await send('branch.delete', { name: ctxBranch, force: false }); flash(`Deleted ${ctxBranch}`, '#f07070'); loadAll(); },
       copy:      async () => { flash(`Copied: ${ctxBranch}`, '#4ec94e'); },
       rename:    async () => {
-        const to = prompt('New name:');
-        if (to) { await send('branch.rename', { from: ctxBranch, to }); flash(`Renamed to ${to}`, '#4ec94e'); loadAll(); }
+        const from = ctxBranch;
+        const to = await uiPrompt('New branch name:', from);
+        if (!to || to === from) return;
+        // Capture the upstream BEFORE the rename (branches still holds the old name).
+        const upstream = branches.find((x) => x.name === from)?.upstream ?? '';
+        try {
+          await send('branch.rename', { from, to });
+          flash(`Renamed to ${to}`, '#4ec94e');
+          // If it tracked a remote, offer to propagate the rename there too.
+          if (upstream) {
+            const remote = upstream.split('/')[0];
+            const ok = await uiConfirm(
+              `Also rename on the remote (${remote})?\n\n` +
+              `This pushes '${to}' with tracking and deletes the old remote branch '${from}'.`
+            );
+            if (ok) {
+              flash(`Renaming on ${remote}…`);
+              await send('branch.rename.remote', { remote, old: from, new: to });
+              flash(`Renamed on ${remote} too`, '#4ec94e');
+            }
+          }
+          loadAll();
+        } catch (e: unknown) {
+          flash('Rename failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+          loadAll();
+        }
       },
       'new-from': async () => {
-        const name = prompt('Branch name:');
+        const name = await uiPrompt('Branch name:');
         if (name) { await send('branch.create', { name, from: ctxBranch }); flash(`Created ${name}`, '#4ec94e'); loadAll(); }
       },
       'checkout-rebase': async () => {
@@ -544,6 +867,13 @@
         await send('pull.mode', { mode: 'merge' });
         flash('Pulled with merge', '#4ec94e');
         loadAll();
+      },
+      'diff-working': async () => {
+        await startCompare({ kind: 'ref', ref: ctxBranch, title: `${ctxBranch} ↔ working tree` });
+      },
+      compare: async () => {
+        const base = branchMenu.current;
+        await startCompare({ kind: 'range', base, head: ctxBranch, title: `${base} … ${ctxBranch}` });
       },
     };
     try { await acts[a]?.(); }
@@ -591,7 +921,7 @@
           loadAll();
           break;
         case 'diff-working':
-          flash(`Diffing ${name} with working tree…`);
+          await startCompare({ kind: 'ref', ref: name, title: `${name} ↔ working tree` });
           break;
         case 'merge':
           await send('merge', { branch: name });
@@ -645,6 +975,25 @@
     onSelectBranch={selectBranch}
   />
 
+  {#if rebaseEditor}
+    <InteractiveRebase
+      commits={rebaseEditor.commits}
+      onStart={startInteractiveRebase}
+      onCancel={() => (rebaseEditor = null)}
+    />
+  {/if}
+
+  {#if rebaseInProgress}
+    <div class="rebase-bar">
+      <span class="rebase-bar-msg">⚠ Rebase in progress — resolve conflicts, then continue.</span>
+      <div class="rebase-bar-actions">
+        <button class="rebase-btn" on:click={() => rebaseControl('continue')}>Continue</button>
+        <button class="rebase-btn" on:click={() => rebaseControl('skip')}>Skip</button>
+        <button class="rebase-btn rebase-btn--danger" on:click={() => rebaseControl('abort')}>Abort</button>
+      </div>
+    </div>
+  {/if}
+
   <div class="main">
     <ActionRail {hasPending} onAction={railAction} />
 
@@ -656,6 +1005,8 @@
         {activeBranch}
         {selStashIdx}
         onSelectBranch={selectBranch}
+        onHead={enterHeadMode}
+        onFolderCtx={handleFolderCtx}
         onSelectStash={selectStash}
         onStashAction={stashAction}
         onNewBranch={() => railAction('branch.new')}
@@ -668,32 +1019,43 @@
 
     <PaneDivider leftEl={branchPaneEl} isRight={false} />
 
-    <LogPane
-      commits={filtered}
-      selectedIdx={selCommitIdx}
-      onSelect={selectCommit}
-      onCtx={() => {}}
-      onCommitAction={commitMenuAction}
-      {fileSearchActive}
-      {fileSearchPath}
-    />
-
-    <PaneDivider rightEl={detailPaneEl} isRight={true} />
-
-    <div bind:this={detailPaneEl} class="detail-wrap">
-      <DetailPane
-        commit={selCommitIdx !== null ? filtered[selCommitIdx] : null}
-        stash={selStashIdx !== null ? stashes[selStashIdx] : null}
-        files={diffFiles}
-        hunks={diffHunks}
-        {selFile}
-        loading={detailLoading}
-        {iconUri}
-        onSelectFile={selectDiffFile}
-        onCommitAction={commitAction}
-        onStashAction={stashAction}
+    {#if headMode}
+      <!-- Undo timeline takes the whole graph+detail area for room. -->
+      <ReflogPane
+        entries={reflog}
+        {activeBranch}
+        onReset={reflogReset}
+        onExit={exitHeadMode}
       />
-    </div>
+    {:else}
+      <LogPane
+        commits={filtered}
+        selectedIdx={selCommitIdx}
+        onSelect={selectCommit}
+        onCtx={() => {}}
+        onCommitAction={commitMenuAction}
+        {fileSearchActive}
+        {fileSearchPath}
+      />
+
+      <PaneDivider rightEl={detailPaneEl} isRight={true} />
+
+      <div bind:this={detailPaneEl} class="detail-wrap">
+        <DetailPane
+          commit={selCommitIdx !== null ? filtered[selCommitIdx] : null}
+          stash={selStashIdx !== null ? stashes[selStashIdx] : null}
+          {compare}
+          files={diffFiles}
+          hunks={diffHunks}
+          {selFile}
+          loading={detailLoading}
+          {iconUri}
+          onSelectFile={selectDiffFile}
+          onCommitAction={commitAction}
+          onStashAction={stashAction}
+        />
+      </div>
+    {/if}
   </div>
 
   <StatusBar
@@ -727,6 +1089,31 @@
     min-height: 0;
     overflow: hidden;
   }
+  .rebase-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 12px;
+    background: rgba(224, 160, 48, 0.13);
+    border-bottom: 0.5px solid rgba(224, 160, 48, 0.4);
+    color: #e0a030;
+    font-size: var(--hg-font-sm);
+    flex-shrink: 0;
+  }
+  .rebase-bar-actions { display: flex; gap: 6px; }
+  .rebase-btn {
+    padding: 2px 10px;
+    font-size: var(--hg-font-xs);
+    color: var(--vscode-button-foreground, #fff);
+    background: var(--vscode-button-background, #0e639c);
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .rebase-btn:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
+  .rebase-btn--danger { background: #a33; }
+  .rebase-btn--danger:hover { background: #c44; }
   .branch-wrap,
   .detail-wrap {
     display: flex;

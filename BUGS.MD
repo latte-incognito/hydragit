@@ -1,5 +1,2 @@
-Result of manual testing:
- 1. Blocker: Search by file name freezes UI and doesn't work
- 2. Create tag not working from side bar
- 3. Show Diff and Show Diff in new tab whats the difference 
- 18. Support multi-repo workspaces, monorepos, and submodules (repo picker like IntelliJ)
+1, in branches inside main pane on delete remote there is no auto update of state , deleted branch still shown on second delete error appears saying there is no such branch 
+2.delet from right rail, deletes from local, even if i try to delete remote

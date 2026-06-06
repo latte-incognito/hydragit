@@ -1,8 +1,55 @@
 <script lang="ts">
-  import type { Hunk } from './types';
+  import { send } from '$shared/messageBus';
+  import BlameCard from './BlameCard.svelte';
+  import type { Hunk, BlameLine } from './types';
 
   export let hunks: Hunk[] = [];
   export let loading = false;
+
+  // Blame context: which file and which revision each side is attributed to.
+  // Right side = the selected (newer) commit, left side = the previous (older).
+  export let file = '';
+  export let newerRef = '';
+  export let olderRef = '';
+
+  // Per-ref blame, lazily loaded and indexed by line number.
+  let blameByRef: Record<string, Map<number, BlameLine>> = {};
+  const loaded = new Set<string>();
+  const loading_ = new Set<string>();
+
+  async function ensureBlame(ref: string) {
+    if (!ref || !file || loaded.has(ref) || loading_.has(ref)) return;
+    loading_.add(ref);
+    try {
+      const lines = await send<BlameLine[]>('blame', { path: file, ref });
+      const map = new Map<number, BlameLine>();
+      for (const l of lines ?? []) map.set(l.line, l);
+      blameByRef[ref] = map;
+      blameByRef = blameByRef; // trigger reactivity
+      loaded.add(ref);
+    } catch {
+      // No blame for this ref — hover simply won't show a card.
+    } finally {
+      loading_.delete(ref);
+    }
+  }
+
+  // Prefetch blame for both visible revisions when they change.
+  $: if (file && newerRef) ensureBlame(newerRef);
+  $: if (file && olderRef) ensureBlame(olderRef);
+
+  let hover: { blame: BlameLine; x: number; y: number } | null = null;
+
+  function showBlame(e: MouseEvent, ref: string, lineNo?: number) {
+    const b = lineNo ? blameByRef[ref]?.get(lineNo) : undefined;
+    hover = b ? { blame: b, x: e.clientX + 14, y: e.clientY + 14 } : null;
+  }
+  function moveBlame(e: MouseEvent) {
+    if (hover) hover = { ...hover, x: e.clientX + 14, y: e.clientY + 14 };
+  }
+  function hideBlame() {
+    hover = null;
+  }
 
   interface Seg {
     text: string;
@@ -133,20 +180,39 @@
       {#each rows as r}
         <div class="drow drow--{r.kind}">
           <span class="gutter">{r.leftNo ?? ''}</span>
-          <span class="side side-left" class:filler={r.leftText === undefined}>
+          <!-- svelte-ignore a11y_no_static_element_interactions a11y_mouse_events_have_key_events -->
+          <span
+            class="side side-left"
+            class:filler={r.leftText === undefined}
+            on:mouseenter={(e) => showBlame(e, olderRef, r.leftNo)}
+            on:mousemove={moveBlame}
+            on:mouseleave={hideBlame}
+          >
             {#if r.leftText !== undefined}
               {#each segsFor(r.leftText, r.leftHi) as s}<span class:hi={s.hi}>{s.text}</span>{/each}
             {/if}
           </span>
           <span class="gutter">{r.rightNo ?? ''}</span>
-          <span class="side side-right" class:filler={r.rightText === undefined}>
+          <!-- svelte-ignore a11y_no_static_element_interactions a11y_mouse_events_have_key_events -->
+          <span
+            class="side side-right"
+            class:filler={r.rightText === undefined}
+            on:mouseenter={(e) => showBlame(e, newerRef, r.rightNo)}
+            on:mousemove={moveBlame}
+            on:mouseleave={hideBlame}
+          >
             {#if r.rightText !== undefined}
-              {#each segsFor(r.rightText, r.rightHi) as s}<span class:hi={s.hi}>{s.text}</span>{/each}
+              {#each segsFor(r.rightText, r.rightHi) as s}<span class:hi={s.hi}>{s.text}</span
+                >{/each}
             {/if}
           </span>
         </div>
       {/each}
     </div>
+  {/if}
+
+  {#if hover}
+    <BlameCard blame={hover.blame} x={hover.x} y={hover.y} />
   {/if}
 </div>
 

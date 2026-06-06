@@ -2,7 +2,7 @@
   "name": "hydragit",
   "displayName": "HydraGit",
   "description": "The git panel IntelliJ has, inside VS Code. No paywall.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "vkushnarenko",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -32,6 +32,10 @@
         "title": "HydraGit: Open Logs Folder"
       },
       {
+        "command": "hydragit.forceRefresh",
+        "title": "HydraGit: Force Refresh"
+      },
+      {
         "command": "hydragit.fileHistory",
         "title": "HydraGit: File History"
       },
@@ -46,6 +50,10 @@
       {
         "command": "hydragit.copyCommitSha",
         "title": "HydraGit: Copy Commit SHA"
+      },
+      {
+        "command": "hydragit.lineHistory",
+        "title": "HydraGit: Line History"
       }
     ],
     "menus": {
@@ -74,6 +82,10 @@
       "commandPalette": [
         {
           "command": "hydragit.copyCommitSha",
+          "when": "false"
+        },
+        {
+          "command": "hydragit.lineHistory",
           "when": "false"
         }
       ],
@@ -156,6 +168,7 @@
     "@types/node": "^25.0.0",
     "@types/vscode": "^1.85.0",
     "@vitest/ui": "^4.1.2",
+    "@vscode/codicons": "^0.0.45",
     "happy-dom": "^20.8.9",
     "jsdom": "^29.0.1",
     "prettier": "^3.8.1",

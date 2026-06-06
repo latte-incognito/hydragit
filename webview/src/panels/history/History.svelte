@@ -139,11 +139,12 @@
     {:else if commits.length === 0}
       <div class="hist-msg">No history for this selection.</div>
     {:else}
-      <SideBySideDiff hunks={diffHunks} bind:diffCount />
+      <SideBySideDiff hunks={diffHunks} bind:diffCount {file} {newerRef} {olderRef} />
 
       <div class="sel-list">
         <div class="list-toolbar">
-          <label class="changes-only"><input type="checkbox" checked disabled /> Changes only</label>
+          <label class="changes-only"><input type="checkbox" checked disabled /> Changes only</label
+          >
         </div>
         <div class="cols-hdr">
           <span class="c-ver">Version</span>
@@ -254,7 +255,9 @@
     font-size: var(--hg-font-xxs);
     color: var(--vscode-disabledForeground, #3a3a3a);
   }
-  .hist-title strong { color: var(--vscode-descriptionForeground, #888); }
+  .hist-title strong {
+    color: var(--vscode-descriptionForeground, #888);
+  }
   .hist-count {
     flex-shrink: 0;
     font-size: var(--hg-font-xxs);
@@ -292,7 +295,9 @@
     border-left: 2px solid transparent;
     padding: 0 10px;
   }
-  .row:hover { background: var(--vscode-list-hoverBackground); }
+  .row:hover {
+    background: var(--vscode-list-hoverBackground);
+  }
   .row.selected {
     background: var(--vscode-list-activeSelectionBackground);
     border-left-color: var(--vscode-list-focusOutline, var(--vscode-focusBorder));
@@ -303,7 +308,11 @@
   .row.selected .r-date {
     color: var(--vscode-list-activeSelectionForeground);
   }
-  .r-refs { display: flex; align-items: center; flex-shrink: 0; }
+  .r-refs {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
   .r-msg {
     flex: 1;
     min-width: 0;
@@ -362,7 +371,9 @@
   }
 
   /* ════ Selection-mode layout ════ */
-  .history--selection { user-select: none; }
+  .history--selection {
+    user-select: none;
+  }
 
   .diff-toolbar {
     display: flex;
@@ -378,7 +389,9 @@
     font-size: var(--hg-font-xs);
     color: var(--vscode-descriptionForeground, #888);
   }
-  .dt-spacer { flex: 1; }
+  .dt-spacer {
+    flex: 1;
+  }
   .dt-count {
     font-size: var(--hg-font-xxs);
     color: var(--vscode-disabledForeground, #777);
@@ -400,7 +413,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .rev:first-child { border-right: 0.5px solid var(--vscode-panel-border, #2a2a2a); }
+  .rev:first-child {
+    border-right: 0.5px solid var(--vscode-panel-border, #2a2a2a);
+  }
 
   .sel-list {
     flex-shrink: 0;
@@ -422,7 +437,9 @@
     align-items: center;
     gap: 5px;
   }
-  .changes-only input { margin: 0; }
+  .changes-only input {
+    margin: 0;
+  }
 
   .cols-hdr,
   .srow {
@@ -452,7 +469,9 @@
     border-left: 2px solid transparent;
     font-size: var(--hg-font-xs);
   }
-  .srow:hover { background: var(--vscode-list-hoverBackground); }
+  .srow:hover {
+    background: var(--vscode-list-hoverBackground);
+  }
   .srow.selected {
     background: var(--vscode-list-activeSelectionBackground);
     border-left-color: var(--vscode-list-focusOutline, var(--vscode-focusBorder));
@@ -463,12 +482,24 @@
     text-overflow: ellipsis;
     padding-right: 8px;
   }
-  .c-ver.mono { font-family: var(--hg-editor-font-family); color: var(--vscode-textLink-foreground); }
-  .srow .c-date { color: var(--vscode-disabledForeground); }
-  .srow .c-author { color: var(--vscode-descriptionForeground); }
-  .srow .c-msg { color: var(--vscode-foreground); padding-right: 0; }
+  .c-ver.mono {
+    font-family: var(--hg-editor-font-family);
+    color: var(--vscode-textLink-foreground);
+  }
+  .srow .c-date {
+    color: var(--vscode-disabledForeground);
+  }
+  .srow .c-author {
+    color: var(--vscode-descriptionForeground);
+  }
+  .srow .c-msg {
+    color: var(--vscode-foreground);
+    padding-right: 0;
+  }
   /* Legible on the theme's selection background. */
-  .srow.selected > span { color: var(--vscode-list-activeSelectionForeground); }
+  .srow.selected > span {
+    color: var(--vscode-list-activeSelectionForeground);
+  }
 
   .hist-footer {
     flex-shrink: 0;

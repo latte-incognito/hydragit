@@ -83,6 +83,13 @@
 
   // ── Diff ───────────────────────────────────────────────────────────────────
   function handleOpenDiff(path: string) {
+    // Conflicted files ('!') open VS Code's 3-way merge resolver instead of a
+    // plain diff — a 2-way HEAD↔working-tree diff can't resolve a conflict.
+    const file = files.find((f) => f.path === path);
+    if (file?.status === '!') {
+      send('openMergeEditor', { file: path });
+      return;
+    }
     // Working tree diff: HEAD as the commit ref, empty parent means working tree
     send('openDiff', { commit: 'HEAD', parent: '', file: path });
   }

@@ -57,6 +57,13 @@ func DiffCommit(repoPath, commit string) ([]FileStat, error) {
 		return nil, err
 	}
 
+	return parseDiffFiles(nsOut, numOut), nil
+}
+
+// parseDiffFiles zips `--name-status` and `--numstat` output — git emits both in
+// the same order — into FileStat entries. Shared by DiffCommit and the ref/range
+// comparisons below.
+func parseDiffFiles(nsOut, numOut string) []FileStat {
 	// Parse name-status lines into ordered entries.
 	type nsEntry struct {
 		status  string
@@ -105,8 +112,8 @@ func DiffCommit(repoPath, commit string) ([]FileStat, error) {
 		numEntries = append(numEntries, numEntry{add: add, del: del})
 	}
 
-	// Zip the two slices. They must have the same length for a given commit;
-	// guard defensively in case of unexpected output.
+	// Zip the two slices. They must have the same length; guard defensively in
+	// case of unexpected output.
 	count := len(nsEntries)
 	if len(numEntries) < count {
 		count = len(numEntries)
@@ -124,7 +131,58 @@ func DiffCommit(repoPath, commit string) ([]FileStat, error) {
 			Deletions: num.del,
 		})
 	}
-	return files, nil
+	return files
+}
+
+// DiffRefFiles returns file stats comparing a ref against the working tree —
+// "Show Diff with Working Tree" (branch/tag) and commit "Compare with Local".
+func DiffRefFiles(repoPath, ref string) ([]FileStat, error) {
+	nsOut, err := run(repoPath, "diff", "-M", "-C", "--name-status", ref)
+	if err != nil {
+		return nil, err
+	}
+	numOut, err := run(repoPath, "diff", "-M", "-C", "--numstat", ref)
+	if err != nil {
+		return nil, err
+	}
+	return parseDiffFiles(nsOut, numOut), nil
+}
+
+// DiffRefFile returns hunks for one file comparing a ref against the working tree.
+func DiffRefFile(repoPath, ref, file string) ([]Hunk, error) {
+	out, err := run(repoPath, "diff", "-M", "-C", ref, "--", file)
+	if err != nil {
+		return nil, err
+	}
+	return parseHunks(out), nil
+}
+
+// DiffRangeFiles compares two refs (base vs head) — branch "Compare with…".
+func DiffRangeFiles(repoPath, base, head string) ([]FileStat, error) {
+	nsOut, err := run(repoPath, "diff", "-M", "-C", "--name-status", base, head)
+	if err != nil {
+		return nil, err
+	}
+	numOut, err := run(repoPath, "diff", "-M", "-C", "--numstat", base, head)
+	if err != nil {
+		return nil, err
+	}
+	return parseDiffFiles(nsOut, numOut), nil
+}
+
+// DiffRangeFile returns hunks for one file comparing two refs.
+func DiffRangeFile(repoPath, base, head, file string) ([]Hunk, error) {
+	out, err := run(repoPath, "diff", "-M", "-C", base, head, "--", file)
+	if err != nil {
+		return nil, err
+	}
+	return parseHunks(out), nil
+}
+
+// FormatPatch returns a commit as a mailbox-format patch (git format-patch),
+// suitable for saving to a .patch file and re-applying with `git am`.
+func FormatPatch(repoPath, commit string) (string, error) {
+	return run(repoPath, "format-patch", "-1", commit, "--stdout")
 }
 
 // DiffFile returns hunks for a specific file in a commit.

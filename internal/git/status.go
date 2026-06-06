@@ -8,7 +8,7 @@ import (
 // FileStatus represents a single changed file from `git status --porcelain`.
 type FileStatus struct {
 	Path   string `json:"path"`
-	Status string `json:"status"` // M | A | D | U | R
+	Status string `json:"status"` // M | A | D | U | R | C | T | ! (conflict)
 }
 
 // StatusResult is the full snapshot returned by Status().
@@ -106,6 +106,11 @@ func resolveStatus(xy string) string {
 	x, y := xy[0], xy[1]
 
 	switch {
+	// Unmerged (conflict) codes must be checked first: git reports them as
+	// UU/AA/DD/AU/UA/DU/UD. Without this, UU falls through to "" (file dropped)
+	// and AA/DD get mislabeled as a plain add/delete. See BUG #19.
+	case x == 'U' || y == 'U' || (x == 'A' && y == 'A') || (x == 'D' && y == 'D'):
+		return "!" // unmerged / conflict
 	case x == '?' && y == '?':
 		return "U" // untracked
 	case x == 'R' || y == 'R':

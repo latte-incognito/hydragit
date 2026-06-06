@@ -76,7 +76,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('hydragit.revealAll', async () => {
       await vscode.commands.executeCommand('workbench.view.extension.hydragit');
       await vscode.commands.executeCommand('hydragit.mainView.focus');
-    })
+    }),
+    vscode.commands.registerCommand('hydragit.forceRefresh', () => mainProvider.forceRefresh())
   );
 
   // Inline blame: faint trailing annotation on the active editor line + hover.
@@ -115,6 +116,11 @@ export function activate(ctx: vscode.ExtensionContext): void {
       const start = editor.selection.start.line + 1;
       const end = editor.selection.end.line + 1;
       historyPanel.openSelectionHistory(editor.document.uri, start, end);
+    }),
+
+    // Invoked from the blame hover: open line history for one specific line.
+    vscode.commands.registerCommand('hydragit.lineHistory', (uriString: string, line: number) => {
+      historyPanel.openSelectionHistory(vscode.Uri.parse(uriString), line, line);
     })
   );
 

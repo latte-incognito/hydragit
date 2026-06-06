@@ -85,17 +85,18 @@ func LogFile(repoPath, filePath string) ([]Commit, error) {
 			"--follow", "--", filePath,
 		}
 	} else {
-		// Filename or glob — match anywhere in the tree via **/ prefix
+		// Filename or glob — match at ANY depth, INCLUDING the repo root. A plain
+		// "**/" pathspec misses root-level files entirely (BUG #1: a bare "**/x"
+		// requires at least one leading directory), so use a :(glob) magic
+		// pathspec where ** spans directory separators and matches zero or more.
 		pattern := filePath
-		if !hasGlob {
-			pattern = "**/" + filePath
-		} else if !hasSlash {
+		if !hasSlash {
 			pattern = "**/" + filePath
 		}
 		args = []string{
 			"log", "--all", "--topo-order",
 			"--format=" + commitFormat, "--date=iso-strict",
-			"--", pattern,
+			"--", ":(glob)" + pattern,
 		}
 	}
 

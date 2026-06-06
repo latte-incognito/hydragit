@@ -60,6 +60,9 @@
     <div class="ci" on:click={() => onBranchAction('new-from')}>
       New Branch from '{branchMenu.branch}'…
     </div>
+    <div class="ci" on:click={() => onBranchAction('rename')}>
+      Rename…
+    </div>
     <div class="ci" class:disabled={branchMenu.isCurrent} on:click={() => onBranchAction('checkout-rebase')}>
       Checkout and Rebase onto '{branchMenu.current}'
     </div>
