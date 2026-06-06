@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>File &amp; line history · blame — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Views &amp; Layout<span class="sep">/</span>File &amp; line history</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#filehistory" class="head">File history</a>
+      <a href="#linehistory">Selection / line history</a>
+      <a href="#blame">Inline blame</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>File &amp; line history · blame</h1>
+      <p class="lede">
+        Three editor-centric views: every commit that touched a file, the history of a specific
+        selection, and an inline blame annotation on the current line.
+      </p>
+
+      <section class="feature" id="filehistory">
+        <h2>Visual file history <span class="cmd">file.history</span></h2>
+        <p>A per-file commit timeline — every commit that touched the file, following renames.</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li class="kbd"><span class="where">Command</span><span class="what"><b>HydraGit: File History</b> <span class="cmd amber">hydragit.fileHistory</span> from the Command Palette.</span></li>
+          <li><span class="where">Explorer</span><span class="what">Right-click a file in the Explorer → <b>HydraGit: File History</b> (group <code>9_hydragit</code>).</span></li>
+          <li><span class="where">Editor</span><span class="what">Right-click in the editor body, or in the editor <b>title</b> context menu → <b>File History</b>.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>A dedicated history view opens for the file path.</li>
+          <li>Go runs <span class="cmd amber">file.history</span> (with rename-following) and returns the commit list; <span class="cmd">log.file</span> backs the in-panel "file" search.</li>
+          <li>Selecting any revision shows its diff for that file; you can compare a revision against your working copy.</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="search-filter.html">File search</a><a href="compare.html#file">Compare file vs local</a></div>
+      </section>
+
+      <section class="feature" id="linehistory">
+        <h2>Selection / line history <span class="cmd">line.history</span></h2>
+        <p>History for an editor selection or line range — answering "how did <em>these lines</em> get here?" — rendered with a custom Shiki-based diff (not VS Code's native diff editor).</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li class="kbd"><span class="where">Command</span><span class="what"><b>HydraGit: History for Selection</b> <span class="cmd amber">hydragit.selectionHistory</span> — shown only when there is an editor selection.</span></li>
+          <li><span class="where">Editor</span><span class="what">Select lines → right-click → <b>History for Selection</b>.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>Go runs <span class="cmd amber">line.history</span> with <code>{ path, start, end }</code> (git's <code>-L</code> line-range log).</li>
+          <li>Results render as syntax-highlighted side-by-side diff cards via Shiki, with blame cards for authorship.</li>
+        </ol>
+        <div class="note"><span class="ic">i</span><span>Why Shiki and not the native diff: the selection view needs inline, themed, multi-revision cards rather than a two-pane editor. See <code>memory/selection-history-custom-diff.md</code>.</span></div>
+      </section>
+
+      <section class="feature" id="blame">
+        <h2>Inline line blame <span class="cmd">blame</span></h2>
+        <p>An end-of-line annotation on the active editor line: author, relative time and the commit summary.</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li class="kbd"><span class="where">Command</span><span class="what"><b>HydraGit: Toggle Line Blame</b> <span class="cmd amber">hydragit.toggleLineBlame</span> — toggles the annotation for the session.</span></li>
+          <li><span class="where">Editor menu</span><span class="what">Right-click in the editor → <b>Toggle Line Blame</b>.</span></li>
+          <li><span class="where">Setting</span><span class="what"><code>hydragit.lineBlame.enabled</code> (default <b>on</b>) controls the startup state.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>As the cursor moves, Go runs <span class="cmd amber">blame</span> for the current line — <b>buffer-aware</b>: unsaved edits are streamed via <code>git blame --contents -</code> so blame is correct even with dirty changes.</li>
+          <li>An inline decoration renders the author + relative date + summary; hovering shows more, with a commit avatar.</li>
+        </ol>
+        <div class="note"><span class="ic">i</span><span>Avatar source &amp; hover placement decisions: <code>memory/blame-avatar-decisions.md</code>.</span></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="status.html"><small>Prev</small> Repository status</a>
+        <a class="next" href="branches.html"><small>Next</small> Branches</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · File &amp; line history</footer>
+</body>
+</html>

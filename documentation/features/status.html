@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Repository status — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Views &amp; Layout<span class="sep">/</span>Repository status</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#status" class="head">Status snapshot</a>
+      <a href="#badge">Status bar &amp; badge</a>
+      <a href="#poll">3-second poll</a>
+      <a href="#edge">Edge cases</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Repository status</h1>
+      <p class="lede">
+        The always-current picture of the working tree: current branch, ahead/behind counts,
+        modified-file count, upstream presence and the changed-file list. It feeds the sidebar
+        tree, the status bar and the activity-bar badge.
+      </p>
+
+      <section class="feature" id="status">
+        <h2>Status snapshot <span class="cmd">status</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Automatic</span><span class="what">No click needed — status is requested on mount and re-requested every ~3&nbsp;s.</span></li>
+          <li><span class="where">Sidebar</span><span class="what">The whole <a href="sidebar.html">staging view</a> is a rendering of the latest status.</span></li>
+        </ul>
+        <h3 class="lbl">What it returns</h3>
+        <table>
+          <tr><th>Field</th><th>Meaning</th></tr>
+          <tr><td><code>branch</code></td><td>Current branch name (or detached marker).</td></tr>
+          <tr><td><code>ahead</code> / <code>behind</code></td><td>Commits ahead of / behind the upstream.</td></tr>
+          <tr><td><code>modified</code></td><td>Count of changed files.</td></tr>
+          <tr><td><code>files[]</code></td><td>Per-file path + status (<code>M A D U R C T</code>).</td></tr>
+        </table>
+      </section>
+
+      <section class="feature" id="badge">
+        <h2>Status bar &amp; activity-bar badge</h2>
+        <p>The <code>StatusBar</code> component and the badge carrier surface branch, ahead/behind and the modified count. The badge on the HydraGit activity-bar icon shows the number of changed files at a glance.</p>
+      </section>
+
+      <section class="feature" id="poll">
+        <h2>The 3-second poll <span class="cmd">HydraStatusService</span></h2>
+        <h3 class="lbl">What happens</h3>
+        <ol class="flow">
+          <li>Every 3&nbsp;s the service calls <span class="cmd">status</span> on the Go process.</li>
+          <li>It fires <code>onDidChange</code> <b>only when the snapshot actually differs</b> from the last one — no redundant repaints.</li>
+          <li>The sidebar provider relays the snapshot to the webview as a <b>statusUpdate</b> message.</li>
+        </ol>
+        <div class="note teal"><span class="ic">i</span><span>Git activity from the terminal is also caught: a <code>.git</code> file watcher posts a refresh independently of the poll, so external commits/branch switches appear promptly.</span></div>
+      </section>
+
+      <section class="feature" id="edge">
+        <h2>Edge cases handled</h2>
+        <ul class="plain">
+          <li><b>Detached HEAD</b> — reported via <code>status.detached</code>, which drives the <a href="health-banners.html">detached-HEAD rescue banner</a>.</li>
+          <li><b>Tags-only commits</b> — handled correctly when the tip is a tag rather than a branch.</li>
+          <li><b>No upstream</b> — ahead/behind degrade gracefully instead of erroring in the UI.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="sidebar.html">Sidebar</a><a href="health-banners.html">Health banners</a><a href="remotes.html">Remotes &amp; Sync</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="sidebar.html"><small>Prev</small> Sidebar</a>
+        <a class="next" href="history.html"><small>Next</small> File &amp; line history</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Repository status</footer>
+</body>
+</html>

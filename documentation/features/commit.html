@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Staging &amp; commit — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Commit &amp; Staging</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#commit" class="head">Stage &amp; commit</a>
+      <a href="#push">Commit &amp; push</a>
+      <a href="#amend">Amend last commit</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Staging &amp; commit</h1>
+      <p class="lede">
+        Everything you need to land a change, from the sidebar staging view: pick files, write a
+        message, and Commit — or Commit &amp; Push, or Amend the last commit.
+      </p>
+
+      <section class="feature" id="commit">
+        <h2>Stage &amp; commit <span class="cmd amber">commit</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Sidebar</span><span class="what">Tick file / folder / section checkboxes to stage, type a message, click <b>Commit</b>.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>The <b>Commit</b> button is enabled only when <code>stagedCount &gt; 0</code> and the message is non-empty — a message alone is not enough.</li>
+          <li>Go runs <span class="cmd amber">commit</span> with <code>{ message, paths[] }</code> — it stages the chosen paths and commits in one step.</li>
+          <li>On success the message clears, the file list empties, and status refreshes.</li>
+        </ol>
+        <div class="note teal"><span class="ic">i</span><span>Staged paths are <b>webview-only state</b> (a <code>Set&lt;string&gt;</code> in <code>Sidebar.svelte</code>), pruned on each status refresh to paths still present.</span></div>
+      </section>
+
+      <section class="feature" id="push">
+        <h2>Commit &amp; push <span class="cmd amber">commit.push</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Sidebar</span><span class="what"><b>Commit &amp; Push</b> — shown when the branch has an upstream (and amend is off).</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>Go runs <span class="cmd amber">commit.push</span> with <code>{ message, paths[] }</code> — commit, then push.</li>
+          <li>If there's no upstream yet, the push transparently retries with <code>-u origin HEAD</code> (see <a href="remotes.html#upstream">auto-set upstream</a>).</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="remotes.html#push">Push</a><a href="remotes.html#upstream">Auto-set upstream</a></div>
+      </section>
+
+      <section class="feature" id="amend">
+        <h2>Amend last commit <span class="cmd amber">commit.amend</span></h2>
+        <p>Rewrites HEAD instead of creating a new commit — edit its message and/or fold staged changes in.</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Sidebar</span><span class="what">Tick the <b>Amend last commit</b> checkbox in the commit area.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>Toggling amend prefills the textarea with HEAD's message (fetched via <span class="cmd amber">commit.lastMessage</span>) so you can edit it.</li>
+          <li>In amend mode staging is <b>optional</b> — a message-only amend is allowed (<code>canCommit = message &amp;&amp; (amend || stagedCount &gt; 0)</code>).</li>
+          <li>Clicking <b>Amend</b> runs <span class="cmd amber">commit.amend</span>, folding any staged changes into HEAD with the new message.</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="interactive-rebase.html#reword">Reword a non-HEAD commit</a><a href="reflog.html">Reflog (recover an amend)</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="compare.html"><small>Prev</small> Compare</a>
+        <a class="next" href="interactive-rebase.html"><small>Next</small> History rewriting</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Staging &amp; commit</footer>
+</body>
+</html>

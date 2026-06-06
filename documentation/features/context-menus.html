@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Context menus — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Context Menus</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#commit" class="head">Commit context menu</a>
+      <a href="#branch">Branch context menu</a>
+      <a href="#stash">Stash context menu</a>
+      <a href="#tag">Tag context menu</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Context menus</h1>
+      <p class="lede">
+        Every right-click in the panel, enumerated. Each item links to the page that documents
+        what happens when you click it.
+      </p>
+
+      <section class="feature" id="commit">
+        <h2>Commit context menu</h2>
+        <p>Right-click a commit row in the <a href="commit-log-graph.html#log">log</a>.</p>
+        <table>
+          <tr><th>Item</th><th>Action</th><th>Docs</th></tr>
+          <tr><td>Copy Revision Number</td><td><code>copy-hash</code> (to clipboard)</td><td>—</td></tr>
+          <tr><td>Create Patch…</td><td><span class="cmd amber">patch.format</span></td><td><a href="interactive-rebase.html#patch">Create patch</a></td></tr>
+          <tr><td>Cherry-Pick</td><td><span class="cmd">cherrypick</span></td><td><a href="cherrypick-revert.html#cherrypick">Cherry-pick</a></td></tr>
+          <tr><td>Checkout Revision</td><td><span class="cmd">checkout</span> (detached)</td><td><a href="branches.html#checkout">Checkout</a></td></tr>
+          <tr><td>Compare with Local</td><td><span class="cmd amber">diff.ref</span></td><td><a href="compare.html#ref">Compare</a></td></tr>
+          <tr><td>Reset Current Branch to Here…</td><td><span class="cmd">reset</span></td><td><a href="merge-rebase-reset.html#reset">Reset</a></td></tr>
+          <tr><td>Revert Commit</td><td><span class="cmd">revert</span></td><td><a href="cherrypick-revert.html#revert">Revert</a></td></tr>
+          <tr><td>Edit Commit Message…</td><td><span class="cmd amber">rebase.reword</span></td><td><a href="interactive-rebase.html#reword">Reword</a></td></tr>
+          <tr><td>Squash with Parent</td><td><span class="cmd amber">commit.squash</span></td><td><a href="interactive-rebase.html#squash">Squash</a></td></tr>
+          <tr><td>Drop Commit</td><td><span class="cmd amber">rebase.drop</span></td><td><a href="interactive-rebase.html#drop">Drop</a></td></tr>
+          <tr><td>Interactively Rebase from Here…</td><td><span class="cmd amber">rebase.interactive</span></td><td><a href="interactive-rebase.html#editor">Interactive rebase</a></td></tr>
+          <tr><td>Push All up to Here…</td><td><span class="cmd amber">push.upto</span></td><td><a href="interactive-rebase.html#pushupto">Push up to a commit</a></td></tr>
+          <tr><td>New Branch…</td><td><span class="cmd">branch.create</span></td><td><a href="branches.html#create">Create branch</a></td></tr>
+          <tr><td>New Tag…</td><td><span class="cmd amber">tag.create</span></td><td><a href="tags.html#create">Create tag</a></td></tr>
+          <tr><td>Go to Child / Parent Commit</td><td>navigate the graph</td><td><a href="commit-log-graph.html">Log &amp; graph</a></td></tr>
+          <tr><td>View in browser</td><td><code>openCommitUrl</code></td><td>—</td></tr>
+        </table>
+      </section>
+
+      <section class="feature" id="branch">
+        <h2>Branch context menu</h2>
+        <p>Right-click a branch in the <a href="main-panel.html#branchpane">branch tree</a>.</p>
+        <table>
+          <tr><th>Item</th><th>Docs</th></tr>
+          <tr><td>Checkout</td><td><a href="branches.html#checkout">Checkout</a></td></tr>
+          <tr><td>New Branch from '&lt;branch&gt;'…</td><td><a href="branches.html#create">Create branch</a></td></tr>
+          <tr><td>Rename…</td><td><a href="branches.html#rename">Rename</a></td></tr>
+          <tr><td>Checkout and Rebase onto '&lt;current&gt;'</td><td><a href="merge-rebase-reset.html#rebase">Rebase</a></td></tr>
+          <tr><td>Compare with '&lt;current&gt;'</td><td><a href="compare.html#range">Branch / ref compare</a></td></tr>
+          <tr><td>Show Diff with Working Tree</td><td><a href="compare.html#ref">Ref vs working tree</a></td></tr>
+          <tr><td>Rebase '&lt;current&gt;' onto '&lt;branch&gt;'</td><td><a href="merge-rebase-reset.html#rebase">Rebase</a></td></tr>
+          <tr><td>Merge '&lt;branch&gt;' into '&lt;current&gt;'</td><td><a href="merge-rebase-reset.html#merge">Merge</a></td></tr>
+          <tr><td>Pull into '&lt;current&gt;' Using Rebase / Merge</td><td><a href="remotes.html#pull">Pull mode</a></td></tr>
+          <tr><td>Delete</td><td><a href="branches.html#delete">Delete branch</a></td></tr>
+        </table>
+        <p>A right-click on a branch <b>folder</b> offers the <a href="branches.html#rename">folder rename</a>.</p>
+      </section>
+
+      <section class="feature" id="stash">
+        <h2>Stash context menu</h2>
+        <p>Right-click a stash in the <a href="stash.html">STASH section</a>.</p>
+        <table>
+          <tr><th>Item</th><th>Docs</th></tr>
+          <tr><td>Pop</td><td><a href="stash.html#applypop">Pop</a></td></tr>
+          <tr><td>Apply</td><td><a href="stash.html#applypop">Apply</a></td></tr>
+          <tr><td>Unstash…</td><td><a href="stash.html#applypop">Unstash</a></td></tr>
+          <tr><td>Drop</td><td><a href="stash.html#dropclear">Drop</a></td></tr>
+          <tr><td>Clear</td><td><a href="stash.html#dropclear">Clear</a></td></tr>
+          <tr><td>Show Diff / Show Diff in a New Tab</td><td><a href="stash.html#show">Show diff</a></td></tr>
+        </table>
+      </section>
+
+      <section class="feature" id="tag">
+        <h2>Tag context menu</h2>
+        <p>Right-click a tag in the <a href="tags.html">TAGS section</a>.</p>
+        <table>
+          <tr><th>Item</th><th>Docs</th></tr>
+          <tr><td>Checkout</td><td><a href="tags.html#more">Checkout tag</a></td></tr>
+          <tr><td>Show Diff with Working Tree</td><td><a href="compare.html#ref">Compare</a></td></tr>
+          <tr><td>Merge '&lt;tag&gt;' into '&lt;current&gt;'</td><td><a href="merge-rebase-reset.html#merge">Merge</a></td></tr>
+          <tr><td>Push to origin</td><td><a href="tags.html#more">Push tag</a></td></tr>
+          <tr><td>Delete</td><td><a href="tags.html#delete">Delete tag</a></td></tr>
+        </table>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="tags.html"><small>Prev</small> Tags</a>
+        <a class="next" href="logging.html"><small>Next</small> Logging &amp; diagnostics</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Context menus</footer>
+</body>
+</html>

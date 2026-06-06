@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Remotes &amp; Sync — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Remotes &amp; Sync</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#sync" class="head">Sync</a>
+      <a href="#fetch">Fetch</a>
+      <a href="#pull">Pull + pull mode</a>
+      <a href="#push">Push</a>
+      <a href="#force">Safe force-push</a>
+      <a href="#upstream">Auto-set upstream</a>
+      <a href="#remote-delete">Remote branch delete</a>
+      <a href="#timeout">Network-op timeout</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Remotes &amp; Sync</h1>
+      <p class="lede">
+        One accented button to get up to date, plus the granular fetch / pull / push trio — with
+        safety rails: a lease-protected force-push, transparent upstream setup, and a timeout so a
+        credential prompt can't freeze the panel.
+      </p>
+
+      <section class="feature" id="sync">
+        <h2>Sync (fetch + integrate)</h2>
+        <p>The primary "bring me up to date" action, so you don't have to reason about fetch vs pull vs rebase.</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what">The accented <b>Sync</b> button (tooltip "Sync (fetch + pull)").</span></li>
+        </ul>
+        <ol class="flow">
+          <li>Runs <span class="cmd">fetch</span>, then <span class="cmd">pull</span> in sequence.</li>
+          <li>The log, branch tree and status all refresh.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="fetch">
+        <h2>Fetch <span class="cmd">fetch</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what"><b>Fetch</b> button.</span></li>
+        </ul>
+        <p>Updates remote-tracking refs without touching your working tree. Ahead/behind counts refresh afterward.</p>
+      </section>
+
+      <section class="feature" id="pull">
+        <h2>Pull + pull mode <span class="cmd">pull</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what"><b>Pull</b> button — highlighted teal when there are commits to pull.</span></li>
+          <li><span class="where">Branch menu</span><span class="what"><b>Pull into '&lt;current&gt;' Using Rebase</b> or <b>Using Merge</b>.</span></li>
+        </ul>
+        <ol class="flow">
+          <li>Plain pull runs <span class="cmd">pull</span>.</li>
+          <li>The rebase/merge variants set the strategy via <span class="cmd">pull.mode</span> with <code>{ mode }</code>.</li>
+          <li>A conflicting pull pauses with the <a href="conflicts.html">resolution banner</a>.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="push">
+        <h2>Push <span class="cmd">push</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what"><b>Push</b> button.</span></li>
+          <li><span class="where">Sidebar</span><span class="what"><a href="commit.html#push">Commit &amp; Push</a>.</span></li>
+          <li><span class="where">Commit menu</span><span class="what"><a href="interactive-rebase.html#pushupto">Push All up to Here…</a>.</span></li>
+        </ul>
+        <p>Runs <span class="cmd">push</span> with an optional <code>{ branch }</code>. The two safety behaviours below apply automatically.</p>
+      </section>
+
+      <section class="feature" id="force">
+        <h2>Safe force-push <span class="cmd">push.force</span></h2>
+        <ol class="flow">
+          <li>When a push is rejected (non-fast-forward), HydraGit offers a <b>force-with-lease</b> push.</li>
+          <li><span class="cmd">push.force</span> runs <code>--force-with-lease</code>, which refuses to clobber remote commits you haven't fetched.</li>
+        </ol>
+        <div class="note danger"><span class="ic">!</span><span>Force-push rewrites the remote branch. The lease makes it safe against <em>unseen</em> commits, but coordinate with collaborators on shared branches.</span></div>
+      </section>
+
+      <section class="feature" id="upstream">
+        <h2>Auto-set upstream on first push</h2>
+        <ol class="flow">
+          <li>A push on a branch with no upstream would normally fail with <code>fatal: ...has no upstream branch</code>.</li>
+          <li>HydraGit transparently retries with <code>push -u origin HEAD</code>, so that wall never reaches you.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="remote-delete">
+        <h2>Remote branch delete <span class="cmd">branch.delete.remote</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Branch menu</span><span class="what">Delete flow on a branch with a remote counterpart.</span></li>
+        </ul>
+        <p>Deletes the branch on the remote via <code>push &lt;remote&gt; --delete</code> and prunes the local tracking ref. See also <a href="branches.html#delete">delete branch</a>.</p>
+      </section>
+
+      <section class="feature" id="timeout">
+        <h2>Network-op timeout</h2>
+        <div class="note"><span class="ic">i</span><span>Remote rename/delete pushes run under a <b>30-second deadline</b>, so a credential prompt with no terminal can't freeze the panel.</span></div>
+        <div class="related"><b>Related</b><a href="branches.html">Branches</a><a href="conflicts.html">Conflict resolution</a><a href="reflog.html">Reflog</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="conflicts.html"><small>Prev</small> Conflict resolution</a>
+        <a class="next" href="reflog.html"><small>Next</small> Reflog undo timeline</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Remotes &amp; Sync</footer>
+</body>
+</html>

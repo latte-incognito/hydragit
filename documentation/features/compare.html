@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Compare — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Diff &amp; Compare<span class="sep">/</span>Compare</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#range" class="head">Branch / ref compare</a>
+      <a href="#ref">Ref vs working tree</a>
+      <a href="#file">File vs local</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Compare</h1>
+      <p class="lede">
+        Beyond a single commit's diff, HydraGit compares two refs, a ref against your working
+        tree, or one file at a revision against your local copy.
+      </p>
+
+      <section class="feature" id="range">
+        <h2>Branch / ref compare <span class="cmd amber">diff.range</span></h2>
+        <p>Diffs two refs — backs the branch <b>"Compare with &lt;branch&gt;"</b> action.</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Branch context menu</span><span class="what"><b>Compare with '&lt;current&gt;'</b>.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>Go runs <span class="cmd amber">diff.range</span> for the two refs.</li>
+          <li>The multi-file result renders in the detail pane's compare view; click any file for its hunks.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="ref">
+        <h2>Ref vs working tree <span class="cmd amber">diff.ref</span></h2>
+        <p>Diffs a ref against your current working tree — backs <b>"Show Diff with Working Tree"</b> (branches &amp; tags) and <b>"Compare with Local"</b> (commits).</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Branch / tag menu</span><span class="what"><b>Show Diff with Working Tree</b>.</span></li>
+          <li><span class="where">Commit menu</span><span class="what"><a href="context-menus.html#commit">Compare with Local</a> (starts a ref compare for the commit ↔ working tree).</span></li>
+        </ul>
+        <ol class="flow">
+          <li>Go runs <span class="cmd amber">diff.ref</span>; results render in the compare view, titled <code>&lt;ref&gt; ↔ working tree</code>.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="file">
+        <h2>File vs local <span class="cmd amber">openWorkingDiff</span></h2>
+        <p><b>"Compare with Local"</b> / <b>"Compare Before with Local"</b> open a file@revision ↔ working-tree diff editor.</p>
+        <ol class="flow">
+          <li>The host helper <code>openWorkingDiff</code> builds a <code>git:</code> URI for the file at the chosen revision (left) and the on-disk file (right).</li>
+          <li>It opens VS Code's native <code>vscode.diff</code> editor for that single file.</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="diff.html">Commit diff</a><a href="history.html">File history</a><a href="context-menus.html#commit">Commit context menu</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="diff.html"><small>Prev</small> Commit diff</a>
+        <a class="next" href="commit.html"><small>Next</small> Staging &amp; commit</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Compare</footer>
+</body>
+</html>

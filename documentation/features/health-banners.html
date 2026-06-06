@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Repository health banners — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Undo &amp; Safety<span class="sep">/</span>Health banners</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#detached" class="head">Detached-HEAD banner</a>
+      <a href="#identity">Git identity setup</a>
+      <a href="#reload">Critical-error reload</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Repository health banners</h1>
+      <p class="lede">
+        Calm, inline banners that turn three classic git footguns into one-click fixes —
+        instead of cryptic error walls.
+      </p>
+
+      <section class="feature" id="detached">
+        <h2>Detached-HEAD banner</h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Main panel</span><span class="what">Appears automatically when <code>status.detached</code> is true (e.g. after checking out a commit).</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>The banner reads: <em>"You're not on a branch (detached HEAD). Create one here to keep your work."</em></li>
+          <li>Click <b>Create branch here</b> → prompted for a name → <span class="cmd">branch.create</span> at the current commit, so work isn't stranded.</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="branches.html#create">Create branch</a><a href="status.html">Repository status</a></div>
+      </section>
+
+      <section class="feature" id="identity">
+        <h2>Git identity setup <span class="cmd">user.set</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Main panel</span><span class="what">Appears when <code>user.name</code> / <code>user.email</code> are unset.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>Instead of the cryptic <em>"Please tell me who you are"</em>, the banner offers inline setup.</li>
+          <li>Click <b>Set up identity</b> → enter name + email → <span class="cmd">user.set</span> writes them <b>globally</b>.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="reload">
+        <h2>Critical-error reload</h2>
+        <ol class="flow">
+          <li>If the Go backend dies unexpectedly, the extension surfaces a <b>"Reload Window"</b> prompt.</li>
+          <li>Reloading respawns the binary and restores the panel.</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="logging.html">Logging &amp; diagnostics</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="undo-squash.html"><small>Prev</small> Undo &amp; squash</a>
+        <a class="next" href="stash.html"><small>Next</small> Stash manager</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Repository health banners</footer>
+</body>
+</html>

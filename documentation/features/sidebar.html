@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sidebar — staging view — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Views &amp; Layout<span class="sep">/</span>Sidebar</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#open" class="head">Opening the sidebar</a>
+      <a href="#files">Changed-files tree</a>
+      <a href="#sections">Section headers</a>
+      <a href="#commitarea">Commit area</a>
+      <a href="#conflict">Conflict banner</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Sidebar — staging view</h1>
+      <p class="lede">
+        The activity-bar webview <code>hydragit.sidebarView</code>: a focused staging-and-commit
+        surface. Changed files with status badges, per-file and master staging checkboxes, and a
+        pinned commit area with Commit / Commit &amp; Push.
+      </p>
+
+      <section class="feature" id="open">
+        <h2>Opening the sidebar</h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Activity bar</span><span class="what">Click the <b>HydraGit</b> hexagon; the sidebar view is the first item in the container.</span></li>
+          <li><span class="where">Auto-refresh</span><span class="what">The sidebar subscribes to a 3-second status poll, so the file list and counts update on their own.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>On mount it sends <span class="cmd">status</span> and renders the returned changed-file list.</li>
+          <li><a href="status.html"><code>HydraStatusService</code></a> pushes a fresh snapshot on every change via the <b>statusUpdate</b> message; the tree re-renders.</li>
+          <li>Staged paths are tracked webview-side as a <code>Set&lt;string&gt;</code> and pruned to paths still present on each refresh.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="files">
+        <h2>Changed-files tree <span class="cmd">FileTree</span></h2>
+        <p>Staged and unstaged files in a collapsible folder tree, each with a status badge:</p>
+        <p>
+          <span class="chip">M</span> modified · <span class="chip g">A</span> added ·
+          <span class="chip r">D</span> deleted · <span class="chip a">R</span> renamed ·
+          <span class="chip p">U</span> unmerged · <span class="chip">C</span> copied · <span class="chip">T</span> type-changed
+        </p>
+        <ul class="plain">
+          <li><b>Per-file checkbox</b> — stage or unstage that single file.</li>
+          <li><b>Click a file</b> to open its diff.</li>
+        </ul>
+      </section>
+
+      <section class="feature" id="sections">
+        <h2>Section headers <span class="cmd">SectionHeader</span></h2>
+        <p>Collapsible headers with file counts. The master checkbox stages/unstages everything in the section and supports an <b>indeterminate</b> state when only some files are staged.</p>
+      </section>
+
+      <section class="feature" id="commitarea">
+        <h2>Commit area <span class="cmd">CommitArea</span></h2>
+        <p>Pinned to the bottom: the message textarea, a branch chip showing the target, and the action buttons.</p>
+        <ul class="plain">
+          <li><b>Commit</b> — enabled only when <code>stagedCount &gt; 0</code> and the message is non-empty.</li>
+          <li><b>Commit &amp; Push</b> — shown when the branch has an upstream and amend is off.</li>
+          <li><b>Amend last commit</b> toggle — prefills HEAD's message; staging becomes optional. See <a href="commit.html#amend">amend</a>.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="commit.html">Staging &amp; commit</a><a href="commit.html#amend">Amend</a></div>
+      </section>
+
+      <section class="feature" id="conflict">
+        <h2>Conflict banner <span class="cmd">ConflictBanner</span></h2>
+        <p>While a merge/rebase/cherry-pick is paused, a banner replaces the normal commit flow with per-file resolve actions and Continue / Abort. Full detail on the <a href="conflicts.html">conflict resolution</a> page.</p>
+        <div class="related"><b>Related</b><a href="conflicts.html">Conflict resolution</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="main-panel.html"><small>Prev</small> Main panel</a>
+        <a class="next" href="status.html"><small>Next</small> Repository status</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Sidebar</footer>
+</body>
+</html>

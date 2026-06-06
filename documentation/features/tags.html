@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tags — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Stash &amp; Tags<span class="sep">/</span>Tags</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#list" class="head">Tag list</a>
+      <a href="#create">Create tag</a>
+      <a href="#delete">Delete tag</a>
+      <a href="#more">Checkout · diff · merge · push</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Tags</h1>
+      <p class="lede">
+        List, create (lightweight or annotated) and delete tags from the branch tree, plus the
+        tag context menu for checkout, diff, merge and push.
+      </p>
+
+      <section class="feature" id="list">
+        <h2>Tag list <span class="cmd amber">tags</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Branch tree</span><span class="what">The <b>TAGS</b> section; right-click a tag for its <a href="context-menus.html#tag">menu</a>.</span></li>
+        </ul>
+        <p>Go runs <span class="cmd amber">tags</span> and returns the tag list (<code>[]Tag</code>).</p>
+      </section>
+
+      <section class="feature" id="create">
+        <h2>Create tag <span class="cmd amber">tag.create</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what"><b>Create tag</b> button.</span></li>
+          <li><span class="where">Commit menu</span><span class="what"><b>New Tag…</b> — tags the selected commit.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>Prompted for a tag name, then an <b>annotation message</b> (leave empty for a lightweight tag).</li>
+          <li>Go runs <span class="cmd amber">tag.create</span> with <code>{ name, commit?, message? }</code>.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="delete">
+        <h2>Delete tag <span class="cmd amber">tag.delete</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Tag menu</span><span class="what"><b>Delete</b> (red).</span></li>
+        </ul>
+        <p>Go runs <span class="cmd amber">tag.delete</span> with <code>{ name }</code>.</p>
+      </section>
+
+      <section class="feature" id="more">
+        <h2>Checkout · diff · merge · push</h2>
+        <p>The tag context menu also offers:</p>
+        <ul class="plain">
+          <li><b>Checkout</b> — check out the tag (detached HEAD).</li>
+          <li><b>Show Diff with Working Tree</b> — see <a href="compare.html#ref">ref vs working tree</a>.</li>
+          <li><b>Merge '&lt;tag&gt;' into '&lt;current&gt;'</b> — see <a href="merge-rebase-reset.html#merge">merge</a>.</li>
+          <li><b>Push to origin</b> — publishes the tag to the remote.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="context-menus.html#tag">Tag context menu</a><a href="compare.html">Compare</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="stash.html"><small>Prev</small> Stash manager</a>
+        <a class="next" href="context-menus.html"><small>Next</small> Context menus</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Tags</footer>
+</body>
+</html>

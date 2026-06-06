@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Main panel — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Views &amp; Layout<span class="sep">/</span>Main panel</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#open" class="head">Opening the panel</a>
+      <a href="#branchpane">Branch tree</a>
+      <a href="#logpane">Commit log &amp; graph</a>
+      <a href="#detailpane">Commit detail</a>
+      <a href="#toolbar">Toolbar</a>
+      <a href="#rail">Action rail</a>
+      <a href="#ctx">Context menus &amp; tooltips</a>
+      <a href="#panes">Resizable panes</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Main panel</h1>
+      <p class="lede">
+        The IntelliJ-style git panel — <code>hydragit.mainView</code> — lives in VS Code's bottom
+        panel area. It is a resizable split of three regions (branch tree, commit log + graph,
+        commit detail) wrapped by a toolbar, a vertical action rail, and context menus.
+      </p>
+
+      <section class="feature" id="open">
+        <h2>Opening the panel</h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Activity bar</span><span class="what">Click the <b>HydraGit</b> hexagon icon in the activity bar. Its view container declares <span class="cmd">hydragit.revealAll</span>, which focuses the main panel.</span></li>
+          <li><span class="where">Bottom panel</span><span class="what">The panel tab labelled <b>HydraGit</b> in VS Code's panel row (next to Terminal / Problems).</span></li>
+          <li class="kbd"><span class="where">Command</span><span class="what"><b>HydraGit: Force Refresh</b> <span class="cmd amber">hydragit.forceRefresh</span> re-pulls all data if the panel ever looks stale.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>On activation the extension spawns the Go binary (<code>hydragit-server</code>) and points it at the workspace repo via <code>HYDRAGIT_REPO</code>.</li>
+          <li>The webview loads and immediately requests <span class="cmd">status</span>, <span class="cmd">branches</span>, <span class="cmd">log</span>, <span class="cmd">stash</span> and <span class="cmd">tags</span>.</li>
+          <li>A file watcher on <code>.git/{HEAD,refs/**,COMMIT_EDITMSG}</code> posts a <b>refresh</b> message whenever the repo changes (including from the terminal), so the panel stays live.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="branchpane">
+        <h2>Branch tree <span class="cmd">BranchPane</span></h2>
+        <p>The left region. Local + remote branches, folder-style grouping for <code>slashed/names</code>, tags and stashes.</p>
+        <ul class="plain">
+          <li><b>HEAD row</b> (top) — click it to open the <a href="reflog.html">undo timeline (reflog)</a>; it shows <code>HEAD · &lt;branch&gt;</code>.</li>
+          <li><b>Current-branch marker</b> (★) and an ahead/behind track string per branch.</li>
+          <li><b>Folder grouping</b> — <code>feature/login</code>, <code>feature/signup</code> collapse under a <code>feature/</code> node; right-click the folder to <a href="branches.html#rename">rename the whole prefix</a>.</li>
+          <li><b>Right-click</b> any branch, tag, folder or stash for its <a href="context-menus.html">context menu</a>.</li>
+          <li><b>All-branches toggle</b> in the toolbar switches between current-branch scope and <code>--all</code>.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="branches.html">Branches</a><a href="reflog.html">Reflog</a><a href="tags.html">Tags</a><a href="stash.html">Stash</a></div>
+      </section>
+
+      <section class="feature" id="logpane">
+        <h2>Commit log &amp; graph <span class="cmd">LogPane</span></h2>
+        <p>The centre region: the lane graph rendered as inline SVG next to resizable <b>Commit / Author / Date</b> columns.</p>
+        <ul class="plain">
+          <li><b>Virtualized</b> — only the visible window is in the DOM, so the full history scrolls smoothly at any size.</li>
+          <li><b>Hover a row</b> to highlight that commit's branch line and dim the rest.</li>
+          <li><b>Click a row</b> to load it into the detail pane.</li>
+          <li><b>Right-click a row</b> for the 14-item <a href="context-menus.html#commit">commit context menu</a>.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="commit-log-graph.html">Commit log &amp; graph</a><a href="search-filter.html">Search &amp; filter</a></div>
+      </section>
+
+      <section class="feature" id="detailpane">
+        <h2>Commit detail <span class="cmd">DetailPane</span></h2>
+        <p>The right region. For the selected commit it shows metadata (author, date, full message, refs), the changed-file tree, and an inline diff. Selecting a file opens its hunks; it also hosts the multi-file <a href="compare.html">compare</a> view.</p>
+        <div class="related"><b>Related</b><a href="diff.html">Commit diff</a><a href="compare.html">Compare</a></div>
+      </section>
+
+      <section class="feature" id="toolbar">
+        <h2>Toolbar <span class="cmd">Toolbar</span></h2>
+        <p>The strip across the top of the panel:</p>
+        <ul class="plain">
+          <li><b>Branch pill</b> (left) — opens a searchable branch picker; pick one to scope the log to it.</li>
+          <li><b>Search box</b> with a four-way mode switch: <span class="chip">Message</span> <span class="chip a">Hash</span> <span class="chip g">File</span> <span class="chip p">Author</span>.</li>
+          <li><b>All branches / This branch</b> toggle pill.</li>
+          <li><b>Undo</b> button (right) — the <a href="undo-squash.html#undo">undo last operation</a> express lane.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="search-filter.html">Search &amp; filter</a><a href="undo-squash.html#undo">Undo last operation</a></div>
+      </section>
+
+      <section class="feature" id="rail">
+        <h2>Action rail <span class="cmd">ActionRail</span></h2>
+        <p>The thin vertical strip of quick-action buttons. Hovering each shows a tooltip; the <b>Sync</b> button is accented as the primary action.</p>
+        <table>
+          <tr><th>Button</th><th>Tooltip</th><th>Goes to</th></tr>
+          <tr><td>Sync</td><td>Sync (fetch + pull)</td><td><a href="remotes.html#sync">Sync</a></td></tr>
+          <tr><td>Checkout</td><td>Checkout</td><td><a href="branches.html#checkout">Branch picker</a></td></tr>
+          <tr><td>Fetch / Pull / Push</td><td>Fetch · Pull · Push</td><td><a href="remotes.html">Remotes</a></td></tr>
+          <tr><td>New branch</td><td>New branch</td><td><a href="branches.html#create">Create branch</a></td></tr>
+          <tr><td>Merge / Rebase</td><td>Merge branch · Rebase</td><td><a href="merge-rebase-reset.html">Merge / Rebase</a></td></tr>
+          <tr><td>Delete branch</td><td>Delete branch</td><td><a href="branches.html#delete">Delete branch</a></td></tr>
+          <tr><td>Stash / Tag</td><td>Stash changes · Create tag</td><td><a href="stash.html">Stash</a> · <a href="tags.html">Tags</a></td></tr>
+        </table>
+      </section>
+
+      <section class="feature" id="ctx">
+        <h2>Context menus &amp; tooltips</h2>
+        <p>Right-click targets across the panel open tailored menus; every actionable control has a hover tooltip. See the full enumeration on the <a href="context-menus.html">context menus</a> page.</p>
+      </section>
+
+      <section class="feature" id="panes">
+        <h2>Resizable panes &amp; columns <span class="cmd">PaneDivider</span></h2>
+        <p>Drag the dividers between the three regions to re-balance them, and drag the Commit / Author / Date column edges in the log. Layout is preserved while the panel is open.</p>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="../index.html"><small>Back</small> Documentation home</a>
+        <a class="next" href="sidebar.html"><small>Next</small> Sidebar — staging view</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Main panel</footer>
+</body>
+</html>

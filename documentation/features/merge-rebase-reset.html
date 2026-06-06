@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Merge · Rebase · Reset — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Integrate &amp; Resolve<span class="sep">/</span>Merge · Rebase · Reset</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#merge" class="head">Merge</a>
+      <a href="#rebase">Rebase</a>
+      <a href="#reset">Reset</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Merge · Rebase · Reset</h1>
+      <p class="lede">
+        The three core integration operations, reachable from the action rail and the branch /
+        commit context menus. All three pause on conflict and surface the
+        <a href="conflicts.html">resolution banner</a>.
+      </p>
+
+      <section class="feature" id="merge">
+        <h2>Merge <span class="cmd">merge</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what"><b>Merge branch</b> button.</span></li>
+          <li><span class="where">Branch menu</span><span class="what"><b>Merge '&lt;branch&gt;' into '&lt;current&gt;'</b>.</span></li>
+          <li><span class="where">Tag menu</span><span class="what"><b>Merge '&lt;tag&gt;' into '&lt;current&gt;'</b>.</span></li>
+        </ul>
+        <ol class="flow">
+          <li>Go runs <span class="cmd">merge</span> with <code>{ branch }</code>.</li>
+          <li>A clean merge updates the log; a conflict pauses and shows the <a href="conflicts.html">conflict banner</a> (Continue commits the merge).</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="rebase">
+        <h2>Rebase <span class="cmd">rebase</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what"><b>Rebase</b> button.</span></li>
+          <li><span class="where">Branch menu</span><span class="what"><b>Rebase '&lt;current&gt;' onto '&lt;branch&gt;'</b>, or <b>Checkout and Rebase onto '&lt;current&gt;'</b>.</span></li>
+        </ul>
+        <ol class="flow">
+          <li>Go runs <span class="cmd">rebase</span> with <code>{ onto }</code>.</li>
+          <li>On conflict it pauses with Continue / Skip / Abort (see <a href="conflicts.html">conflicts</a>).</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="interactive-rebase.html">Interactive rebase</a></div>
+      </section>
+
+      <section class="feature" id="reset">
+        <h2>Reset <span class="cmd">reset</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Commit menu</span><span class="what"><b>Reset Current Branch to Here…</b> — prompts for <code>soft</code> / <code>mixed</code> / <code>hard</code>.</span></li>
+          <li><span class="where">Reflog timeline</span><span class="what">Per-row soft / mixed / hard buttons — see <a href="reflog.html">reflog</a>.</span></li>
+        </ul>
+        <ol class="flow">
+          <li>Go runs <span class="cmd">reset</span> with <code>{ commit, mode }</code>.</li>
+          <li>A <b>hard</b> reset on a dirty tree <b>auto-stashes</b> tracked changes first, so nothing is lost; the toast says "changes auto-stashed".</li>
+        </ol>
+        <table>
+          <tr><th>Mode</th><th>Effect</th></tr>
+          <tr><td><span class="chip g">soft</span></td><td>Move HEAD; keep changes staged.</td></tr>
+          <tr><td><span class="chip a">mixed</span></td><td>Move HEAD; keep changes unstaged.</td></tr>
+          <tr><td><span class="chip r">hard</span></td><td>Move HEAD; discard changes (auto-stashed first).</td></tr>
+        </table>
+        <div class="related"><b>Related</b><a href="reflog.html">Reflog undo timeline</a><a href="undo-squash.html#undo">Undo last operation</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="interactive-rebase.html"><small>Prev</small> History rewriting</a>
+        <a class="next" href="cherrypick-revert.html"><small>Next</small> Cherry-pick &amp; revert</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Merge · Rebase · Reset</footer>
+</body>
+</html>

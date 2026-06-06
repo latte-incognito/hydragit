@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stash manager — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Stash &amp; Tags<span class="sep">/</span>Stash manager</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#list" class="head">Stash list</a>
+      <a href="#save">Save / stash changes</a>
+      <a href="#applypop">Apply · Pop · Unstash</a>
+      <a href="#dropclear">Drop · Clear</a>
+      <a href="#show">Show diff &amp; files</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Stash manager</h1>
+      <p class="lede">
+        The full stash lifecycle, surfaced in the branch tree's STASH section with a diff preview.
+        Every operation is one right-click away.
+      </p>
+
+      <section class="feature" id="list">
+        <h2>Stash list <span class="cmd amber">stash</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Branch tree</span><span class="what">The <b>STASH</b> section lists each entry; right-click for the <a href="context-menus.html#stash">stash menu</a>.</span></li>
+        </ul>
+        <p>Go runs <span class="cmd amber">stash</span> and returns the entries (<code>[]StashEntry</code>).</p>
+      </section>
+
+      <section class="feature" id="save">
+        <h2>Save / stash changes <span class="cmd amber">stash.save</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what"><b>Stash changes</b> button.</span></li>
+        </ul>
+        <ol class="flow">
+          <li>Optionally enter a message.</li>
+          <li>Go runs <span class="cmd amber">stash.save</span> with <code>{ message? }</code>, shelving the working-tree changes.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="applypop">
+        <h2>Apply · Pop · Unstash</h2>
+        <table>
+          <tr><th>Action</th><th>Command</th><th>Effect</th></tr>
+          <tr><td><b>Apply</b></td><td><span class="cmd amber">stash.apply</span></td><td>Re-applies the stash, <em>keeping</em> it in the list.</td></tr>
+          <tr><td><b>Pop</b></td><td><span class="cmd amber">stash.pop</span></td><td>Re-applies and <em>removes</em> it from the list.</td></tr>
+          <tr><td><b>Unstash…</b></td><td>(guided)</td><td>Interactive apply with confirmation.</td></tr>
+        </table>
+        <p>All take the stash <code>{ index }</code>. Triggered from the <a href="context-menus.html#stash">stash context menu</a>.</p>
+      </section>
+
+      <section class="feature" id="dropclear">
+        <h2>Drop · Clear</h2>
+        <ul class="entrypoints">
+          <li><span class="where">Stash menu</span><span class="what"><b>Drop</b> (red) — <span class="cmd amber">stash.drop</span> removes a single stash by <code>{ index }</code>.</span></li>
+          <li><span class="where">Stash menu</span><span class="what"><b>Clear</b> (red) — <span class="cmd amber">stash.clear</span> removes <em>all</em> stashes, <b>after confirmation</b>.</span></li>
+        </ul>
+        <div class="note danger"><span class="ic">!</span><span>Drop and Clear are destructive — dropped stashes are not in the normal reflog and are hard to recover.</span></div>
+      </section>
+
+      <section class="feature" id="show">
+        <h2>Show diff &amp; files</h2>
+        <ul class="entrypoints">
+          <li><span class="where">Stash menu</span><span class="what"><b>Show Diff</b> — <span class="cmd amber">stash.show</span> renders the stash's hunks inline.</span></li>
+          <li><span class="where">Stash menu</span><span class="what"><b>Show Diff in a New Tab</b> — opens it in a persistent editor tab.</span></li>
+          <li><span class="where">Internal</span><span class="what"><span class="cmd amber">stash.files</span> backs the changed-file list of a stash.</span></li>
+        </ul>
+        <div class="related"><b>Related</b><a href="context-menus.html#stash">Stash context menu</a><a href="reflog.html#autostash">Auto-stash safety net</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="health-banners.html"><small>Prev</small> Health banners</a>
+        <a class="next" href="tags.html"><small>Next</small> Tags</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Stash manager</footer>
+</body>
+</html>

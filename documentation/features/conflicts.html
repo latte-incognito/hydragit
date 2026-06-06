@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conflict resolution — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Integrate &amp; Resolve<span class="sep">/</span>Conflict resolution</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#banner" class="head">Guidance banner</a>
+      <a href="#perfile">Per-file actions</a>
+      <a href="#continue">Continue / Abort</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Conflict resolution</h1>
+      <p class="lede">
+        When a merge, rebase, cherry-pick or revert pauses on a conflict, the sidebar swaps its
+        commit flow for a guidance banner — the operation name, the unmerged files, and a quick
+        action per file.
+      </p>
+
+      <section class="feature" id="banner">
+        <h2>Guidance banner <span class="cmd">conflicts</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Automatic</span><span class="what">Appears in the <a href="sidebar.html">sidebar</a> (<code>ConflictBanner</code>) the moment an operation pauses — no action needed.</span></li>
+        </ul>
+        <h3 class="lbl">What it shows</h3>
+        <ol class="flow">
+          <li>A title — <b>"⚠ Resolving a &lt;operation&gt;"</b> (merge / rebase / cherry-pick / revert).</li>
+          <li>A live count: <em>"N files left — pick a side or open the merge editor"</em>, switching to <em>"all resolved — click Continue"</em> at zero.</li>
+          <li>Go reports the paused state via <span class="cmd">conflicts</span> and the unmerged file list.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="perfile">
+        <h2>Per-file actions</h2>
+        <p>Each unmerged file gets three buttons:</p>
+        <table>
+          <tr><th>Button</th><th>Command</th><th>Effect</th></tr>
+          <tr><td><b>merge</b></td><td>opens merge editor</td><td>Opens VS Code's 3-way merge editor for the file.</td></tr>
+          <tr><td><b>current</b></td><td><span class="cmd">conflict.keepCurrent</span></td><td>Keeps <code>--ours</code> (HEAD side).</td></tr>
+          <tr><td><b>incoming</b></td><td><span class="cmd">conflict.keepIncoming</span></td><td>Keeps <code>--theirs</code> (the incoming side).</td></tr>
+        </table>
+        <div class="note teal"><span class="ic">i</span><span><b>Current / Incoming are correct for both merge and rebase</b> — HEAD is always "current", so the labels never invert the way raw <code>--ours/--theirs</code> can during a rebase.</span></div>
+      </section>
+
+      <section class="feature" id="continue">
+        <h2>Continue / Abort</h2>
+        <ul class="entrypoints">
+          <li><span class="where">Banner</span><span class="what"><b>Continue</b> — gated until every file is resolved (<span class="cmd">conflict.continue</span>).</span></li>
+          <li><span class="where">Banner</span><span class="what"><b>Abort</b> — rolls the operation back (<span class="cmd">conflict.abort</span>).</span></li>
+        </ul>
+        <ol class="flow">
+          <li><b>Continue</b> routes per operation: rebase → <code>rebase --continue</code>; merge / cherry-pick / revert → commit.</li>
+          <li><b>Abort</b> routes per operation: rebase → <code>rebase --abort</code>; others → <code>--abort</code>.</li>
+        </ol>
+        <div class="note"><span class="ic">i</span><span>For an in-progress <b>rebase</b> specifically, the toolbar also offers <b>Skip</b> (<span class="cmd amber">rebase.skip</span>); the paused state survives reloads via <span class="cmd amber">rebase.status</span>.</span></div>
+        <div class="related"><b>Related</b><a href="merge-rebase-reset.html">Merge · Rebase · Reset</a><a href="interactive-rebase.html#pause">Interactive rebase pause</a><a href="undo-squash.html#undo">Undo last operation</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="cherrypick-revert.html"><small>Prev</small> Cherry-pick &amp; revert</a>
+        <a class="next" href="remotes.html"><small>Next</small> Remotes &amp; Sync</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Conflict resolution</footer>
+</body>
+</html>

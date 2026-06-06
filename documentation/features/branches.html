@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Branches — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Branches</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#list" class="head">Branch tree &amp; list</a>
+      <a href="#checkout">Checkout / switch</a>
+      <a href="#create">Create branch</a>
+      <a href="#rename">Rename — local · remote · folder</a>
+      <a href="#delete">Delete — local · remote</a>
+      <a href="#containing">Branches containing a commit</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Branches</h1>
+      <p class="lede">
+        The full branch lifecycle from the tree on the left of the main panel: list, switch,
+        create, rename (locally, on the remote, or a whole folder at once), delete, and find
+        which branches contain a commit.
+      </p>
+
+      <section class="feature" id="list">
+        <h2>Branch tree &amp; list <span class="cmd">branches</span></h2>
+        <p>Local and remote-tracking branches with folder-style grouping for <code>slashed/branch/names</code>.</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Branch pane</span><span class="what">The tree in the main panel's left region (<code>BranchPane</code>), with LOCAL and REMOTE sections.</span></li>
+          <li><span class="where">Branch picker</span><span class="what">The toolbar branch pill / the rail <b>Checkout</b> button open a searchable list.</span></li>
+        </ul>
+        <h3 class="lbl">What it shows per branch</h3>
+        <ul class="plain">
+          <li><b>Current marker</b> (★) on the checked-out branch.</li>
+          <li><b>Upstream + ahead/behind</b> track string (e.g. <code>↑2 ↓1</code>).</li>
+          <li><b>Gone / orphan detection</b> for branches whose upstream was deleted.</li>
+          <li><b>Folder nodes</b> for shared prefixes; expand/collapse to navigate.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="search-filter.html#scope">Branch scope</a><a href="context-menus.html#branch">Branch context menu</a></div>
+      </section>
+
+      <section class="feature" id="checkout">
+        <h2>Checkout / switch <span class="cmd">checkout</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what"><b>Checkout</b> button → searchable branch picker (the IntelliJ "Branches" popup equivalent).</span></li>
+          <li><span class="where">Toolbar</span><span class="what">Branch pill → filter list → click a branch.</span></li>
+          <li><span class="where">Branch context menu</span><span class="what">Right-click a branch → <b>Checkout</b> (disabled for the current branch).</span></li>
+          <li><span class="where">Commit menu</span><span class="what"><a href="context-menus.html#commit">Checkout Revision</a> checks out a commit directly (detached HEAD).</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>Go runs <span class="cmd">checkout</span> with the chosen branch (or hash).</li>
+          <li>On success the panel reloads — the new branch becomes current, the log re-scopes, and the status badge updates.</li>
+          <li>Checking out a commit reports <b>detached HEAD</b>, which raises the <a href="health-banners.html">rescue banner</a>.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="create">
+        <h2>Create branch <span class="cmd">branch.create</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what"><b>New branch</b> button.</span></li>
+          <li><span class="where">Branch context menu</span><span class="what"><b>New Branch from '&lt;branch&gt;'…</b> — branches off that branch.</span></li>
+          <li><span class="where">Commit context menu</span><span class="what"><a href="context-menus.html#commit">New Branch…</a> — branches off the selected commit (passes <code>from: hash</code>).</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>You're prompted for a branch name.</li>
+          <li>Go runs <span class="cmd">branch.create</span> with <code>{ name, from? }</code> — optionally from a ref or commit hash.</li>
+          <li>The new branch appears in the tree and the panel reloads.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="rename">
+        <h2>Rename — local · remote · folder</h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Branch context menu</span><span class="what"><b>Rename…</b> on a branch.</span></li>
+          <li><span class="where">Folder context menu</span><span class="what">Right-click a branch <b>folder</b> → rename the whole prefix.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li><b>Local rename</b> <span class="cmd">branch.rename</span> — renames the branch with <code>{ from, to }</code>.</li>
+          <li><b>Remote propagation</b> <span class="cmd">branch.rename.remote</span> — if the branch had an upstream, HydraGit offers to push the new name with tracking and delete the old remote ref.</li>
+          <li><b>Folder rename</b> <span class="cmd">branch.rename.folder</span> — renames every local branch under the prefix at once, preserving each suffix (e.g. <code>feature/*</code> → <code>feat/*</code>).</li>
+        </ol>
+        <div class="note"><span class="ic">i</span><span>Remote rename/delete pushes run under a <b>30-second timeout</b> so a credential prompt with no terminal can't freeze the panel.</span></div>
+      </section>
+
+      <section class="feature" id="delete">
+        <h2>Delete — local · remote</h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what"><b>Delete branch</b> button (red).</span></li>
+          <li><span class="where">Branch context menu</span><span class="what"><b>Delete</b> (red; disabled for the current branch).</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li><b>Local delete</b> <span class="cmd">branch.delete</span> with <code>{ name, force }</code>.</li>
+          <li><b>Remote delete</b> <span class="cmd">branch.delete.remote</span> — deletes the branch on the remote via <code>push &lt;remote&gt; --delete</code> and prunes the local tracking ref.</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="remotes.html#remote-delete">Remote branch delete</a></div>
+      </section>
+
+      <section class="feature" id="containing">
+        <h2>Branches containing a commit <span class="cmd">branch.containing</span></h2>
+        <p>Answers "which branches include this commit?" for the selected commit.</p>
+        <ol class="flow">
+          <li>Triggered from commit context where relevant; Go runs <span class="cmd">branch.containing</span> with <code>{ commit }</code>.</li>
+          <li>Returns the set of branches whose history contains that commit.</li>
+        </ol>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="history.html"><small>Prev</small> File &amp; line history</a>
+        <a class="next" href="commit-log-graph.html"><small>Next</small> Commit log &amp; graph</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Branches</footer>
+</body>
+</html>

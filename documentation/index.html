@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HydraGit — Feature Documentation</title>
+  <link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <section class="hero">
+    <h1>The git panel <span class="a">IntelliJ</span> has,<br />inside <span class="b">VS Code</span>.</h1>
+    <p>
+      Every feature HydraGit ships — down to the smallest context-menu item — documented
+      from the <b>user's point of view</b>: where you click, and exactly what happens next.
+      Each page maps the UI entry point to the underlying git operation.
+    </p>
+    <div class="pills">
+      <span class="pill"><b>Branch tree</b> · folder grouping</span>
+      <span class="pill"><b>Lane graph</b> · custom engine</span>
+      <span class="pill"><b>Stash manager</b></span>
+      <span class="pill"><b>Interactive rebase</b></span>
+      <span class="pill"><b>Reflog</b> undo timeline</span>
+      <span class="pill"><b>Inline blame</b></span>
+      <span class="pill">No paywall</span>
+    </div>
+  </section>
+
+  <main class="cats">
+
+    <article class="cat">
+      <h3><span class="dot"></span> Views &amp; Layout</h3>
+      <p class="blurb">The panels, the rail, the badge — everything you actually look at.</p>
+      <ul>
+        <li><a href="features/main-panel.html">Main panel <span class="cmd">hydragit.mainView</span></a></li>
+        <li><a href="features/sidebar.html">Sidebar — staging view <span class="cmd">hydragit.sidebarView</span></a></li>
+        <li><a href="features/status.html">Repository status, status bar &amp; badge <span class="cmd">status</span></a></li>
+        <li><a href="features/history.html">File &amp; line history · blame <span class="cmd">file.history</span></a></li>
+      </ul>
+    </article>
+
+    <article class="cat">
+      <h3><span class="dot"></span> Branches</h3>
+      <p class="blurb">List, switch, create, rename, delete — local and remote.</p>
+      <ul>
+        <li><a href="features/branches.html#list">Branch tree &amp; list <span class="cmd">branches</span></a></li>
+        <li><a href="features/branches.html#checkout">Checkout / switch <span class="cmd">checkout</span></a></li>
+        <li><a href="features/branches.html#create">Create branch <span class="cmd">branch.create</span></a></li>
+        <li><a href="features/branches.html#rename">Rename — local · remote · folder <span class="cmd">branch.rename</span></a></li>
+        <li><a href="features/branches.html#delete">Delete — local · remote <span class="cmd">branch.delete</span></a></li>
+        <li><a href="features/branches.html#containing">Branches containing a commit <span class="cmd">branch.containing</span></a></li>
+      </ul>
+    </article>
+
+    <article class="cat">
+      <h3><span class="dot"></span> Commit Log &amp; Graph</h3>
+      <p class="blurb">Full virtualized history with HydraGit's own lane engine.</p>
+      <ul>
+        <li><a href="features/commit-log-graph.html#log">Commit log <span class="cmd">log</span></a></li>
+        <li><a href="features/commit-log-graph.html#graph">Lane graph &amp; hover-highlight</a></li>
+        <li><a href="features/commit-log-graph.html#detail">Commit detail pane <span class="cmd">diff</span></a></li>
+        <li><a href="features/search-filter.html">Search &amp; filter <span class="cmd">log --grep</span></a></li>
+        <li><a href="features/search-filter.html#scope">Branch scope toggle</a></li>
+      </ul>
+    </article>
+
+    <article class="cat amber">
+      <h3><span class="dot"></span> Diff &amp; Compare</h3>
+      <p class="blurb">Per-commit hunks and ref/working-tree comparisons.</p>
+      <ul>
+        <li><a href="features/diff.html">Commit diff <span class="cmd amber">diff</span></a></li>
+        <li><a href="features/compare.html#range">Branch / ref compare <span class="cmd amber">diff.range</span></a></li>
+        <li><a href="features/compare.html#ref">Ref vs working tree <span class="cmd amber">diff.ref</span></a></li>
+        <li><a href="features/compare.html#file">File vs local</a></li>
+      </ul>
+    </article>
+
+    <article class="cat amber">
+      <h3><span class="dot"></span> Commit &amp; Staging</h3>
+      <p class="blurb">Stage, commit, push, amend — from the sidebar.</p>
+      <ul>
+        <li><a href="features/commit.html#commit">Stage &amp; commit <span class="cmd amber">commit</span></a></li>
+        <li><a href="features/commit.html#push">Commit &amp; push <span class="cmd amber">commit.push</span></a></li>
+        <li><a href="features/commit.html#amend">Amend last commit <span class="cmd amber">commit.amend</span></a></li>
+      </ul>
+    </article>
+
+    <article class="cat amber">
+      <h3><span class="dot"></span> History Rewriting</h3>
+      <p class="blurb">Reorder, squash, drop, reword — safely, with pause-on-conflict.</p>
+      <ul>
+        <li><a href="features/interactive-rebase.html#editor">Interactive rebase editor <span class="cmd amber">rebase.interactive</span></a></li>
+        <li><a href="features/interactive-rebase.html#squash">Squash with parent <span class="cmd amber">commit.squash</span></a></li>
+        <li><a href="features/interactive-rebase.html#drop">Drop commit <span class="cmd amber">rebase.drop</span></a></li>
+        <li><a href="features/interactive-rebase.html#reword">Edit / reword message <span class="cmd amber">rebase.reword</span></a></li>
+        <li><a href="features/interactive-rebase.html#patch">Create patch <span class="cmd amber">patch.format</span></a></li>
+        <li><a href="features/interactive-rebase.html#pushupto">Push up to a commit <span class="cmd amber">push.upto</span></a></li>
+      </ul>
+    </article>
+
+    <article class="cat">
+      <h3><span class="dot"></span> Integrate &amp; Resolve</h3>
+      <p class="blurb">Merge, rebase, reset, cherry-pick, revert — and conflict guidance.</p>
+      <ul>
+        <li><a href="features/merge-rebase-reset.html#merge">Merge <span class="cmd">merge</span></a></li>
+        <li><a href="features/merge-rebase-reset.html#rebase">Rebase <span class="cmd">rebase</span></a></li>
+        <li><a href="features/merge-rebase-reset.html#reset">Reset <span class="cmd">reset</span></a></li>
+        <li><a href="features/cherrypick-revert.html#cherrypick">Cherry-pick <span class="cmd">cherrypick</span></a></li>
+        <li><a href="features/cherrypick-revert.html#revert">Revert <span class="cmd">revert</span></a></li>
+        <li><a href="features/conflicts.html">Conflict resolution <span class="cmd">conflicts</span></a></li>
+      </ul>
+    </article>
+
+    <article class="cat">
+      <h3><span class="dot"></span> Remotes &amp; Sync</h3>
+      <p class="blurb">One-click sync plus granular fetch/pull/push and safe force-push.</p>
+      <ul>
+        <li><a href="features/remotes.html#sync">Sync (fetch + integrate) <span class="cmd">fetch+pull</span></a></li>
+        <li><a href="features/remotes.html#fetch">Fetch <span class="cmd">fetch</span></a></li>
+        <li><a href="features/remotes.html#pull">Pull + pull mode <span class="cmd">pull.mode</span></a></li>
+        <li><a href="features/remotes.html#push">Push <span class="cmd">push</span></a></li>
+        <li><a href="features/remotes.html#force">Safe force-push <span class="cmd">push.force</span></a></li>
+        <li><a href="features/remotes.html#upstream">Auto-set upstream</a></li>
+        <li><a href="features/remotes.html#remote-delete">Remote branch delete <span class="cmd">branch.delete.remote</span></a></li>
+      </ul>
+    </article>
+
+    <article class="cat amber">
+      <h3><span class="dot"></span> Undo &amp; Safety</h3>
+      <p class="blurb">Reflog timeline, one-shot undo, auto-stash, recovery banners.</p>
+      <ul>
+        <li><a href="features/reflog.html">HEAD undo timeline (reflog) <span class="cmd amber">reflog</span></a></li>
+        <li><a href="features/reflog.html#autostash">Auto-stash safety net</a></li>
+        <li><a href="features/undo-squash.html#undo">Undo last operation <span class="cmd amber">undo.last</span></a></li>
+        <li><a href="features/health-banners.html">Repository health banners</a></li>
+      </ul>
+    </article>
+
+    <article class="cat amber">
+      <h3><span class="dot"></span> Stash &amp; Tags</h3>
+      <p class="blurb">Stash manager with diff preview, and lightweight/annotated tags.</p>
+      <ul>
+        <li><a href="features/stash.html">Stash manager <span class="cmd amber">stash</span></a></li>
+        <li><a href="features/tags.html">Tags — list · create · delete <span class="cmd amber">tags</span></a></li>
+      </ul>
+    </article>
+
+    <article class="cat">
+      <h3><span class="dot"></span> Context Menus &amp; Tooling</h3>
+      <p class="blurb">Every right-click action, plus logging &amp; diagnostics.</p>
+      <ul>
+        <li><a href="features/context-menus.html#commit">Commit context menu</a></li>
+        <li><a href="features/context-menus.html#branch">Branch context menu</a></li>
+        <li><a href="features/context-menus.html#stash">Stash context menu</a></li>
+        <li><a href="features/context-menus.html#tag">Tag context menu</a></li>
+        <li><a href="features/logging.html">Logging &amp; diagnostics <span class="cmd">openLogs</span></a></li>
+      </ul>
+    </article>
+
+  </main>
+
+  <footer>
+    HydraGit feature documentation · generated from the live IPC surface
+    (<code>internal/ipc/handler.go</code>), the git layer (<code>internal/git/*</code>) and the Svelte webview.
+    Inventory mirror: <a href="../IMPLEMENTED_FEATURES.md">IMPLEMENTED_FEATURES.md</a>.
+  </footer>
+</body>
+</html>
