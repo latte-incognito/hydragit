@@ -121,6 +121,13 @@
         const rs = await send<{ inProgress: boolean }>('rebase.status');
         rebaseInProgress = !!rs?.inProgress;
       } catch { /* non-fatal */ }
+      // Keep the HEAD undo timeline live while it's open — git activity (here or
+      // from another tool) writes the reflog, which loadAll re-reads.
+      if (headMode) {
+        try {
+          reflog = await send<ReflogEntry[]>('reflog');
+        } catch { /* non-fatal */ }
+      }
       // Re-apply active search filter
       reapplySearch();
     } catch (e: unknown) {

@@ -275,8 +275,10 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     // watch .git/ for file changes → refresh
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (workspaceRoot) {
+      // logs/HEAD is the reflog — watch it so the HEAD undo timeline refreshes
+      // when git activity happens while it's open.
       this.watcher = vscode.workspace.createFileSystemWatcher(
-        new vscode.RelativePattern(workspaceRoot, '.git/{HEAD,refs/**,COMMIT_EDITMSG}')
+        new vscode.RelativePattern(workspaceRoot, '.git/{HEAD,refs/**,COMMIT_EDITMSG,logs/HEAD}')
       );
       const refresh = () => webviewView.webview.postMessage({ type: 'refresh' });
       this.watcher.onDidChange(refresh);
