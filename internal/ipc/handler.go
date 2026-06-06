@@ -373,6 +373,30 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "branch.rename.remote":
+		var p struct {
+			Remote string `json:"remote"`
+			Old    string `json:"old"`
+			New    string `json:"new"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.RenameRemoteBranch(repoPath, p.Remote, p.Old, p.New); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "branch.rename.folder":
+		var p struct {
+			OldPrefix string `json:"oldPrefix"`
+			NewPrefix string `json:"newPrefix"`
+		}
+		json.Unmarshal(req.Params, &p)
+		renamed, err := git.RenameBranchFolder(repoPath, p.OldPrefix, p.NewPrefix)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, renamed)
+
 	case "branch.containing":
 		var p struct {
 			Commit string `json:"commit"`
@@ -509,6 +533,16 @@ func handle(repoPath string, req Request) Response {
 		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.Push(repoPath, p.Branch); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "push.force":
+		var p struct {
+			Branch string `json:"branch"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.PushForce(repoPath, p.Branch); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)

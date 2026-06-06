@@ -314,6 +314,86 @@ func TestFetch(t *testing.T) {
 	}
 }
 
+func TestPushForce_afterHistoryRewrite(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	branchOut, _ := exec.Command("git", "-C", local, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	branch := strings.TrimSpace(string(branchOut))
+
+	// A real (non-empty) commit — an empty commit can't be amended.
+	if err := os.WriteFile(filepath.Join(local, "f.txt"), []byte("v1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	exec.Command("git", "-C", local, "add", ".").Run()
+	exec.Command("git", "-C", local, "commit", "-m", "c1").Run()
+	if err := Push(local, branch); err != nil {
+		t.Fatalf("initial Push failed: %v", err)
+	}
+
+	// Rewrite history → local diverges from the remote.
+	exec.Command("git", "-C", local, "commit", "--amend", "-m", "c1 amended").Run()
+
+	// A normal push must now be rejected (non-fast-forward)...
+	if err := Push(local, branch); err == nil {
+		t.Fatal("expected a normal push to be rejected after amend")
+	}
+	// ...but force-with-lease succeeds (we hold the latest remote ref).
+	if err := PushForce(local, branch); err != nil {
+		t.Fatalf("PushForce failed: %v", err)
+	}
+}
+
+func TestRenameRemoteBranch(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	exec.Command("git", "-C", local, "checkout", "-b", "feature").Run()
+	exec.Command("git", "-C", local, "push", "-u", "origin", "feature").Run()
+
+	// Local rename, then propagate to the remote.
+	if err := RenameBranch(local, "feature", "feat"); err != nil {
+		t.Fatal(err)
+	}
+	if err := RenameRemoteBranch(local, "origin", "feature", "feat"); err != nil {
+		t.Fatalf("RenameRemoteBranch failed: %v", err)
+	}
+
+	remoteURLOut, _ := exec.Command("git", "-C", local, "remote", "get-url", "origin").Output()
+	remote := strings.TrimSpace(string(remoteURLOut))
+	headsOut, _ := exec.Command("git", "-C", remote, "for-each-ref", "--format=%(refname:short)", "refs/heads/").Output()
+	heads := string(headsOut)
+	if !strings.Contains(heads, "feat") {
+		t.Fatalf("remote should have 'feat'; heads:\n%s", heads)
+	}
+	if strings.Contains(heads, "feature") {
+		t.Fatalf("remote should NOT still have 'feature'; heads:\n%s", heads)
+	}
+}
+
+func TestRenameBranchFolder(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "a.txt", "a\n", "base")
+	for _, b := range []string{"feature/alpha", "feature/beta", "feature/sub/gamma", "other/x"} {
+		exec.Command("git", "-C", dir, "branch", b).Run()
+	}
+
+	renamed, err := RenameBranchFolder(dir, "feature", "feat")
+	if err != nil {
+		t.Fatalf("RenameBranchFolder failed: %v", err)
+	}
+	if len(renamed) != 3 {
+		t.Fatalf("expected 3 renamed branches, got %d: %v", len(renamed), renamed)
+	}
+
+	out, _ := exec.Command("git", "-C", dir, "for-each-ref", "--format=%(refname:short)", "refs/heads/").Output()
+	all := string(out)
+	for _, want := range []string{"feat/alpha", "feat/beta", "feat/sub/gamma", "other/x"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("expected %q to exist; refs:\n%s", want, all)
+		}
+	}
+	if strings.Contains(all, "feature/") {
+		t.Errorf("no feature/* branch should remain; refs:\n%s", all)
+	}
+}
+
 func TestPushCommit(t *testing.T) {
 	local := makeRepoWithRemote(t)
 

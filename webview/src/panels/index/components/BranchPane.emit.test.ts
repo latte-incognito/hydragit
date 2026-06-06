@@ -29,6 +29,23 @@ describe('BranchPane — HEAD row', () => {
   });
 });
 
+describe('BranchPane — folder rename', () => {
+  it('right-clicking a branch folder fires onFolderCtx with the prefix', async () => {
+    const onFolderCtx = vi.fn();
+    const folderBranches = [
+      { name: 'feature/alpha', isCurrent: false, isRemote: false },
+      { name: 'feature/beta', isCurrent: false, isRemote: false },
+    ] as any;
+    const { container } = render(BranchPane, {
+      branches: folderBranches, stashes: [], tags: [], activeBranch: 'feature/alpha', onFolderCtx,
+    });
+    const folder = container.querySelector('.folder-row') as HTMLElement;
+    expect(folder).toBeTruthy();
+    await fireEvent.contextMenu(folder);
+    expect(onFolderCtx).toHaveBeenCalledWith(expect.anything(), 'feature');
+  });
+});
+
 describe('BranchPane — context-menu triggers', () => {
   it('right-clicking a branch row fires onBranchCtx', async () => {
     const onBranchCtx = vi.fn();

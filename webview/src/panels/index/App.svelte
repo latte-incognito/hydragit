@@ -407,8 +407,37 @@
   }
 
   // ── Toolbar / rail actions ────────────────────────────────────────────────
+  // Push with a safe force fallback: on a non-fast-forward rejection, offer a
+  // --force-with-lease push (won't clobber commits you haven't fetched).
+  async function doPush(branch?: string) {
+    flash('Pushing…');
+    const label = branch ?? 'current branch';
+    try {
+      await send('push', branch ? { branch } : {});
+      flash(`Pushed ${label}`, '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const rejected = /non-fast-forward|\brejected\b|fetch first|tip of your current branch is behind|behind its remote/i.test(msg);
+      if (!rejected) { flash('Push failed: ' + msg, '#f07070'); return; }
+      const ok = await uiConfirm(
+        `Push was rejected — your branch has diverged from the remote.\n\n` +
+        `Force push with lease? This updates the remote branch but refuses to overwrite commits you haven't fetched.`
+      );
+      if (!ok) { flash('Push cancelled', '#f07070'); return; }
+      try {
+        await send('push.force', branch ? { branch } : {});
+        flash(`Force-pushed ${label}`, '#e0a030');
+        loadAll();
+      } catch (e2: unknown) {
+        flash('Force push failed: ' + (e2 instanceof Error ? e2.message : String(e2)), '#f07070');
+      }
+    }
+  }
+
   async function tbAction(a: string) {
     if (a === 'refresh') { loadAll(); return; }
+    if (a === 'push') { await doPush(); return; }
     flash({ fetch: 'Fetching…', pull: 'Pulling…', push: 'Pushing…' }[a] ?? a);
     try {
       await send(a);
@@ -745,6 +774,29 @@
     }
   }
 
+  // Rename a whole branch folder — renames every local branch under the prefix
+  // (feature/* → feat/*), preserving suffixes. Local-only.
+  async function handleFolderCtx(e: MouseEvent, prefix: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const newPrefix = await uiPrompt(
+      `Rename all branches under "${prefix}/" — new folder name:`,
+      prefix
+    );
+    if (!newPrefix || newPrefix === prefix) return;
+    try {
+      const renamed = await send<string[]>('branch.rename.folder', {
+        oldPrefix: prefix,
+        newPrefix,
+      });
+      const n = renamed?.length ?? 0;
+      flash(`Renamed ${n} branch${n === 1 ? '' : 'es'} to ${newPrefix}/`, '#4ec94e');
+      loadAll();
+    } catch (err: unknown) {
+      flash('Folder rename failed: ' + (err instanceof Error ? err.message : String(err)), '#f07070');
+    }
+  }
+
   // ── Branch context menu ───────────────────────────────────────────────────
   function showBranchCtx(e: MouseEvent, name: string, isCurrent: boolean) {
     e.preventDefault(); e.stopPropagation();
@@ -762,12 +814,36 @@
       checkout:  async () => { await send('checkout', { branch: ctxBranch });                flash(`Checked out ${ctxBranch}`, '#4ec94e'); loadAll(); },
       merge:     async () => { await send('merge',    { branch: ctxBranch });                flash(`Merged ${ctxBranch}`, '#4ec94e');     loadAll(); },
       rebase:    async () => { await send('rebase',   { onto:   ctxBranch });                flash('Rebased', '#4ec94e');                 loadAll(); },
-      push:      async () => { await send('push',     { branch: ctxBranch });                flash(`Pushed ${ctxBranch}`, '#4ec94e');     loadAll(); },
+      push:      async () => { await doPush(ctxBranch); },
       delete:    async () => { await send('branch.delete', { name: ctxBranch, force: false }); flash(`Deleted ${ctxBranch}`, '#f07070'); loadAll(); },
       copy:      async () => { flash(`Copied: ${ctxBranch}`, '#4ec94e'); },
       rename:    async () => {
-        const to = await uiPrompt('New name:');
-        if (to) { await send('branch.rename', { from: ctxBranch, to }); flash(`Renamed to ${to}`, '#4ec94e'); loadAll(); }
+        const from = ctxBranch;
+        const to = await uiPrompt('New branch name:', from);
+        if (!to || to === from) return;
+        // Capture the upstream BEFORE the rename (branches still holds the old name).
+        const upstream = branches.find((x) => x.name === from)?.upstream ?? '';
+        try {
+          await send('branch.rename', { from, to });
+          flash(`Renamed to ${to}`, '#4ec94e');
+          // If it tracked a remote, offer to propagate the rename there too.
+          if (upstream) {
+            const remote = upstream.split('/')[0];
+            const ok = await uiConfirm(
+              `Also rename on the remote (${remote})?\n\n` +
+              `This pushes '${to}' with tracking and deletes the old remote branch '${from}'.`
+            );
+            if (ok) {
+              flash(`Renaming on ${remote}…`);
+              await send('branch.rename.remote', { remote, old: from, new: to });
+              flash(`Renamed on ${remote} too`, '#4ec94e');
+            }
+          }
+          loadAll();
+        } catch (e: unknown) {
+          flash('Rename failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+          loadAll();
+        }
       },
       'new-from': async () => {
         const name = await uiPrompt('Branch name:');
@@ -930,6 +1006,7 @@
         {selStashIdx}
         onSelectBranch={selectBranch}
         onHead={enterHeadMode}
+        onFolderCtx={handleFolderCtx}
         onSelectStash={selectStash}
         onStashAction={stashAction}
         onNewBranch={() => railAction('branch.new')}
