@@ -74,15 +74,25 @@ describe('DetailPane — file list', () => {
     expect(getAllByText('A').length).toBeGreaterThan(0);
   });
 
-  it('calls onSelectFile with path on single click', async () => {
+  it('single click selects the file and opens its diff in preview (BUG #3)', async () => {
     const onSelectFile = vi.fn();
     const { getByText } = render(DetailPane, { commit, files, onSelectFile });
 
     await fireEvent.click(getByText('main.ts'));
     expect(onSelectFile).toHaveBeenCalledWith('src/main.ts');
+    // #3: clicking must actually surface the diff (preview tab, newTab: false).
+    expect(mockPostMessage).toHaveBeenCalledWith({
+      cmd: 'openDiff',
+      params: {
+        commit: commit.hash,
+        parent: 'parent123',
+        file: 'src/main.ts',
+        newTab: false,
+      },
+    });
   });
 
-  it('sends openDiff with correct params on double click', async () => {
+  it('sends openDiff (new persistent tab) on double click', async () => {
     const { getByText } = render(DetailPane, { commit, files });
 
     await fireEvent.dblClick(getByText('main.ts'));
@@ -93,6 +103,7 @@ describe('DetailPane — file list', () => {
         commit: commit.hash,
         parent: 'parent123',
         file: 'src/main.ts',
+        newTab: true,
       },
     });
   });

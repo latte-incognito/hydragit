@@ -36,10 +36,11 @@
 
   $: local = branches.filter((b) => !b.isRemote);
   $: remote = branches.filter((b) => b.isRemote);
-  $: currentUpstream = local.find((b) => b.isCurrent)?.upstream ?? '';
 
-  // Star marks the default branch (master or main), NOT the current branch.
-  // The current branch is already shown prominently in the HEAD row at the top.
+  // The ⭐ marks ONLY the default branch (master/main) — a single, consistent
+  // meaning. It used to also mark the current branch's upstream on remote
+  // branches, which made the star appear in two places with two meanings (BUG
+  // #21). The current branch is shown prominently in the HEAD row at the top.
   $: defaultBranchName = (() => {
     for (const name of ['master', 'main']) {
       if (local.some((b) => b.name === name)) return name;
@@ -345,7 +346,7 @@
                       on:contextmenu={(e) => onBranchCtx(e, full, false)}
                       role="option" aria-selected={full === activeBranch} tabindex="0"
                     >
-                      <span class="titem-icon">{full === currentUpstream ? '⭐' : '⎇'}</span>
+                      <span class="titem-icon">⎇</span>
                       <span class="titem-name">{child.displayName ?? child.branch.name.split('/').pop()}</span>
                       {#if child.branch.gone}<span class="track gone">gone</span>{/if}
                     </div>
@@ -363,7 +364,7 @@
                 on:contextmenu={(e) => onBranchCtx(e, full, false)}
                 role="option" aria-selected={full === activeBranch} tabindex="0"
               >
-                <span class="titem-icon">{full === currentUpstream ? '⭐' : '⎇'}</span>
+                <span class="titem-icon">⎇</span>
                 <span class="titem-name">{node.displayName ?? node.branch.name.split('/').pop()}</span>
                 {#if node.branch.gone}<span class="track gone">gone</span>{/if}
               </div>

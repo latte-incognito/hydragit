@@ -179,10 +179,12 @@
   }
 
   // ── Diff / selection ──────────────────────────────────────────────────────
-  function openDiff(filePath: string) {
+  // newTab=true opens a persistent (non-preview) editor tab; otherwise the diff
+  // opens in the shared preview tab, replacing the previous one.
+  function openDiff(filePath: string, newTab = false) {
     if (isStash && stash) {
       const ref = `stash@{${stash.index ?? 0}}`;
-      send('openDiff', { commit: ref, parent: ref + '^', file: filePath });
+      send('openDiff', { commit: ref, parent: ref + '^', file: filePath, newTab });
       return;
     }
     if (!commit) return;
@@ -190,6 +192,7 @@
       commit: commit.hash,
       parent: (commit.parents ?? [])[0] ?? '',
       file: filePath,
+      newTab,
     });
   }
 
@@ -252,12 +255,15 @@
 
   function ctxShowDiff() {
     closeCtx();
-    if (ctxFile) onSelectFile(ctxFile);
+    if (ctxFile) {
+      onSelectFile(ctxFile);
+      openDiff(ctxFile);
+    }
   }
 
   function ctxShowDiffNewTab() {
     closeCtx();
-    if (ctxFile) openDiff(ctxFile);
+    if (ctxFile) openDiff(ctxFile, true);
   }
 
   function ctxEditSource() {
@@ -463,8 +469,8 @@
                       class="tree-row tree-row--file"
                       class:selected={selFile === f.path}
                       style="padding-left:{8 + (depth + 1) * 14}px"
-                      on:click={() => onSelectFile(f.path)}
-                      on:dblclick={() => openDiff(f.path)}
+                      on:click={() => { onSelectFile(f.path); openDiff(f.path); }}
+                      on:dblclick={() => openDiff(f.path, true)}
                       on:contextmenu={(e) => showCtx(e, f.path)}
                       role="option"
                       aria-selected={selFile === f.path}
@@ -598,8 +604,8 @@
                       class="tree-row tree-row--file"
                       class:selected={selFile === f.path}
                       style="padding-left:{8 + (depth + 1) * 14}px"
-                      on:click={() => onSelectFile(f.path)}
-                      on:dblclick={() => openDiff(f.path)}
+                      on:click={() => { onSelectFile(f.path); openDiff(f.path); }}
+                      on:dblclick={() => openDiff(f.path, true)}
                       on:contextmenu={(e) => showCtx(e, f.path)}
                       role="option"
                       aria-selected={selFile === f.path}

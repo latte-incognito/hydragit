@@ -113,15 +113,16 @@ async function openCommitUrl(params: { commit: string }): Promise<void> {
 }
 
 export async function openDiff(
-  params: { commit: string; parent: string; file: string },
+  params: { commit: string; parent: string; file: string; newTab?: boolean },
   opts?: { viewColumn?: vscode.ViewColumn; preserveFocus?: boolean }
 ): Promise<void> {
   const { commit, parent, file } = params;
 
   // Target a specific editor group (history panels) or the active one (default).
-  // preview:true so successive selections replace the diff in place.
+  // preview:true so successive selections replace the diff in place; newTab opens
+  // a persistent tab instead (double-click / "Show Diff in a New Tab").
   const show: vscode.TextDocumentShowOptions = {
-    preview: true,
+    preview: !params.newTab,
     viewColumn: opts?.viewColumn,
     preserveFocus: opts?.preserveFocus,
   };
