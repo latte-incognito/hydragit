@@ -306,6 +306,25 @@ func TestPush(t *testing.T) {
 	}
 }
 
+// Auto-set upstream on first push (ideas.md): pushing a brand-new branch with no
+// upstream must succeed (setting tracking) instead of erroring with the
+// "no upstream branch" wall.
+func TestPush_autoSetsUpstreamOnFirstPush(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	exec.Command("git", "-C", local, "checkout", "-b", "brand-new").Run()
+
+	// Bare push (no branch arg) on a branch that has no upstream yet.
+	if err := Push(local, ""); err != nil {
+		t.Fatalf("first push should auto-set upstream, got: %v", err)
+	}
+
+	// Tracking must now be configured.
+	out, _ := exec.Command("git", "-C", local, "rev-parse", "--abbrev-ref", "brand-new@{upstream}").Output()
+	if up := strings.TrimSpace(string(out)); up != "origin/brand-new" {
+		t.Fatalf("expected upstream origin/brand-new, got %q", up)
+	}
+}
+
 func TestFetch(t *testing.T) {
 	local := makeRepoWithRemote(t)
 

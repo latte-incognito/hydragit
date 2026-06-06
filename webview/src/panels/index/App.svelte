@@ -36,6 +36,10 @@
   // True while the repo is paused mid-rebase (conflict) — drives the
   // Continue/Skip/Abort bar. See commitMenuAction 'drop'.
   let rebaseInProgress = false;
+  // HEAD is detached (not on a branch) — drives the calm "create a branch" banner.
+  let detached = false;
+  // No user.name / user.email configured — drives the "set up git identity" banner.
+  let identityMissing = false;
   // "HEAD" undo timeline: when on, the commit graph is replaced by the reflog
   // view and the detail pane is hidden for room. Entered from the HEAD row.
   type ReflogEntry = { hash: string; selector: string; subject: string; date: string };
@@ -49,7 +53,16 @@
 
   let sbBranch = 'master';
   let sbInfo   = '';
+  let sbInfoTitle = ''; // raw ↑/↓ symbols, shown as a tooltip for git pros
   let sbCounts = '';
+
+  // Plain-language ahead/behind (ideas.md): "↑2 ↓1" → "2 to push, 1 to pull".
+  function aheadBehindText(ahead: number, behind: number): string {
+    const parts: string[] = [];
+    if (ahead) parts.push(`${ahead} to push`);
+    if (behind) parts.push(`${behind} to pull`);
+    return parts.length ? ' · ' + parts.join(', ') : '';
+  }
   let iconUri  = document.body.dataset.iconUri ?? '';
   let repoName = 'HydraGit';
 
@@ -92,11 +105,12 @@
   // ── Load everything ───────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [status, brs, rawStashes, rawTags] = await Promise.all([
+      const [status, brs, rawStashes, rawTags, user] = await Promise.all([
         send<GitStatus>('status'),
         send<Branch[]>('branches'),
         send<Stash[]>('stash'),
         send<Tag[]>('tags'),
+        send<{ name: string; email: string }>('user'),
       ]);
       // Resolve the current branch before requesting its log, so the initial
       // graph shows HEAD's branch rather than the hardcoded default (and so
@@ -108,8 +122,11 @@
       const rawCommits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 0 });
 
       sbBranch    = status.branch || activeBranch;
-      sbInfo      = status.ahead || status.behind ? ` · ↑${status.ahead} ↓${status.behind}` : '';
+      sbInfo      = aheadBehindText(status.ahead ?? 0, status.behind ?? 0);
+      sbInfoTitle = status.ahead || status.behind ? `↑${status.ahead} ↓${status.behind}` : '';
       hasPending  = (status.behind ?? 0) > 0;
+      detached    = !!status.detached;
+      identityMissing = !user?.name || !user?.email;
       branches    = brs;
       commits     = rawCommits;
       stashes     = rawStashes;
@@ -435,8 +452,64 @@
     }
   }
 
+  // Undo last operation (ideas.md express lane): abort an in-progress
+  // merge/rebase/cherry-pick/revert, else rewind to ORIG_HEAD (the state before
+  // the last merge/rebase/reset/pull), auto-stashing a dirty tree first.
+  async function undoLast() {
+    const confirmed = await uiConfirm(
+      `Undo the last git operation?\n\n` +
+      `Aborts an in-progress merge/rebase, or rewinds to the state before the ` +
+      `last merge/rebase/reset/pull. Uncommitted changes are stashed first, not lost.`
+    );
+    if (!confirmed) return;
+    flash('Undoing…');
+    try {
+      const res = await send<{ action: string; stashed: boolean }>('undo.last');
+      flash(
+        `Undone: ${res?.action ?? 'done'}${res?.stashed ? ' · changes stashed' : ''}`,
+        '#4ec94e'
+      );
+      loadAll();
+    } catch (e: unknown) {
+      flash('Undo failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // Detached-HEAD rescue (ideas.md): create a branch at the current commit so
+  // work isn't stranded on a detached HEAD.
+  async function createBranchHere() {
+    const name = await uiPrompt('Create a branch here to keep your work — branch name:');
+    if (!name) return;
+    flash(`Creating ${name}…`);
+    try {
+      await send('branch.create', { name }); // checkout -b at current HEAD
+      flash(`On new branch ${name}`, '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      flash('Create failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // Git identity setup (ideas.md): friendly inline fix for the cryptic
+  // "Please tell me who you are" — sets user.name/user.email globally.
+  async function setupIdentity() {
+    const name = await uiPrompt('Your name (for commit authorship):');
+    if (!name) return;
+    const email = await uiPrompt('Your email (for commit authorship):');
+    if (!email) return;
+    flash('Saving git identity…');
+    try {
+      await send('user.set', { name, email, global: true });
+      flash('Git identity set', '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      flash('Could not set identity: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
   async function tbAction(a: string) {
     if (a === 'refresh') { loadAll(); return; }
+    if (a === 'undo') { await undoLast(); return; }
     if (a === 'push') { await doPush(); return; }
     flash({ fetch: 'Fetching…', pull: 'Pulling…', push: 'Pushing…' }[a] ?? a);
     try {
@@ -667,6 +740,25 @@
         const patch = await send<string>('patch.format', { commit: hash });
         // savePatch is host-only (native save dialog) — fire and forget.
         send('savePatch', { content: patch, name: `${hash.slice(0, 7)}.patch` });
+      },
+      squash: async () => {
+        if (!(await uiConfirm(
+          `Squash ${hash.slice(0, 7)} into its parent?\n\n` +
+          `The two commits become one (their messages are combined). This rewrites history.`
+        ))) return;
+        flash(`Squashing ${hash.slice(0, 7)}…`);
+        try {
+          const res = await send<{ conflict: boolean }>('commit.squash', { commit: hash });
+          if (res?.conflict) {
+            rebaseInProgress = true;
+            flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
+          } else {
+            flash(`Squashed ${hash.slice(0, 7)} into its parent`, '#4ec94e');
+          }
+        } catch (e: unknown) {
+          flash('Squash failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+        }
+        loadAll();
       },
       'push-here': async () => {
         if (!(await uiConfirm(
@@ -1093,6 +1185,24 @@
     />
   {/if}
 
+  {#if identityMissing}
+    <div class="info-bar">
+      <span class="info-bar-msg">Git doesn't know who you are yet — set a name &amp; email so your commits are attributed.</span>
+      <div class="rebase-bar-actions">
+        <button class="rebase-btn" on:click={setupIdentity}>Set up identity</button>
+      </div>
+    </div>
+  {/if}
+
+  {#if detached}
+    <div class="info-bar">
+      <span class="info-bar-msg">You're not on a branch (detached HEAD). Create one here to keep your work.</span>
+      <div class="rebase-bar-actions">
+        <button class="rebase-btn" on:click={createBranchHere}>Create branch here</button>
+      </div>
+    </div>
+  {/if}
+
   {#if rebaseInProgress}
     <div class="rebase-bar">
       <span class="rebase-bar-msg">⚠ Rebase in progress — resolve conflicts, then continue.</span>
@@ -1171,6 +1281,7 @@
   <StatusBar
     branch={sbBranch}
     info={sbInfo}
+    infoTitle={sbInfoTitle}
     countsText={flashMsg ? `⚡ ${flashMsg}` : sbCounts}
     {iconUri}
   />
@@ -1212,6 +1323,22 @@
     flex-shrink: 0;
   }
   .rebase-bar-actions { display: flex; gap: 6px; }
+
+  /* Calm informational banners (detached HEAD, missing identity) — blue, not the
+     amber "something's wrong" tone of the rebase bar. */
+  .info-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 12px;
+    background: rgba(77, 170, 252, 0.12);
+    border-bottom: 0.5px solid rgba(77, 170, 252, 0.4);
+    color: #6cb6ff;
+    font-size: var(--hg-font-sm);
+    flex-shrink: 0;
+  }
+  .info-bar-msg { overflow: hidden; text-overflow: ellipsis; }
   .rebase-btn {
     padding: 2px 10px;
     font-size: var(--hg-font-xs);

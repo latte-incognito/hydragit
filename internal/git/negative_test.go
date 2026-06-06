@@ -272,4 +272,7 @@ func TestStatus_detachedHEAD(t *testing.T) {
 	if res.Branch == "" {
 		t.Fatal("expected a non-empty branch field on detached HEAD (e.g. HEAD)")
 	}
+	if !res.Detached {
+		t.Fatal("expected Detached=true on a detached HEAD")
+	}
 }

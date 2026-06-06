@@ -189,6 +189,31 @@ refreshed by the 3s status poll.
 - **Safe force-push** (`push.force`) — when a push is rejected (non-fast-forward),
   HydraGit offers a `--force-with-lease` push, which won't clobber remote commits
   you haven't fetched.
+- **Auto-set upstream on first push** — a no-upstream `push` transparently
+  retries `push -u origin HEAD`, so the `fatal: ...has no upstream branch` wall
+  never reaches the user (pros never notice).
+- **Remote branch delete** (`branch.delete.remote`) — deletes a branch on the
+  remote via `push <remote> --delete` and prunes the local tracking ref.
+- **Network-op timeout** — remote rename/delete pushes run under a 30s deadline
+  so a credential prompt with no terminal can't freeze the panel.
+
+## Repository health banners
+
+- **Detached-HEAD banner** — when `status.detached`, a calm banner offers
+  one-click "create a branch here" so work isn't stranded.
+- **Git identity setup** — when `user.name`/`user.email` are unset, a banner
+  offers inline setup (`user.set`, global) instead of the cryptic
+  "Please tell me who you are".
+- **Critical-error reload** — if the Go backend dies unexpectedly, the extension
+  surfaces a "Reload Window" prompt.
+
+## Undo / squash
+
+- **Undo last operation** (`undo.last`) — toolbar express lane: aborts an
+  in-progress merge/rebase/cherry-pick/revert, else `reset --hard ORIG_HEAD`
+  (auto-stashing a dirty tree first).
+- **Squash with parent** (`commit.squash`) — folds a commit into its parent
+  (messages combined) via the interactive-rebase machinery.
 
 ## Cherry-pick / revert
 

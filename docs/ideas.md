@@ -30,32 +30,10 @@ API-key-shaped strings, `id_rsa`), an unusually large file, leftover conflict
 markers (`<<<<<<<`), or committing straight to a protected branch (main/master).
 The headline/viral one — "it stopped me committing my API key." Tunable + disablable.
 
-**Auto-set upstream on first push** — ★★★★★ · GitLens: ✓ · IntelliJ: ✓
-Kill the `fatal: no upstream branch` wall: on a no-upstream push, do
-`push -u origin <branch>` instead of erroring. Tiny effort, removes a whole class
-of beginner confusion; pros never notice.
-
-**Detached-HEAD banner** — ★★★★☆ · GitLens: ✗ · IntelliJ: ~
-When HEAD is detached, show a calm banner — "You're not on a branch; create one
-here to keep your work" — with one-click create. Classic vibecoder panic.
-
-**Git identity setup** — ★★★★☆ · GitLens: ✗ · IntelliJ: ~
-Detect missing `user.name`/`user.email` and offer a friendly inline setup instead
-of the cryptic `Please tell me who you are`. Fresh-install blocker.
-
 **Discard with a safety net** — ★★★☆☆ · GitLens: ✗ · IntelliJ: ~
 "Discard changes" that stashes a recoverable backup first, instead of nuking work.
 
-**Plain-language git state** — ★★★☆☆ · GitLens: ✗ · IntelliJ: ✗
-Translate jargon: `↑2 ↓1` → "2 to push, 1 to pull"; a one-line repo summary
-("On `feature` · clean · 2 to push"). Pros read the symbols; beginners get oriented.
-
 ### Power features
-
-**Squash adjacent commits (one-click)** — ★★★★☆ · GitLens: ✓ (rebase editor) · IntelliJ: ✓
-Select 2+ contiguous commits in the log → squash into one (`reset --soft` for
-the HEAD case). Reordering for non-adjacent squash already lives in the
-interactive-rebase editor.
 
 **Worktree management UI** — ★★★★☆ · GitLens: ✓ (Pro) · IntelliJ: ✓
 Create / switch / remove worktrees visually. GitLens paywalls this — directly
@@ -74,15 +52,23 @@ clean one-click; original differentiator.
 Cross-repo commit search + jump-between-matches. Message/author/hash filters
 already cover the common cases.
 
-**Undo last operation (one-click)** — ★★☆☆☆ · GitLens: ✗ · IntelliJ: ~
-A dedicated button: `--abort` if mid-op, else `reset --hard ORIG_HEAD`. The full
-reflog timeline already ships; this is just the express lane.
-
 ---
 
 ## Recently shipped (was on this list)
 
 Moved to `IMPLEMENTED_FEATURES.md`:
+
+- **Auto-set upstream on first push** — a no-upstream `push` now retries
+  `push -u origin HEAD` instead of hitting the `fatal: no upstream branch` wall.
+- **Plain-language git state** — status bar shows "2 to push, 1 to pull" (raw
+  `↑/↓` kept as a tooltip).
+- **Undo last operation** — toolbar express button: aborts an in-progress
+  merge/rebase/cherry-pick/revert, else `reset --hard ORIG_HEAD` (auto-stashing).
+- **Git identity setup** — a banner detects missing `user.name`/`user.email` and
+  offers inline setup instead of the cryptic "Please tell me who you are".
+- **Detached-HEAD banner** — calm banner with one-click "create a branch here".
+- **Squash adjacent commits** — "Squash with Parent" folds a commit into its
+  parent (combined message) via the interactive-rebase machinery.
 
 - **Sync** — one-click fetch + integrate (accented rail button).
 - **Conflict-resolution guidance** — sidebar banner with per-file

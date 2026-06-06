@@ -36,6 +36,7 @@ const WIRED: [string, string][] = [
   ['New Branch…', 'new-branch'],
   ['New Tag…', 'new-tag'],
   ['View in browser', 'view-in-browser'],
+  ['Squash with Parent', 'squash'],
 ];
 
 describe('Commit context menu — wired items emit onCommitAction', () => {

@@ -279,6 +279,13 @@ func Rebase(repoPath, onto string) error {
 func Push(repoPath, branch string) error {
 	if branch == "" {
 		_, err := run(repoPath, "push")
+		// First push of a brand-new branch: instead of surfacing the
+		// "fatal: The current branch X has no upstream branch" wall, set the
+		// upstream automatically (ideas.md "Auto-set upstream on first push").
+		// Pros never notice; beginners skip a whole class of confusion.
+		if err != nil && strings.Contains(err.Error(), "has no upstream branch") {
+			_, err = run(repoPath, "push", "-u", "origin", "HEAD")
+		}
 		return err
 	}
 	_, err := run(repoPath, "push", "origin", branch)

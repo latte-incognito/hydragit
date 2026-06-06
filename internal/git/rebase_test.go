@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -131,6 +132,64 @@ func TestRunInteractiveRebase_dropAndReorder(t *testing.T) {
 	if subjectAt(t, dir, "HEAD~1") != "C" {
 		t.Fatalf("HEAD~1 should be C after reorder, got %q", subjectAt(t, dir, "HEAD~1"))
 	}
+}
+
+// SquashWithParent folds a commit into its parent: two commits become one, the
+// tree content is preserved, and history shrinks by one.
+func TestSquashWithParent_foldsIntoParent(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "base.txt", "base\n", "base")
+	commitFile(t, dir, "a.txt", "a\n", "A")        // parent
+	commitFile(t, dir, "b.txt", "b\n", "B")        // target → squash into A
+	target := headHash(t, dir)
+	commitFile(t, dir, "c.txt", "c\n", "C")         // a descendant, must survive
+
+	before := commitCount(t, dir)
+
+	conflict, err := SquashWithParent(dir, target)
+	if err != nil {
+		t.Fatalf("SquashWithParent failed: %v", err)
+	}
+	if conflict {
+		t.Fatal("independent files — did not expect a conflict")
+	}
+
+	if after := commitCount(t, dir); after != before-1 {
+		t.Fatalf("expected history to shrink by one (%d → %d), got %d", before, before-1, after)
+	}
+	// All file content must still be present (squash preserves the tree).
+	for _, f := range []string{"base.txt", "a.txt", "b.txt", "c.txt"} {
+		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+			t.Fatalf("%s should still exist after squash: %v", f, err)
+		}
+	}
+	if subjectAt(t, dir, "HEAD") != "C" {
+		t.Fatalf("tip should still be C, got %q", subjectAt(t, dir, "HEAD"))
+	}
+}
+
+func TestSquashWithParent_rejectsWhenParentIsRoot(t *testing.T) {
+	dir := initRepo(t) // initRepo's "init" commit is the root
+	commitFile(t, dir, "a.txt", "a\n", "A")
+	target := headHash(t, dir) // A's parent is the root → no grandparent to fold into
+
+	if _, err := SquashWithParent(dir, target); err == nil {
+		t.Fatal("expected an error squashing into a root commit (no grandparent)")
+	}
+}
+
+// commitCount returns the number of commits reachable from HEAD.
+func commitCount(t *testing.T, dir string) int {
+	t.Helper()
+	out, err := exec.Command("git", "-C", dir, "rev-list", "--count", "HEAD").Output()
+	if err != nil {
+		t.Fatalf("rev-list --count: %v", err)
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		t.Fatalf("parse count %q: %v", out, err)
+	}
+	return n
 }
 
 func TestRunInteractiveRebase_rejectsLeadingSquash(t *testing.T) {
