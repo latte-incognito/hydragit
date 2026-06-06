@@ -406,5 +406,5 @@ rebase editor, branch/ref compare, worktree UI, undo/reflog timeline, amend/rewo
 |---|---|---|
 | `0.1.x` | Branch tree + commit log + stash + inline diff. Core two-pane layout. | ✅ Built (in repo) |
 | `0.2.0` | Stage/unstage + commit from extension, tags, blame, file/line history | ✅ Built (in repo, pre-publish) |
-| `0.3.0` | Interactive rebase UI, branch compare / ref diff, conflict resolution hints | Planned |
-| `1.0.0` | All features, polished, AI commit message (Claude API, opt-in) | Planned |
+| `0.3.0` | Interactive rebase UI, branch compare / ref diff, conflict-resolution guidance, undo/reflog timeline, sync, safe force-push, amend, local+remote/folder rename | ✅ Built (in repo) |
+| `1.0.0` | Beginner-safety wave (pre-commit secret guard, auto-upstream, detached-HEAD banner), worktrees, polish | Planned |

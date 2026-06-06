@@ -76,7 +76,12 @@ refreshed by the 3s status poll.
 - **Branch list** (`branches`) — local + remote-tracking, current marker,
   upstream, ahead/behind track string, gone/orphan detection.
 - **Checkout** (`checkout`), **create** (`branch.create`, optionally from a
-  ref/hash), **delete** (`branch.delete`), **rename** (`branch.rename`).
+  ref/hash), **delete** (`branch.delete`).
+- **Rename — local + remote** (`branch.rename`, `branch.rename.remote`) — renames
+  locally, then offers to propagate to the remote (push new with tracking, delete
+  the old remote ref) when the branch had an upstream.
+- **Branch-folder rename** (`branch.rename.folder`) — right-click a branch folder
+  to rename every local branch under that prefix at once (suffixes preserved).
 - **Branches containing a commit** (`branch.containing`).
 - Branch tree UI with folder-style grouping for `slashed/branch/names`.
 
@@ -129,6 +134,20 @@ refreshed by the 3s status poll.
 
 - **Stage / commit** (`commit`) and **commit & push** (`commit.push`) from the
   sidebar commit area, with changed-file staging.
+- **Amend last commit** (`commit.amend`, `commit.lastMessage`) — an "Amend last
+  commit" toggle prefills HEAD's message for editing and folds the staged changes
+  into it; staging is optional (message-only amend supported).
+
+## Conflict resolution
+
+- **Guidance banner** (`conflicts`) — while a merge/rebase/cherry-pick is paused,
+  the sidebar shows the operation + unmerged files, each with quick actions:
+  **merge editor**, **Current** (`conflict.keepCurrent` → `--ours`), **Incoming**
+  (`conflict.keepIncoming` → `--theirs`). Current/Incoming are correct for both
+  merge and rebase (HEAD is always "current").
+- **Continue / Abort** (`conflict.continue` / `conflict.abort`) — routes per
+  operation (rebase → `rebase --continue/--abort`; merge/cherry-pick/revert →
+  commit / `--abort`). Continue is gated until all files are resolved.
 
 ## Merge / rebase / reset
 
@@ -163,8 +182,13 @@ refreshed by the 3s status poll.
 
 ## Remotes
 
+- **Sync** — one-click fetch + integrate (accented rail button): `fetch` then
+  `pull`, instead of reasoning about fetch vs pull vs rebase.
 - **Fetch** (`fetch`), **pull** (`pull`) with selectable **pull mode**
   (`pull.mode`), **push** (`push`).
+- **Safe force-push** (`push.force`) — when a push is rejected (non-fast-forward),
+  HydraGit offers a `--force-with-lease` push, which won't clobber remote commits
+  you haven't fetched.
 
 ## Cherry-pick / revert
 

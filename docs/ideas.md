@@ -13,34 +13,44 @@ Everything here is doable under the `os/exec + git CLI only` constraint.
 
 ## Not yet built
 
-### Safety net — top priority
+The safety-net trio (Sync, conflict-resolution guidance, safe force-push) has
+shipped — see "Recently shipped" below. The thesis still guides new work: the
+same feature should read as a friendly safety net to a newcomer and as raw git
+to an expert.
 
-The "safe enough a beginner can't lose work, powerful enough for pros" thesis:
-the same feature reads as a friendly safety net to a newcomer and as raw git to
-an expert (the undo timeline is the template). Simple by default, full git one
-click away — never hide or rename git concepts.
+### Beginner safety / simplicity — next wave
 
-**Sync (fetch + integrate, one click)** — ★★★★★ · GitLens: ~ · IntelliJ: ✓ (Update Project)
-One button = fetch + pull/rebase, instead of making the user reason about fetch
-vs pull vs rebase. IntelliJ's "Update Project" is exactly this. Beginner relief,
-expert daily-driver.
+The pattern: catch the exact moment a beginner hits a scary git error or footgun,
+and make it one plain-language action — without removing the git underneath.
+Always **warn + proceed**, never hard-block by default.
 
-**Conflict-resolution guidance** — ★★★★☆ · GitLens: ~ · IntelliJ: ✓
-Plain-language "these files conflict — open the merge editor / pick a side" flow.
-The #1 thing that makes beginners rage-quit git.
-NOTE: conflict *surfacing* (sidebar `!` status) + opening VS Code's merge editor
-already ship (BUGS #19/#27); this is the guided walkthrough layered on top.
+**Pre-commit safety checks** — ★★★★★ · GitLens: ✗ · IntelliJ: ~
+Before a commit, *warn* (with "commit anyway") on: a likely secret (`.env`,
+API-key-shaped strings, `id_rsa`), an unusually large file, leftover conflict
+markers (`<<<<<<<`), or committing straight to a protected branch (main/master).
+The headline/viral one — "it stopped me committing my API key." Tunable + disablable.
 
-**Safe force-push (`--force-with-lease`)** — ★★★★☆ · GitLens: ✓ · IntelliJ: ✓
-Force-push that won't clobber a teammate's pushes. Guardrail nobody objects to.
-(Currently `push` is a plain `git push`.)
+**Auto-set upstream on first push** — ★★★★★ · GitLens: ✓ · IntelliJ: ✓
+Kill the `fatal: no upstream branch` wall: on a no-upstream push, do
+`push -u origin <branch>` instead of erroring. Tiny effort, removes a whole class
+of beginner confusion; pros never notice.
+
+**Detached-HEAD banner** — ★★★★☆ · GitLens: ✗ · IntelliJ: ~
+When HEAD is detached, show a calm banner — "You're not on a branch; create one
+here to keep your work" — with one-click create. Classic vibecoder panic.
+
+**Git identity setup** — ★★★★☆ · GitLens: ✗ · IntelliJ: ~
+Detect missing `user.name`/`user.email` and offer a friendly inline setup instead
+of the cryptic `Please tell me who you are`. Fresh-install blocker.
+
+**Discard with a safety net** — ★★★☆☆ · GitLens: ✗ · IntelliJ: ~
+"Discard changes" that stashes a recoverable backup first, instead of nuking work.
+
+**Plain-language git state** — ★★★☆☆ · GitLens: ✗ · IntelliJ: ✗
+Translate jargon: `↑2 ↓1` → "2 to push, 1 to pull"; a one-line repo summary
+("On `feature` · clean · 2 to push"). Pros read the symbols; beginners get oriented.
 
 ### Power features
-
-**Rename branch — local + remote** — ★★★★☆ · GitLens: ~ (local) · IntelliJ: ~ (local)
-Extend the existing local `branch.rename`: also push the new name with upstream
-and delete the old remote ref, in one action. Guard: block on the
-default/protected branch; confirm before deleting the old remote ref.
 
 **Squash adjacent commits (one-click)** — ★★★★☆ · GitLens: ✓ (rebase editor) · IntelliJ: ✓
 Select 2+ contiguous commits in the log → squash into one (`reset --soft` for
@@ -64,8 +74,9 @@ clean one-click; original differentiator.
 Cross-repo commit search + jump-between-matches. Message/author/hash filters
 already cover the common cases.
 
-**Interactive branch-folder rename** — ★★☆☆☆ · GitLens: ✗ · IntelliJ: ✗
-Rename a whole `folder/` of branches at once. Original, but niche.
+**Undo last operation (one-click)** — ★★☆☆☆ · GitLens: ✗ · IntelliJ: ~
+A dedicated button: `--abort` if mid-op, else `reset --hard ORIG_HEAD`. The full
+reflog timeline already ships; this is just the express lane.
 
 ---
 
@@ -73,14 +84,22 @@ Rename a whole `folder/` of branches at once. Original, but niche.
 
 Moved to `IMPLEMENTED_FEATURES.md`:
 
+- **Sync** — one-click fetch + integrate (accented rail button).
+- **Conflict-resolution guidance** — sidebar banner with per-file
+  Current/Incoming/merge-editor quick actions + Continue/Abort.
+- **Safe force-push** — `--force-with-lease` offered automatically when a push is
+  rejected (won't clobber unfetched commits).
+- **Rename branch — local + remote** — local rename + optional remote
+  propagation (push new with tracking, delete old remote ref).
+- **Branch-folder rename** — rename every local branch under a prefix at once.
+- **Amend last commit** — edit HEAD's message and/or fold staged changes, from
+  the sidebar commit area.
 - **Undo / reflog timeline** — the "HEAD" view: `git reflog` as a list with
-  soft/mixed/hard reset to any point, auto-stash before a hard reset, and live
-  refresh on git activity. (Remaining nicety: a dedicated one-click "Undo last
-  operation" = `--abort` if mid-op else `reset --hard ORIG_HEAD`.)
-- Interactive rebase editor (drag-reorder + squash/fixup/drop, pause-on-conflict)
-- Branch / ref compare + ref↔working-tree diffs
-- Amend / reword commit message
-- Inline blame (`git blame --porcelain`, buffer-aware via `runStdin`)
+  soft/mixed/hard reset to any point, auto-stash before a hard reset, live
+  refresh on git activity.
+- Interactive rebase editor (drag-reorder + squash/fixup/drop, pause-on-conflict).
+- Branch / ref compare + ref↔working-tree diffs.
+- Inline blame (`git blame --porcelain`, buffer-aware via `runStdin`).
 
 ---
 
