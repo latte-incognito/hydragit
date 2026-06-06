@@ -194,17 +194,24 @@ export async function openMergeEditor(params: { file: string }): Promise<void> {
 
 export class HydraViewProvider implements vscode.WebviewViewProvider {
   private watcher: vscode.FileSystemWatcher | undefined;
+  private view: vscode.WebviewView | undefined;
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
     private readonly goProcess: GoProcess
   ) {}
 
+  /** Reload the whole main panel — bound to `hydragit.forceRefresh`. */
+  forceRefresh(): void {
+    this.view?.webview.postMessage({ type: 'refresh' });
+  }
+
   resolveWebviewView(
     webviewView: vscode.WebviewView,
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ): void {
+    this.view = webviewView;
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [

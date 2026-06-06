@@ -35,6 +35,10 @@ export default defineConfig(() => ({
     outDir: '.',
     emptyOutDir: false,
     codeSplitting: false,
+    // Inline assets (notably the ~73KB codicon font) as base64 data URIs so they
+    // satisfy the webview CSP `font-src data:` without needing resource-root
+    // wiring. 150KB headroom covers the codicon .ttf.
+    assetsInlineLimit: 150000,
     rollupOptions: {
       input: {
         sidebar: resolve(__dirname, 'webview/src/panels/sidebar/main.ts'),

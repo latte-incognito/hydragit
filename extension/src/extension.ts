@@ -76,7 +76,8 @@ export function activate(ctx: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('hydragit.revealAll', async () => {
       await vscode.commands.executeCommand('workbench.view.extension.hydragit');
       await vscode.commands.executeCommand('hydragit.mainView.focus');
-    })
+    }),
+    vscode.commands.registerCommand('hydragit.forceRefresh', () => mainProvider.forceRefresh())
   );
 
   // Inline blame: faint trailing annotation on the active editor line + hover.

@@ -13,11 +13,29 @@ Everything here is doable under the `os/exec + git CLI only` constraint.
 
 ## Not yet built
 
-**Undo / reflog timeline** — ★★★★★ · GitLens: ✗ · IntelliJ: ~ (undo commit only)
-Surface `git reflog` as a timeline to reset back to any point, plus one-click
-`reset --hard ORIG_HEAD` after a merge/rebase/pull. Guard: stash/warn about
-uncommitted work first. Biggest safety win, and nobody does the full timeline.
-(The in-progress `--abort`/continue/skip part already ships.)
+### Safety net — top priority
+
+The "safe enough a beginner can't lose work, powerful enough for pros" thesis:
+the same feature reads as a friendly safety net to a newcomer and as raw git to
+an expert (the undo timeline is the template). Simple by default, full git one
+click away — never hide or rename git concepts.
+
+**Sync (fetch + integrate, one click)** — ★★★★★ · GitLens: ~ · IntelliJ: ✓ (Update Project)
+One button = fetch + pull/rebase, instead of making the user reason about fetch
+vs pull vs rebase. IntelliJ's "Update Project" is exactly this. Beginner relief,
+expert daily-driver.
+
+**Conflict-resolution guidance** — ★★★★☆ · GitLens: ~ · IntelliJ: ✓
+Plain-language "these files conflict — open the merge editor / pick a side" flow.
+The #1 thing that makes beginners rage-quit git.
+NOTE: conflict *surfacing* (sidebar `!` status) + opening VS Code's merge editor
+already ship (BUGS #19/#27); this is the guided walkthrough layered on top.
+
+**Safe force-push (`--force-with-lease`)** — ★★★★☆ · GitLens: ✓ · IntelliJ: ✓
+Force-push that won't clobber a teammate's pushes. Guardrail nobody objects to.
+(Currently `push` is a plain `git push`.)
+
+### Power features
 
 **Rename branch — local + remote** — ★★★★☆ · GitLens: ~ (local) · IntelliJ: ~ (local)
 Extend the existing local `branch.rename`: also push the new name with upstream
@@ -28,10 +46,6 @@ default/protected branch; confirm before deleting the old remote ref.
 Select 2+ contiguous commits in the log → squash into one (`reset --soft` for
 the HEAD case). Reordering for non-adjacent squash already lives in the
 interactive-rebase editor.
-
-**Sync + safe force-push** — ★★★★☆ · GitLens: ✓ · IntelliJ: ✓
-One-click fetch + integrate; force-push uses `--force-with-lease` so it won't
-clobber a teammate's pushes. Table stakes, pure safety.
 
 **Worktree management UI** — ★★★★☆ · GitLens: ✓ (Pro) · IntelliJ: ✓
 Create / switch / remove worktrees visually. GitLens paywalls this — directly
@@ -59,6 +73,10 @@ Rename a whole `folder/` of branches at once. Original, but niche.
 
 Moved to `IMPLEMENTED_FEATURES.md`:
 
+- **Undo / reflog timeline** — the "HEAD" view: `git reflog` as a list with
+  soft/mixed/hard reset to any point, auto-stash before a hard reset, and live
+  refresh on git activity. (Remaining nicety: a dedicated one-click "Undo last
+  operation" = `--abort` if mid-op else `reset --hard ORIG_HEAD`.)
 - Interactive rebase editor (drag-reorder + squash/fixup/drop, pause-on-conflict)
 - Branch / ref compare + ref↔working-tree diffs
 - Amend / reword commit message

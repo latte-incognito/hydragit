@@ -420,6 +420,21 @@
   }
 
   async function railAction(a: string) {
+    if (a === 'sync') {
+      // One-click "bring me up to date": fetch all remotes, then integrate the
+      // current branch (uses the user's configured pull mode). No push — that
+      // stays a deliberate, separate action.
+      flash('Syncing…');
+      try {
+        await send('fetch');
+        await send('pull');
+        flash('Synced', '#4ec94e');
+        loadAll();
+      } catch (e: unknown) {
+        flash('Sync failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      }
+      return;
+    }
     if (a === 'branch.new') {
       const name = await uiPrompt('New branch name:');
       if (name) {

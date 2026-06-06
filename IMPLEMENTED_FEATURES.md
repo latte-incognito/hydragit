@@ -149,6 +149,18 @@ refreshed by the 3s status poll.
   file via a native save dialog.
 - **Push up to a commit** (`push.upto`) — publishes history up to a chosen commit.
 
+## HEAD undo timeline (reflog)
+
+- **`HEAD` row → undo timeline** — the branch tree's HEAD row swaps the commit
+  graph for `git reflog` (`reflog`) as a flat list; the detail pane hides for
+  room, and exiting (back button or selecting a branch) fully restores the view.
+- **Reset to any point** — per-row soft / mixed / hard buttons (green → amber →
+  red by destructiveness, themed via VS Code vars), one confirmation each.
+- **Auto-stash safety net** — a hard reset on a dirty tree auto-stashes tracked
+  changes first (`ResetWithAutostash`), so nothing is lost.
+- **Live refresh** — git activity (here or external) writes `.git/logs/HEAD`,
+  which the file watcher catches → the timeline reloads while open.
+
 ## Remotes
 
 - **Fetch** (`fetch`), **pull** (`pull`) with selectable **pull mode**
