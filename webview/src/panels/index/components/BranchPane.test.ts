@@ -48,6 +48,12 @@ describe('BranchPane — rendering', () => {
     expect(getByText('WIP: my stash')).toBeTruthy();
   });
 
+  it('HEAD row is labelled "HEAD · <branch>"', () => {
+    const { getByText } = render(BranchPane, { branches, stashes: [], activeBranch: 'main' });
+    // click behaviour (onHead) is covered in BranchPane.emit.test.ts
+    expect(getByText('HEAD · main')).toBeTruthy();
+  });
+
   it('shows no stashes empty state', async () => {
     const { getByText } = render(BranchPane, { branches, stashes: [], activeBranch: 'main' });
     await fireEvent.click(getByText('Stashes'));

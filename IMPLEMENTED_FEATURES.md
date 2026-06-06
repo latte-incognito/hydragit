@@ -76,7 +76,12 @@ refreshed by the 3s status poll.
 - **Branch list** (`branches`) — local + remote-tracking, current marker,
   upstream, ahead/behind track string, gone/orphan detection.
 - **Checkout** (`checkout`), **create** (`branch.create`, optionally from a
-  ref/hash), **delete** (`branch.delete`), **rename** (`branch.rename`).
+  ref/hash), **delete** (`branch.delete`).
+- **Rename — local + remote** (`branch.rename`, `branch.rename.remote`) — renames
+  locally, then offers to propagate to the remote (push new with tracking, delete
+  the old remote ref) when the branch had an upstream.
+- **Branch-folder rename** (`branch.rename.folder`) — right-click a branch folder
+  to rename every local branch under that prefix at once (suffixes preserved).
 - **Branches containing a commit** (`branch.containing`).
 - Branch tree UI with folder-style grouping for `slashed/branch/names`.
 
@@ -104,28 +109,86 @@ refreshed by the 3s status poll.
 ## Diff
 
 - **Commit diff** (`diff`) — changed-file list + per-file hunks.
-- File tree view of changes; inline diff rendering in the detail pane.
+- File tree view of changes; clicking a file opens its diff (preview tab;
+  double-click / "Show Diff in a New Tab" opens a persistent tab).
+
+## Compare (ref / working-tree diff)
+
+- **Branch / ref compare** (`diff.range`) — diff two refs; backs branch
+  "Compare with <branch>".
+- **Ref vs working tree** (`diff.ref`) — backs branch/tag "Show Diff with Working
+  Tree" and commit "Compare with Local"; multi-file results render in the detail
+  pane's compare view.
+- **File vs local** — "Compare with Local" / "Compare Before with Local" open a
+  file@revision ↔ working-tree diff editor (`openWorkingDiff`).
 
 ## Stash
 
 - **List** (`stash`), **save** (`stash.save`), **pop** (`stash.pop`),
-  **apply** (`stash.apply`), **drop** (`stash.drop`), **show**
-  (`stash.show`), **files in a stash** (`stash.files`).
+  **apply** (`stash.apply`), **drop** (`stash.drop`), **clear all**
+  (`stash.clear`, confirmed), **show** (`stash.show`), **files in a stash**
+  (`stash.files`).
 - Stash manager UI with diff preview.
 
 ## Commit (staging + committing)
 
 - **Stage / commit** (`commit`) and **commit & push** (`commit.push`) from the
   sidebar commit area, with changed-file staging.
+- **Amend last commit** (`commit.amend`, `commit.lastMessage`) — an "Amend last
+  commit" toggle prefills HEAD's message for editing and folds the staged changes
+  into it; staging is optional (message-only amend supported).
+
+## Conflict resolution
+
+- **Guidance banner** (`conflicts`) — while a merge/rebase/cherry-pick is paused,
+  the sidebar shows the operation + unmerged files, each with quick actions:
+  **merge editor**, **Current** (`conflict.keepCurrent` → `--ours`), **Incoming**
+  (`conflict.keepIncoming` → `--theirs`). Current/Incoming are correct for both
+  merge and rebase (HEAD is always "current").
+- **Continue / Abort** (`conflict.continue` / `conflict.abort`) — routes per
+  operation (rebase → `rebase --continue/--abort`; merge/cherry-pick/revert →
+  commit / `--abort`). Continue is gated until all files are resolved.
 
 ## Merge / rebase / reset
 
 - **Merge** (`merge`), **rebase** (`rebase`), **reset** (`reset`).
 
+## Interactive rebase & history editing
+
+- **Interactive rebase editor** — a drag-to-reorder modal (`InteractiveRebase`)
+  with per-commit pick / squash / fixup / drop, driving `git rebase -i`
+  non-interactively (`rebase.interactive`).
+- **Drop commit** (`rebase.drop`) — removes a commit via `rebase --onto`.
+- **Edit commit message / reword** (`rebase.reword`) — `commit --amend` for HEAD,
+  scripted rebase reword otherwise.
+- **Pause-on-conflict flow** — a rebase that conflicts pauses (never auto-aborts)
+  and surfaces **Continue / Skip / Abort** (`rebase.continue` / `rebase.skip` /
+  `rebase.abort`), restored across reloads via `rebase.status`.
+- **Create patch** (`patch.format`) — `format-patch` of a commit to a `.patch`
+  file via a native save dialog.
+- **Push up to a commit** (`push.upto`) — publishes history up to a chosen commit.
+
+## HEAD undo timeline (reflog)
+
+- **`HEAD` row → undo timeline** — the branch tree's HEAD row swaps the commit
+  graph for `git reflog` (`reflog`) as a flat list; the detail pane hides for
+  room, and exiting (back button or selecting a branch) fully restores the view.
+- **Reset to any point** — per-row soft / mixed / hard buttons (green → amber →
+  red by destructiveness, themed via VS Code vars), one confirmation each.
+- **Auto-stash safety net** — a hard reset on a dirty tree auto-stashes tracked
+  changes first (`ResetWithAutostash`), so nothing is lost.
+- **Live refresh** — git activity (here or external) writes `.git/logs/HEAD`,
+  which the file watcher catches → the timeline reloads while open.
+
 ## Remotes
 
+- **Sync** — one-click fetch + integrate (accented rail button): `fetch` then
+  `pull`, instead of reasoning about fetch vs pull vs rebase.
 - **Fetch** (`fetch`), **pull** (`pull`) with selectable **pull mode**
   (`pull.mode`), **push** (`push`).
+- **Safe force-push** (`push.force`) — when a push is rejected (non-fast-forward),
+  HydraGit offers a `--force-with-lease` push, which won't clobber remote commits
+  you haven't fetched.
 
 ## Cherry-pick / revert
 
@@ -177,4 +240,4 @@ refreshed by the 3s status poll.
 
 Remaining graph polish: lane straightening for the last feature at a shared base,
 wide-graph lane-width compression, and an optional focus / linear / hide-merges
-view. Broader backlog (rebase editor, ref compare, worktrees, etc.) → `docs/ideas.md`.
+view. Broader backlog (worktrees, reflog/undo timeline, etc.) → `docs/ideas.md`.

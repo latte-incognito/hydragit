@@ -8,6 +8,8 @@
   export let selStashIdx: number | null = null;
 
   export let onSelectBranch: (name: string, remote: boolean) => void = () => {};
+  export let onHead: () => void = () => {};
+  export let onFolderCtx: (e: MouseEvent, prefix: string) => void = () => {};
   export let onSelectStash: (i: number) => void = () => {};
   export let onStashAction: (a: string) => void = () => {};
   export let onNewBranch: () => void = () => {};
@@ -194,16 +196,18 @@
 
   <div class="tree-scroll">
 
-    <!-- HEAD item — always shows the current branch prominently -->
+    <!-- HEAD — opens the undo timeline (reflog). The current branch lives in
+         LOCAL below; this row is HEAD's movement history, not a branch select. -->
     <div
       class="titem active current head"
-      on:click={() => onSelectBranch(activeBranch, false)}
+      on:click={onHead}
+      title="Open the HEAD undo timeline (reflog)"
       role="option"
       aria-selected="true"
       tabindex="0"
     >
       <span class="titem-icon">◎</span>
-      <span class="titem-name">{activeBranch || 'HEAD'}</span>
+      <span class="titem-name">HEAD{activeBranch ? ` · ${activeBranch}` : ''}</span>
     </div>
 
     <!-- ── LOCAL ──────────────────────────────────────────────────────────── -->
@@ -219,6 +223,8 @@
             class="titem folder-row"
             style="padding-left:22px"
             on:click={() => toggleLocal(node)}
+            on:contextmenu={(e) => onFolderCtx(e, node.label)}
+            title="Right-click to rename this folder of branches"
             role="button" tabindex="0"
           >
             <span class="folder-arrow" class:open={node.open}>▾</span>
@@ -233,6 +239,8 @@
                   class="titem folder-row"
                   style="padding-left:36px"
                   on:click={() => toggleLocal(child)}
+                  on:contextmenu={(e) => onFolderCtx(e, `${node.label}/${child.label}`)}
+                  title="Right-click to rename this folder of branches"
                   role="button" tabindex="0"
                 >
                   <span class="folder-arrow" class:open={child.open}>▾</span>

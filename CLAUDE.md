@@ -103,11 +103,14 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 
 ## Still OUT (do not implement without asking)
 
-- Interactive rebase UI (drag-to-reorder / squash)
-- Branch / ref compare, PR diff
+- PR diff (branch/ref compare itself now ships)
 - Worktree management UI
-- AI commit message
 - Settings panel
+
+> Now shipped (previously OUT): interactive rebase editor, branch/ref compare,
+> amend/reword, reflog/undo timeline, conflict-resolution guidance, sync,
+> safe force-push, local+remote & folder branch rename. See
+> `IMPLEMENTED_FEATURES.md`.
 
 See `docs/ideas.md` for the full backlog and rationale.
 

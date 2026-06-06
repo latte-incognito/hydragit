@@ -36,6 +36,7 @@ const tagMenu = { visible: true, x: 10, y: 10, name: 'v1', current: 'main' };
 const BRANCH_ITEMS: [string, string][] = [
   ['Checkout', 'checkout'],
   ["New Branch from 'feat'…", 'new-from'],
+  ['Rename…', 'rename'],
   ["Checkout and Rebase onto 'main'", 'checkout-rebase'],
   ["Compare with 'main'", 'compare'],
   ['Show Diff with Working Tree', 'diff-working'],

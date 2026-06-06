@@ -6,7 +6,8 @@ import ActionRail from './ActionRail.svelte';
 // we select by DOM order and assert it fires onAction with the documented name.
 // Order matches ActionRail.svelte top-to-bottom.
 const RAIL_ACTIONS = [
-  'fetch', 'pull', 'push',          // remote group
+  'sync',                           // primary — fetch + integrate
+  'fetch', 'pull', 'push',          // granular remote group
   'branch.new', 'merge', 'rebase', 'branch.delete', // branch group
   'stash.save', 'tag',              // stash / tag group
 ];
@@ -40,6 +41,15 @@ describe('ActionRail', () => {
     const { container } = render(ActionRail, {});
     const danger = container.querySelectorAll('button.rail-btn.danger');
     expect(danger.length).toBe(1);
+  });
+
+  it('Sync is the first, primary-accented button', async () => {
+    const onAction = vi.fn();
+    const { container } = render(ActionRail, { onAction });
+    const first = container.querySelector('button.rail-btn') as HTMLElement;
+    expect(first.classList.contains('primary')).toBe(true);
+    await fireEvent.click(first);
+    expect(onAction).toHaveBeenCalledWith('sync');
   });
 
   it('does not fire onAction before any click', () => {

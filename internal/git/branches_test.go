@@ -1,10 +1,74 @@
 package git
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestResetWithAutostash_hardStashesDirtyTree(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "f.txt", "v1\n", "c1")
+	head := headHash(t, dir)
+
+	// A tracked, uncommitted change that --hard would otherwise discard.
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("dirty\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stashed, err := ResetWithAutostash(dir, head, "hard")
+	if err != nil {
+		t.Fatalf("ResetWithAutostash failed: %v", err)
+	}
+	if !stashed {
+		t.Fatal("expected dirty tracked changes to be auto-stashed before hard reset")
+	}
+	// Working tree restored to the committed content...
+	if b, _ := os.ReadFile(filepath.Join(dir, "f.txt")); string(b) != "v1\n" {
+		t.Fatalf("working tree = %q; want v1", b)
+	}
+	// ...and the change is recoverable in a stash (nothing lost).
+	if stashes, _ := StashList(dir); len(stashes) == 0 {
+		t.Fatal("expected an auto-stash entry holding the discarded change")
+	}
+}
+
+func TestResetWithAutostash_cleanTreeDoesNotStash(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "f.txt", "v1\n", "c1")
+	head := headHash(t, dir)
+
+	stashed, err := ResetWithAutostash(dir, head, "hard")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stashed {
+		t.Fatal("a clean tree must not auto-stash")
+	}
+}
+
+func TestResetWithAutostash_softNeverStashes(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "f.txt", "v1\n", "c1")
+	commitFile(t, dir, "f.txt", "v2\n", "c2")
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("dirty\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// soft/mixed keep working-tree changes, so they must never stash.
+	stashed, err := ResetWithAutostash(dir, "HEAD~1", "soft")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stashed {
+		t.Fatal("soft reset must not auto-stash")
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "f.txt")); string(b) != "dirty\n" {
+		t.Fatalf("soft reset should preserve the working tree, got %q", b)
+	}
+}
 
 func TestBranches(t *testing.T) {
 	dir := t.TempDir()
@@ -247,6 +311,86 @@ func TestFetch(t *testing.T) {
 
 	if err := Fetch(local); err != nil {
 		t.Fatalf("Fetch failed: %v", err)
+	}
+}
+
+func TestPushForce_afterHistoryRewrite(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	branchOut, _ := exec.Command("git", "-C", local, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	branch := strings.TrimSpace(string(branchOut))
+
+	// A real (non-empty) commit — an empty commit can't be amended.
+	if err := os.WriteFile(filepath.Join(local, "f.txt"), []byte("v1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	exec.Command("git", "-C", local, "add", ".").Run()
+	exec.Command("git", "-C", local, "commit", "-m", "c1").Run()
+	if err := Push(local, branch); err != nil {
+		t.Fatalf("initial Push failed: %v", err)
+	}
+
+	// Rewrite history → local diverges from the remote.
+	exec.Command("git", "-C", local, "commit", "--amend", "-m", "c1 amended").Run()
+
+	// A normal push must now be rejected (non-fast-forward)...
+	if err := Push(local, branch); err == nil {
+		t.Fatal("expected a normal push to be rejected after amend")
+	}
+	// ...but force-with-lease succeeds (we hold the latest remote ref).
+	if err := PushForce(local, branch); err != nil {
+		t.Fatalf("PushForce failed: %v", err)
+	}
+}
+
+func TestRenameRemoteBranch(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	exec.Command("git", "-C", local, "checkout", "-b", "feature").Run()
+	exec.Command("git", "-C", local, "push", "-u", "origin", "feature").Run()
+
+	// Local rename, then propagate to the remote.
+	if err := RenameBranch(local, "feature", "feat"); err != nil {
+		t.Fatal(err)
+	}
+	if err := RenameRemoteBranch(local, "origin", "feature", "feat"); err != nil {
+		t.Fatalf("RenameRemoteBranch failed: %v", err)
+	}
+
+	remoteURLOut, _ := exec.Command("git", "-C", local, "remote", "get-url", "origin").Output()
+	remote := strings.TrimSpace(string(remoteURLOut))
+	headsOut, _ := exec.Command("git", "-C", remote, "for-each-ref", "--format=%(refname:short)", "refs/heads/").Output()
+	heads := string(headsOut)
+	if !strings.Contains(heads, "feat") {
+		t.Fatalf("remote should have 'feat'; heads:\n%s", heads)
+	}
+	if strings.Contains(heads, "feature") {
+		t.Fatalf("remote should NOT still have 'feature'; heads:\n%s", heads)
+	}
+}
+
+func TestRenameBranchFolder(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "a.txt", "a\n", "base")
+	for _, b := range []string{"feature/alpha", "feature/beta", "feature/sub/gamma", "other/x"} {
+		exec.Command("git", "-C", dir, "branch", b).Run()
+	}
+
+	renamed, err := RenameBranchFolder(dir, "feature", "feat")
+	if err != nil {
+		t.Fatalf("RenameBranchFolder failed: %v", err)
+	}
+	if len(renamed) != 3 {
+		t.Fatalf("expected 3 renamed branches, got %d: %v", len(renamed), renamed)
+	}
+
+	out, _ := exec.Command("git", "-C", dir, "for-each-ref", "--format=%(refname:short)", "refs/heads/").Output()
+	all := string(out)
+	for _, want := range []string{"feat/alpha", "feat/beta", "feat/sub/gamma", "other/x"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("expected %q to exist; refs:\n%s", want, all)
+		}
+	}
+	if strings.Contains(all, "feature/") {
+		t.Errorf("no feature/* branch should remain; refs:\n%s", all)
 	}
 }
 

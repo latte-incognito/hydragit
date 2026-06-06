@@ -1,6 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import { tick } from 'svelte';
+
+// CommitArea fetches the last commit message (for amend prefill) via the bus.
+const sendMock = vi.hoisted(() => vi.fn());
+vi.mock('$shared/messageBus', () => ({ send: sendMock, on: vi.fn() }));
+
 import CommitArea from './CommitArea.svelte';
 
 // Helpers — find controls by role/placeholder so copy tweaks don't break tests.
@@ -134,5 +139,33 @@ describe('CommitArea — upstream visibility (bug #21)', () => {
   it('bug-21: always shows Commit button regardless of upstream', () => {
     const q = render(CommitArea, { hasFiles: true, stagedCount: 1, hasUpstream: false });
     expect(commitBtn(q)).toBeTruthy();
+  });
+});
+
+// ── amend mode ────────────────────────────────────────────────────────────────
+
+describe('CommitArea — amend', () => {
+  it('toggling Amend prefills the last commit message and switches the button', async () => {
+    sendMock.mockReset();
+    sendMock.mockResolvedValue('previous subject');
+    const onAmend = vi.fn();
+    const onCommit = vi.fn();
+    const q = render(CommitArea, { hasFiles: false, stagedCount: 0, onAmend, onCommit });
+
+    await fireEvent.click(q.getByText('Amend last commit'));
+    await tick();
+    await tick();
+
+    // prefilled from commit.lastMessage, even with nothing staged
+    const box = q.getByPlaceholderText('Amend commit message') as HTMLTextAreaElement;
+    expect(box.value).toBe('previous subject');
+    expect(sendMock).toHaveBeenCalledWith('commit.lastMessage');
+
+    // primary button now amends (not commits)
+    const amendBtn = q.getByRole('button', { name: 'Amend' }) as HTMLButtonElement;
+    expect(amendBtn.disabled).toBe(false);
+    await fireEvent.click(amendBtn);
+    expect(onAmend).toHaveBeenCalledWith('previous subject');
+    expect(onCommit).not.toHaveBeenCalled();
   });
 });

@@ -22,7 +22,7 @@ describe('Toolbar — rendering', () => {
 
   it('renders four mode tab buttons', () => {
     const { getAllByRole } = render(Toolbar, {});
-    // mode tabs + clear btn (hidden) + refresh btn + filter-pill = several buttons
+    // mode tabs + clear btn (hidden) + filter-pill = several buttons
     // specifically check we have msg/hash/file/author tabs by title
     const buttons = getAllByRole('button');
     const titles = buttons.map(b => b.getAttribute('title')).filter(Boolean);
@@ -159,15 +159,5 @@ describe('Toolbar — all-branches filter', () => {
   });
 });
 
-// ── refresh ───────────────────────────────────────────────────────────────────
-
-describe('Toolbar — refresh', () => {
-  it('calls onAction with "refresh" when refresh button is clicked', async () => {
-    const onAction = vi.fn();
-    const { getByLabelText } = render(Toolbar, { onAction });
-
-    await fireEvent.click(getByLabelText('Refresh'));
-
-    expect(onAction).toHaveBeenCalledWith('refresh');
-  });
-});
+// Refresh moved out of the toolbar to the `HydraGit: Force Refresh` command
+// (extension host), so there's no toolbar refresh button to test here.

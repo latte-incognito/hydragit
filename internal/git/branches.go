@@ -123,6 +123,45 @@ func RenameBranch(repoPath, from, to string) error {
 	return err
 }
 
+// RenameRemoteBranch propagates a local rename to the remote: push the (already
+// locally-renamed) branch under its new name with upstream tracking, then delete
+// the old remote branch. Call AFTER RenameBranch. Use only when the branch had
+// an upstream.
+func RenameRemoteBranch(repoPath, remote, oldName, newName string) error {
+	if _, err := run(repoPath, "push", remote, "-u", newName); err != nil {
+		return err
+	}
+	_, err := run(repoPath, "push", remote, "--delete", oldName)
+	return err
+}
+
+// RenameBranchFolder renames every LOCAL branch under oldPrefix to newPrefix,
+// preserving each suffix — e.g. "feature/" → "feat/" turns feature/x and
+// feature/sub/y into feat/x and feat/sub/y. Returns the new names. Local-only;
+// propagating a whole folder to the remote is out of scope.
+func RenameBranchFolder(repoPath, oldPrefix, newPrefix string) ([]string, error) {
+	oldP := strings.TrimSuffix(oldPrefix, "/") + "/"
+	newP := strings.TrimSuffix(newPrefix, "/") + "/"
+
+	out, err := run(repoPath, "for-each-ref", "--format=%(refname:short)", "refs/heads/"+oldP)
+	if err != nil {
+		return nil, err
+	}
+
+	renamed := []string{}
+	for _, name := range strings.Split(out, "\n") {
+		if name == "" {
+			continue
+		}
+		newName := newP + strings.TrimPrefix(name, oldP)
+		if _, err := run(repoPath, "branch", "-m", name, newName); err != nil {
+			return renamed, err
+		}
+		renamed = append(renamed, newName)
+	}
+	return renamed, nil
+}
+
 func Merge(repoPath, branch string) error {
 	_, err := run(repoPath, "merge", branch)
 	return err
@@ -140,6 +179,40 @@ func Reset(repoPath, commit, mode string) error {
 	}
 	_, err := run(repoPath, "reset", flag, commit)
 	return err
+}
+
+// hasTrackedChanges reports whether the working tree has uncommitted changes to
+// TRACKED files (staged or unstaged). Untracked files are ignored because
+// `reset --hard` never touches them, so they don't need protecting.
+func hasTrackedChanges(repoPath string) (bool, error) {
+	out, err := run(repoPath, "status", "--porcelain", "--untracked-files=no")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) != "", nil
+}
+
+// ResetWithAutostash is Reset with a safety net: before a `--hard` reset (the
+// only mode that discards working-tree changes) it auto-stashes any tracked
+// modifications so nothing is lost — they land in a recoverable stash. soft and
+// mixed keep changes, so they never stash. Returns stashed=true when it did.
+func ResetWithAutostash(repoPath, commit, mode string) (stashed bool, err error) {
+	if mode == "hard" {
+		dirty, derr := hasTrackedChanges(repoPath)
+		if derr != nil {
+			return false, derr
+		}
+		if dirty {
+			if serr := StashSave(repoPath, "hydragit: auto-stash before hard reset"); serr != nil {
+				return false, serr
+			}
+			stashed = true
+		}
+	}
+	if rerr := Reset(repoPath, commit, mode); rerr != nil {
+		return stashed, rerr
+	}
+	return stashed, nil
 }
 
 func Rebase(repoPath, onto string) error {
@@ -161,6 +234,18 @@ func Push(repoPath, branch string) error {
 // `commit` are published, leaving anything after it local.
 func PushCommit(repoPath, commit, branch string) error {
 	_, err := run(repoPath, "push", "origin", commit+":refs/heads/"+branch)
+	return err
+}
+
+// PushForce force-pushes using --force-with-lease, which (unlike raw --force)
+// refuses to overwrite remote commits the local repo hasn't seen — so it can't
+// silently clobber a teammate's pushes.
+func PushForce(repoPath, branch string) error {
+	if branch == "" {
+		_, err := run(repoPath, "push", "--force-with-lease")
+		return err
+	}
+	_, err := run(repoPath, "push", "--force-with-lease", "origin", branch)
 	return err
 }
 
