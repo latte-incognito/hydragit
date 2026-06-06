@@ -400,10 +400,18 @@ func handle(repoPath string, req Request) Response {
 			Mode   string `json:"mode"`
 		}
 		json.Unmarshal(req.Params, &p)
-		if err := git.Reset(repoPath, p.Commit, p.Mode); err != nil {
+		stashed, err := git.ResetWithAutostash(repoPath, p.Commit, p.Mode)
+		if err != nil {
 			return fail(id, err)
 		}
-		return ok(id, nil)
+		return ok(id, map[string]bool{"stashed": stashed})
+
+	case "reflog":
+		entries, err := git.Reflog(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, entries)
 
 	case "rebase":
 		var p struct {

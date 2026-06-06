@@ -142,6 +142,40 @@ func Reset(repoPath, commit, mode string) error {
 	return err
 }
 
+// hasTrackedChanges reports whether the working tree has uncommitted changes to
+// TRACKED files (staged or unstaged). Untracked files are ignored because
+// `reset --hard` never touches them, so they don't need protecting.
+func hasTrackedChanges(repoPath string) (bool, error) {
+	out, err := run(repoPath, "status", "--porcelain", "--untracked-files=no")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) != "", nil
+}
+
+// ResetWithAutostash is Reset with a safety net: before a `--hard` reset (the
+// only mode that discards working-tree changes) it auto-stashes any tracked
+// modifications so nothing is lost — they land in a recoverable stash. soft and
+// mixed keep changes, so they never stash. Returns stashed=true when it did.
+func ResetWithAutostash(repoPath, commit, mode string) (stashed bool, err error) {
+	if mode == "hard" {
+		dirty, derr := hasTrackedChanges(repoPath)
+		if derr != nil {
+			return false, derr
+		}
+		if dirty {
+			if serr := StashSave(repoPath, "hydragit: auto-stash before hard reset"); serr != nil {
+				return false, serr
+			}
+			stashed = true
+		}
+	}
+	if rerr := Reset(repoPath, commit, mode); rerr != nil {
+		return stashed, rerr
+	}
+	return stashed, nil
+}
+
 func Rebase(repoPath, onto string) error {
 	_, err := run(repoPath, "rebase", onto)
 	return err

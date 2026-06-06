@@ -12,6 +12,7 @@
   import DetailPane  from './components/DetailPane.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
   import InteractiveRebase from './components/InteractiveRebase.svelte';
+  import ReflogPane  from './components/ReflogPane.svelte';
   import StatusBar   from './components/StatusBar.svelte';
 
   // ── Core state ────────────────────────────────────────────────────────────
@@ -35,6 +36,11 @@
   // True while the repo is paused mid-rebase (conflict) — drives the
   // Continue/Skip/Abort bar. See commitMenuAction 'drop'.
   let rebaseInProgress = false;
+  // "HEAD" undo timeline: when on, the commit graph is replaced by the reflog
+  // view and the detail pane is hidden for room. Entered from the HEAD row.
+  type ReflogEntry = { hash: string; selector: string; subject: string; date: string };
+  let headMode = false;
+  let reflog: ReflogEntry[] = [];
   // Open interactive-rebase editor (commits oldest-first + the base to rebase
   // onto); null when closed.
   let rebaseEditor: { base: string; commits: { sha: string; subject: string }[] } | null = null;
@@ -153,6 +159,7 @@
   async function selectBranch(name: string, _remote: boolean) {
     selStashIdx = null;
     compare = null;
+    headMode = false; // selecting a branch exits the undo timeline
     activeBranch = name;
     selCommitIdx = null; selFile = null; diffFiles = []; diffHunks = [];
     try {
@@ -619,10 +626,15 @@
           return;
         }
         if (mode === 'hard' && !(await uiConfirm(
-          `Hard reset to ${hash.slice(0, 7)}?\n\nUncommitted changes will be DISCARDED.`
+          `Hard reset to ${hash.slice(0, 7)}?\n\nAny uncommitted changes are auto-stashed first (recoverable).`
         ))) return;
-        await send('reset', { commit: hash, mode });
-        flash(`Reset (${mode}) to ${hash.slice(0, 7)}`, '#4ec94e');
+        const res = await send<{ stashed: boolean }>('reset', { commit: hash, mode });
+        flash(
+          res?.stashed
+            ? `Reset (${mode}) to ${hash.slice(0, 7)} — changes auto-stashed`
+            : `Reset (${mode}) to ${hash.slice(0, 7)}`,
+          res?.stashed ? '#e0a030' : '#4ec94e'
+        );
         loadAll();
       },
     };
@@ -654,6 +666,41 @@
       loadAll();
     } catch (e: unknown) {
       flash('Rebase failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // ── HEAD undo timeline (reflog) ─────────────────────────────────────────────
+  async function enterHeadMode() {
+    try {
+      reflog = await send<ReflogEntry[]>('reflog');
+      headMode = true;
+    } catch (e: unknown) {
+      flash('Reflog error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  function exitHeadMode() {
+    headMode = false;
+  }
+
+  async function reflogReset(hash: string, mode: 'soft' | 'mixed' | 'hard') {
+    const warn =
+      mode === 'hard'
+        ? `\n\nAny uncommitted changes are auto-stashed first (recoverable).`
+        : mode === 'mixed'
+          ? `\n\nChanges are kept but unstaged.`
+          : `\n\nChanges are kept and staged.`;
+    if (!(await uiConfirm(`${mode} reset to ${hash.slice(0, 7)}?${warn}`))) return;
+    try {
+      const res = await send<{ stashed: boolean }>('reset', { commit: hash, mode });
+      const msg = res?.stashed
+        ? `${mode} reset to ${hash.slice(0, 7)} — changes auto-stashed`
+        : `${mode} reset to ${hash.slice(0, 7)}`;
+      flash(msg, res?.stashed ? '#e0a030' : mode === 'hard' ? '#f07070' : '#4ec94e');
+      headMode = false;
+      loadAll();
+    } catch (e: unknown) {
+      flash('Reset failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
     }
   }
 
@@ -860,6 +907,7 @@
         {activeBranch}
         {selStashIdx}
         onSelectBranch={selectBranch}
+        onHead={enterHeadMode}
         onSelectStash={selectStash}
         onStashAction={stashAction}
         onNewBranch={() => railAction('branch.new')}
@@ -872,33 +920,43 @@
 
     <PaneDivider leftEl={branchPaneEl} isRight={false} />
 
-    <LogPane
-      commits={filtered}
-      selectedIdx={selCommitIdx}
-      onSelect={selectCommit}
-      onCtx={() => {}}
-      onCommitAction={commitMenuAction}
-      {fileSearchActive}
-      {fileSearchPath}
-    />
-
-    <PaneDivider rightEl={detailPaneEl} isRight={true} />
-
-    <div bind:this={detailPaneEl} class="detail-wrap">
-      <DetailPane
-        commit={selCommitIdx !== null ? filtered[selCommitIdx] : null}
-        stash={selStashIdx !== null ? stashes[selStashIdx] : null}
-        {compare}
-        files={diffFiles}
-        hunks={diffHunks}
-        {selFile}
-        loading={detailLoading}
-        {iconUri}
-        onSelectFile={selectDiffFile}
-        onCommitAction={commitAction}
-        onStashAction={stashAction}
+    {#if headMode}
+      <!-- Undo timeline takes the whole graph+detail area for room. -->
+      <ReflogPane
+        entries={reflog}
+        {activeBranch}
+        onReset={reflogReset}
+        onExit={exitHeadMode}
       />
-    </div>
+    {:else}
+      <LogPane
+        commits={filtered}
+        selectedIdx={selCommitIdx}
+        onSelect={selectCommit}
+        onCtx={() => {}}
+        onCommitAction={commitMenuAction}
+        {fileSearchActive}
+        {fileSearchPath}
+      />
+
+      <PaneDivider rightEl={detailPaneEl} isRight={true} />
+
+      <div bind:this={detailPaneEl} class="detail-wrap">
+        <DetailPane
+          commit={selCommitIdx !== null ? filtered[selCommitIdx] : null}
+          stash={selStashIdx !== null ? stashes[selStashIdx] : null}
+          {compare}
+          files={diffFiles}
+          hunks={diffHunks}
+          {selFile}
+          loading={detailLoading}
+          {iconUri}
+          onSelectFile={selectDiffFile}
+          onCommitAction={commitAction}
+          onStashAction={stashAction}
+        />
+      </div>
+    {/if}
   </div>
 
   <StatusBar

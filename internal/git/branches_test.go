@@ -1,10 +1,74 @@
 package git
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestResetWithAutostash_hardStashesDirtyTree(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "f.txt", "v1\n", "c1")
+	head := headHash(t, dir)
+
+	// A tracked, uncommitted change that --hard would otherwise discard.
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("dirty\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	stashed, err := ResetWithAutostash(dir, head, "hard")
+	if err != nil {
+		t.Fatalf("ResetWithAutostash failed: %v", err)
+	}
+	if !stashed {
+		t.Fatal("expected dirty tracked changes to be auto-stashed before hard reset")
+	}
+	// Working tree restored to the committed content...
+	if b, _ := os.ReadFile(filepath.Join(dir, "f.txt")); string(b) != "v1\n" {
+		t.Fatalf("working tree = %q; want v1", b)
+	}
+	// ...and the change is recoverable in a stash (nothing lost).
+	if stashes, _ := StashList(dir); len(stashes) == 0 {
+		t.Fatal("expected an auto-stash entry holding the discarded change")
+	}
+}
+
+func TestResetWithAutostash_cleanTreeDoesNotStash(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "f.txt", "v1\n", "c1")
+	head := headHash(t, dir)
+
+	stashed, err := ResetWithAutostash(dir, head, "hard")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stashed {
+		t.Fatal("a clean tree must not auto-stash")
+	}
+}
+
+func TestResetWithAutostash_softNeverStashes(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "f.txt", "v1\n", "c1")
+	commitFile(t, dir, "f.txt", "v2\n", "c2")
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("dirty\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// soft/mixed keep working-tree changes, so they must never stash.
+	stashed, err := ResetWithAutostash(dir, "HEAD~1", "soft")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stashed {
+		t.Fatal("soft reset must not auto-stash")
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "f.txt")); string(b) != "dirty\n" {
+		t.Fatalf("soft reset should preserve the working tree, got %q", b)
+	}
+}
 
 func TestBranches(t *testing.T) {
 	dir := t.TempDir()
