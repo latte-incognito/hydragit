@@ -3,6 +3,7 @@ package git
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -31,8 +32,25 @@ func run(repoPath string, args ...string) (string, error) {
 // unsaved editor contents. All git CLI calls still funnel through this one
 // exec point. When stdin is nil it behaves exactly like run().
 func runStdin(repoPath string, stdin []byte, args ...string) (string, error) {
+	return runCore(repoPath, stdin, nil, args...)
+}
+
+// runEnv is run() with extra environment variables appended to the inherited
+// env — used by the rebase orchestration to set GIT_SEQUENCE_EDITOR / GIT_EDITOR
+// so `git rebase -i` and reword run non-interactively instead of hanging on an
+// editor. Still the single exec point.
+func runEnv(repoPath string, env []string, args ...string) (string, error) {
+	return runCore(repoPath, nil, env, args...)
+}
+
+// runCore is the one place os/exec is called. stdin and extraEnv are optional.
+func runCore(repoPath string, stdin []byte, extraEnv []string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = repoPath
+
+	if extraEnv != nil {
+		cmd.Env = append(os.Environ(), extraEnv...)
+	}
 
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)

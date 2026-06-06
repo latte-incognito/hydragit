@@ -109,6 +109,40 @@ func TestLog(t *testing.T) {
 	}
 }
 
+// BUG #1: filename search must find ROOT-level files, not just nested ones.
+func TestLogFile_findsRootAndNestedByName(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "root.txt", "r\n", "add root.txt")
+	commitFile(t, dir, "sub/deep/leaf.txt", "l\n", "add leaf.txt")
+
+	// Bare filename at the repo root — the original "**/" pathspec dropped these.
+	root, err := LogFile(dir, "root.txt")
+	if err != nil {
+		t.Fatalf("LogFile(root.txt) failed: %v", err)
+	}
+	if len(root) == 0 {
+		t.Fatal("BUG #1: root-level file search returned no commits")
+	}
+
+	// Nested filename, matched anywhere in the tree.
+	leaf, err := LogFile(dir, "leaf.txt")
+	if err != nil {
+		t.Fatalf("LogFile(leaf.txt) failed: %v", err)
+	}
+	if len(leaf) == 0 {
+		t.Fatal("nested file search returned no commits")
+	}
+
+	// A name that doesn't exist returns nothing (not an error).
+	none, err := LogFile(dir, "nope.txt")
+	if err != nil {
+		t.Fatalf("LogFile(nope.txt) errored: %v", err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("expected no commits for a missing file, got %d", len(none))
+	}
+}
+
 func TestLineHistory(t *testing.T) {
 	dir := initRepo(t)
 	commitFile(t, dir, "f.txt", "alpha\nbravo\n", "c1")

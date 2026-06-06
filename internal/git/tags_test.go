@@ -45,6 +45,33 @@ func TestTags(t *testing.T) {
 	}
 }
 
+// BUG #2: the action-rail "Create tag" sends commit:"" (tag at HEAD) with an
+// optional message. Exercise both the lightweight and annotated paths.
+func TestCreateTag_atHead(t *testing.T) {
+	dir := initRepo(t)
+
+	// Lightweight tag at HEAD (empty commit + empty message).
+	if err := CreateTag(dir, "v1-light", "", ""); err != nil {
+		t.Fatalf("CreateTag lightweight failed: %v", err)
+	}
+	// Annotated tag at HEAD (empty commit + message).
+	if err := CreateTag(dir, "v1-annotated", "", "the release"); err != nil {
+		t.Fatalf("CreateTag annotated failed: %v", err)
+	}
+
+	tags, err := Tags(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, tg := range tags {
+		got[tg.Name] = true
+	}
+	if !got["v1-light"] || !got["v1-annotated"] {
+		t.Fatalf("expected both tags created at HEAD, got %v", got)
+	}
+}
+
 func TestDeleteTag(t *testing.T) {
 	dir := t.TempDir()
 	exec.Command("git", "-C", dir, "init").Run()

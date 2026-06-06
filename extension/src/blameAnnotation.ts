@@ -89,6 +89,25 @@ export function buildHoverMarkdown(blame: BlameLine, nowMs: number): string {
   ].join('\n');
 }
 
+/**
+ * hoverHitsAnnotation decides whether a hover at the given position should
+ * surface the rich blame card. The inline annotation only renders on the active
+ * line, trailing the code as an `after` decoration past end-of-line — and VS Code
+ * clamps a hover over that decoration to the end-of-line position. So we only
+ * bite when the hover is on the active line AND at/after the end of the line's
+ * text, i.e. directly over our annotation and never over the code itself (which
+ * is what made the popup feel like it appeared everywhere). Kept pure for tests.
+ */
+export function hoverHitsAnnotation(
+  lineTextLength: number,
+  hoverLine: number,
+  hoverCharacter: number,
+  activeLine: number
+): boolean {
+  if (hoverLine !== activeLine) return false;
+  return hoverCharacter >= lineTextLength;
+}
+
 // Escape only the characters that carry markdown meaning or could inject a link
 // into the hover — which matters because the hover MarkdownString is trusted, so
 // an attacker-controlled commit summary must not be able to forge a
@@ -318,15 +337,37 @@ export class BlameController implements vscode.Disposable {
     ]);
   }
 
+  // Surface the rich card immediately when the cursor is over our inline blame —
+  // the trailing annotation on the active line, past end-of-line — and never over
+  // the code. Synchronous: returning a pending promise would make VS Code show a
+  // "loading" hover widget.
   private provideHover(
     doc: vscode.TextDocument,
     position: vscode.Position
   ): vscode.Hover | undefined {
     if (!this.enabled) return undefined;
+
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document !== doc) return undefined;
+
+    const lineLen = doc.lineAt(position.line).text.length;
+    if (!hoverHitsAnnotation(lineLen, position.line, position.character, editor.selection.active.line)) {
+      return undefined;
+    }
+
     const cached = this.cache.get(doc.uri.toString());
     const blame = cached?.lines[position.line];
     if (!blame) return undefined;
 
+    return this.buildHover(doc, position, blame);
+  }
+
+  /** Build the rich blame card, anchored to the end-of-line annotation. */
+  private buildHover(
+    doc: vscode.TextDocument,
+    position: vscode.Position,
+    blame: BlameLine
+  ): vscode.Hover {
     const md = new vscode.MarkdownString(buildHoverMarkdown(blame, Date.now()));
     md.isTrusted = true;
     if (!blame.uncommitted && blame.commit !== ZERO_SHA) {
@@ -340,7 +381,8 @@ export class BlameController implements vscode.Disposable {
           `[Line History](command:hydragit.lineHistory?${lineArg})`
       );
     }
-    return new vscode.Hover(md, doc.lineAt(position.line).range);
+    const eol = doc.lineAt(position.line).range.end;
+    return new vscode.Hover(md, new vscode.Range(eol, eol));
   }
 
   dispose(): void {

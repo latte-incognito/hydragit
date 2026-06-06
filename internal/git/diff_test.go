@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -36,6 +37,72 @@ func makeCommitWithFile(t *testing.T) (dir string, hash string) {
 	}
 	hash = string(out[:len(out)-1]) // trim newline
 	return
+}
+
+func TestFormatPatch(t *testing.T) {
+	dir, hash := makeCommitWithFile(t)
+
+	patch, err := FormatPatch(dir, hash)
+	if err != nil {
+		t.Fatalf("FormatPatch failed: %v", err)
+	}
+	// A format-patch mailbox starts with "From <sha>" and carries the subject
+	// and the file's diff.
+	if !strings.HasPrefix(patch, "From ") {
+		t.Fatalf("patch should start with a mailbox 'From ' line, got: %.40q", patch)
+	}
+	if !strings.Contains(patch, "add hello.go") {
+		t.Error("patch should contain the commit subject")
+	}
+	if !strings.Contains(patch, "hello.go") {
+		t.Error("patch should reference the changed file")
+	}
+}
+
+func TestDiffRefFiles_vsWorkingTree(t *testing.T) {
+	dir, _ := makeCommitWithFile(t)
+
+	// Modify the working tree so HEAD differs from it.
+	if err := os.WriteFile(filepath.Join(dir, "hello.go"),
+		[]byte("package main\n\nfunc main() { println(\"hi\") }\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := DiffRefFiles(dir, "HEAD")
+	if err != nil {
+		t.Fatalf("DiffRefFiles failed: %v", err)
+	}
+	if len(files) != 1 || files[0].Path != "hello.go" {
+		t.Fatalf("expected hello.go modified vs working tree, got %+v", files)
+	}
+
+	hunks, err := DiffRefFile(dir, "HEAD", "hello.go")
+	if err != nil {
+		t.Fatalf("DiffRefFile failed: %v", err)
+	}
+	if len(hunks) == 0 {
+		t.Fatal("expected hunks for the modified file")
+	}
+}
+
+func TestDiffRangeFiles_twoRefs(t *testing.T) {
+	dir, base := makeCommitWithFile(t)
+
+	// Branch off and add a new file, so base..head shows exactly that file.
+	exec.Command("git", "-C", dir, "checkout", "-b", "feature").Run()
+	if err := os.WriteFile(filepath.Join(dir, "new.txt"), []byte("hi\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	exec.Command("git", "-C", dir, "add", ".").Run()
+	exec.Command("git", "-C", dir, "commit", "-m", "add new.txt").Run()
+
+	files, err := DiffRangeFiles(dir, base, "feature")
+	if err != nil {
+		t.Fatalf("DiffRangeFiles failed: %v", err)
+	}
+	if len(files) != 1 || files[0].Path != "new.txt" || files[0].Status != "A" {
+		t.Fatalf("expected new.txt added between base and feature, got %+v", files)
+	}
 }
 
 func TestDiffCommit(t *testing.T) {

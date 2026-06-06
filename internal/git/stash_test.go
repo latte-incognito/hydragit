@@ -109,3 +109,27 @@ func TestStashDrop(t *testing.T) {
 		t.Fatal("stash should be removed after drop")
 	}
 }
+
+func TestStashClear(t *testing.T) {
+	dir := makeRepoWithStagedFile(t)
+	StashSave(dir, "first")
+	// Stage another change and stash it too, so we prove clear removes ALL.
+	if err := os.WriteFile(filepath.Join(dir, "work.txt"), []byte("more\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	exec.Command("git", "-C", dir, "add", ".").Run()
+	StashSave(dir, "second")
+
+	if entries, _ := StashList(dir); len(entries) < 2 {
+		t.Fatalf("expected 2 stashes before clear, got %d", len(entries))
+	}
+
+	if err := StashClear(dir); err != nil {
+		t.Fatalf("StashClear failed: %v", err)
+	}
+
+	entries, _ := StashList(dir)
+	if len(entries) != 0 {
+		t.Fatalf("expected no stashes after clear, got %d", len(entries))
+	}
+}

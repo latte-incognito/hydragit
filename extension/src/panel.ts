@@ -20,10 +20,55 @@ async function fileExistsAtRef(absPath: string, ref: string): Promise<boolean> {
   }
 }
 
-export async function openFile(params: { file: string }): Promise<void> {
+export async function openFile(params: { file: string; ref?: string }): Promise<void> {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
   const absPath = path.join(workspaceRoot, params.file);
+  // With a ref, open the file's content as it was at that revision (read-only),
+  // via the built-in Git extension's `git:` scheme — "Open Repository Version".
+  if (params.ref) {
+    const uri = vscode.Uri.parse(`git:${absPath}`).with({
+      query: JSON.stringify({ path: absPath, ref: params.ref }),
+    });
+    await vscode.commands.executeCommand('vscode.open', uri);
+    return;
+  }
   await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(absPath));
+}
+
+// openWorkingDiff opens a diff editor comparing a file at a given revision (left)
+// against the current working-tree copy (right) — "Compare with Local". The ref
+// side is read-only via the built-in Git extension's `git:` scheme.
+export async function openWorkingDiff(params: {
+  file: string;
+  ref: string;
+  label?: string;
+}): Promise<void> {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const absPath = path.join(workspaceRoot, params.file);
+  const refUri = vscode.Uri.parse(`git:${absPath}`).with({
+    query: JSON.stringify({ path: absPath, ref: params.ref }),
+  });
+  const workingUri = vscode.Uri.file(absPath);
+  const label = params.label ?? params.ref.slice(0, 7);
+  const title = `${path.basename(params.file)} (${label} ↔ working tree)`;
+  await vscode.commands.executeCommand('vscode.diff', refUri, workingUri, title, { preview: true });
+}
+
+// savePatch prompts for a destination with a native save dialog and writes the
+// patch text there — the IntelliJ "Create Patch…" flow. Fire-and-forget from the
+// webview; feedback is shown natively.
+export async function savePatch(params: { content: string; name?: string }): Promise<void> {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const defaultUri = vscode.Uri.file(path.join(workspaceRoot, params.name ?? 'changes.patch'));
+  const target = await vscode.window.showSaveDialog({
+    defaultUri,
+    filters: { Patch: ['patch', 'diff'], 'All files': ['*'] },
+  });
+  if (!target) return; // user cancelled
+  // Ensure a trailing newline (run() trims it) so `git am` is happy.
+  const body = params.content.endsWith('\n') ? params.content : params.content + '\n';
+  await vscode.workspace.fs.writeFile(target, Buffer.from(body, 'utf8'));
+  vscode.window.showInformationMessage(`Patch saved to ${path.basename(target.fsPath)}`);
 }
 
 // Normalize a remote URL to its web (HTTPS) form. Supports the SSH and
@@ -68,15 +113,16 @@ async function openCommitUrl(params: { commit: string }): Promise<void> {
 }
 
 export async function openDiff(
-  params: { commit: string; parent: string; file: string },
+  params: { commit: string; parent: string; file: string; newTab?: boolean },
   opts?: { viewColumn?: vscode.ViewColumn; preserveFocus?: boolean }
 ): Promise<void> {
   const { commit, parent, file } = params;
 
   // Target a specific editor group (history panels) or the active one (default).
-  // preview:true so successive selections replace the diff in place.
+  // preview:true so successive selections replace the diff in place; newTab opens
+  // a persistent tab instead (double-click / "Show Diff in a New Tab").
   const show: vscode.TextDocumentShowOptions = {
-    preview: true,
+    preview: !params.newTab,
     viewColumn: opts?.viewColumn,
     preserveFocus: opts?.preserveFocus,
   };
@@ -133,6 +179,19 @@ export async function openDiff(
   await vscode.commands.executeCommand('vscode.diff', gitUri(parent), gitUri(commit), title, show);
 }
 
+// openMergeEditor opens VS Code's built-in 3-way merge resolver for a conflicted
+// file. Falls back to opening the file (with inline conflict-marker CodeLens) if
+// the git extension's merge-editor command isn't available.
+export async function openMergeEditor(params: { file: string }): Promise<void> {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const uri = vscode.Uri.file(path.join(workspaceRoot, params.file));
+  try {
+    await vscode.commands.executeCommand('git.openMergeEditor', uri);
+  } catch {
+    await vscode.commands.executeCommand('vscode.open', uri);
+  }
+}
+
 export class HydraViewProvider implements vscode.WebviewViewProvider {
   private watcher: vscode.FileSystemWatcher | undefined;
 
@@ -169,8 +228,35 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
         await openFile(msg.params);
         return;
       }
+      if (msg.cmd === 'openWorkingDiff') {
+        await openWorkingDiff(msg.params);
+        return;
+      }
+      if (msg.cmd === 'savePatch') {
+        await savePatch(msg.params);
+        return;
+      }
       if (msg.cmd === 'openCommitUrl') {
         await openCommitUrl(msg.params);
+        return;
+      }
+      // Dialog seam: the webview asks the host to show native prompt/confirm UI
+      // and awaits the result over the same id-based bus (see webview dialogs.ts).
+      if (msg.cmd === 'ui.prompt') {
+        const value = await vscode.window.showInputBox({
+          prompt: msg.params?.message,
+          value: msg.params?.value ?? '',
+        });
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data: value ?? null });
+        return;
+      }
+      if (msg.cmd === 'ui.confirm') {
+        const pick = await vscode.window.showWarningMessage(
+          msg.params?.message ?? 'Are you sure?',
+          { modal: true },
+          'Yes'
+        );
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data: pick === 'Yes' });
         return;
       }
 
@@ -295,6 +381,12 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
       // openDiff is handled in the extension host — same as main panel
       if (msg.cmd === 'openDiff') {
         await openDiff(msg.params);
+        return;
+      }
+
+      // Conflicted files route to VS Code's 3-way merge resolver.
+      if (msg.cmd === 'openMergeEditor') {
+        await openMergeEditor(msg.params);
         return;
       }
 

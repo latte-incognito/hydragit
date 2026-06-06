@@ -156,6 +156,14 @@ func Push(repoPath, branch string) error {
 	return err
 }
 
+// PushCommit pushes history up to (and including) commit onto the remote branch
+// — "Push All up to Here". Uses the <src>:<dst> refspec so only commits up to
+// `commit` are published, leaving anything after it local.
+func PushCommit(repoPath, commit, branch string) error {
+	_, err := run(repoPath, "push", "origin", commit+":refs/heads/"+branch)
+	return err
+}
+
 func Fetch(repoPath string) error {
 	_, err := run(repoPath, "fetch", "--all")
 	return err
