@@ -418,6 +418,53 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "conflicts":
+		info, err := git.Conflicts(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, info)
+
+	case "conflict.keepCurrent", "conflict.keepIncoming", "conflict.resolve":
+		var p struct {
+			File string `json:"file"`
+		}
+		json.Unmarshal(req.Params, &p)
+		var cerr error
+		switch req.Cmd {
+		case "conflict.keepCurrent":
+			cerr = git.KeepCurrent(repoPath, p.File)
+		case "conflict.keepIncoming":
+			cerr = git.KeepIncoming(repoPath, p.File)
+		default:
+			cerr = git.MarkResolved(repoPath, p.File)
+		}
+		if cerr != nil {
+			return fail(id, cerr)
+		}
+		return ok(id, nil)
+
+	case "conflict.continue":
+		var p struct {
+			Operation string `json:"operation"`
+		}
+		json.Unmarshal(req.Params, &p)
+		conflict, err := git.ContinueConflict(repoPath, p.Operation)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"conflict": conflict})
+
+	case "conflict.abort":
+		var p struct {
+			Operation string `json:"operation"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.AbortConflict(repoPath, p.Operation); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "reset":
 		var p struct {
 			Commit string `json:"commit"`
@@ -591,6 +638,25 @@ func handle(repoPath string, req Request) Response {
 			return fail(id, err)
 		}
 		return ok(id, result)
+
+	case "commit.amend":
+		var p struct {
+			Message string   `json:"message"`
+			Paths   []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		result, err := git.AmendCommit(repoPath, p.Message, p.Paths)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, result)
+
+	case "commit.lastMessage":
+		msg, err := git.LastCommitMessage(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, msg)
 
 	case "revert":
 		var p struct {
