@@ -200,6 +200,42 @@ func RunInteractiveRebase(repoPath, base string, items []RebaseTodoItem) (confli
 	return false, nil
 }
 
+// SquashWithParent folds `commit` into its immediate parent, combining their
+// messages into one commit in their place (one-click squash of two adjacent
+// commits — ideas.md). Built on the interactive-rebase machinery, so it works
+// for any commit whose parent itself has a parent (not a root commit). Returns
+// conflict=true if the rebase paused on a conflict.
+func SquashWithParent(repoPath, commit string) (conflict bool, err error) {
+	// base = grandparent of `commit`. The parent is then the first replayed
+	// commit and `commit` is squashed into it. Fails cleanly when the parent is a
+	// root commit (no grandparent to rebase onto).
+	base, err := run(repoPath, "rev-parse", "--verify", commit+"~2")
+	if err != nil {
+		return false, fmt.Errorf("can't squash: the parent is a root commit (nothing to fold it into)")
+	}
+	target, err := run(repoPath, "rev-parse", "--verify", commit)
+	if err != nil {
+		return false, err
+	}
+
+	shaList, err := run(repoPath, "rev-list", "--reverse", base+"..HEAD")
+	if err != nil {
+		return false, err
+	}
+	var items []RebaseTodoItem
+	for _, sha := range strings.Split(shaList, "\n") {
+		if sha == "" {
+			continue
+		}
+		action := "pick"
+		if sha == target {
+			action = "squash" // fold into the preceding parent, combining messages
+		}
+		items = append(items, RebaseTodoItem{Sha: sha, Action: action})
+	}
+	return RunInteractiveRebase(repoPath, base, items)
+}
+
 // writeTempFile writes content to a new temp file and returns its path plus a
 // cleanup func.
 func writeTempFile(prefix, content string) (path string, cleanup func(), err error) {

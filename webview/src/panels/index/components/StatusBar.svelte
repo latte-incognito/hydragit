@@ -1,6 +1,7 @@
 <script lang="ts">
   export let branch: string = 'master';
   export let info: string = '';
+  export let infoTitle: string = ''; // tooltip with the raw ↑/↓ symbols
   export let countsText: string = '';
   export let iconUri: string = '';
 </script>
@@ -15,7 +16,7 @@
           stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
   </svg>
   <span class="sb-branch">{branch}</span>
-  <span class="sb-info">{info}</span>
+  <span class="sb-info" title={infoTitle}>{info}</span>
   <span class="sb-right">{countsText}</span>
 </div>
 

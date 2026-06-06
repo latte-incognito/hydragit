@@ -7,6 +7,14 @@ type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void };
 export class GoProcess {
   private proc: cp.ChildProcess;
   private pending = new Map<string, Pending>();
+  private disposed = false;
+
+  /**
+   * Fired when the Go process dies unexpectedly (crash/error), NOT on an
+   * intentional dispose(). The extension uses this to surface a critical-error
+   * popup offering a reload (#3). Fires at most once per process.
+   */
+  onCrash?: (reason: string) => void;
 
   constructor(binaryPath: string, repoPath: string, logDir: string) {
     this.proc = cp.spawn(binaryPath, [], {
@@ -47,12 +55,21 @@ export class GoProcess {
       // Settle every in-flight request — otherwise their promises hang forever
       // and the UI gets stuck waiting on a process that will never reply (#20).
       this.rejectAll(new Error(`Go process exited (code=${code}, signal=${signal})`));
+      if (!this.disposed) this.fireCrash(`HydraGit's git backend exited unexpectedly (code=${code}, signal=${signal}).`);
     });
 
     this.proc.on('error', (err) => {
       Logger.error('process', `Go process error: ${err.message}`);
       this.rejectAll(new Error(`Go process error: ${err.message}`));
+      if (!this.disposed) this.fireCrash(`HydraGit's git backend failed: ${err.message}`);
     });
+  }
+
+  /** Fire onCrash at most once (exit + error can both arrive for one death). */
+  private fireCrash(reason: string): void {
+    const cb = this.onCrash;
+    this.onCrash = undefined;
+    cb?.(reason);
   }
 
   /** Reject and clear all pending requests — used when the process dies. */
@@ -73,6 +90,7 @@ export class GoProcess {
 
   dispose(): void {
     Logger.info('process', 'Go process disposed');
+    this.disposed = true; // suppress the crash popup for an intentional shutdown
     this.proc.kill();
   }
 }

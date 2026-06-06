@@ -7,6 +7,7 @@ import ActionRail from './ActionRail.svelte';
 // Order matches ActionRail.svelte top-to-bottom.
 const RAIL_ACTIONS = [
   'sync',                           // primary — fetch + integrate
+  'branch.switch',                  // checkout — high-frequency, kept near the top
   'fetch', 'pull', 'push',          // granular remote group
   'branch.new', 'merge', 'rebase', 'branch.delete', // branch group
   'stash.save', 'tag',              // stash / tag group

@@ -18,3 +18,12 @@ export function uiPrompt(message: string, value = ''): Promise<string | null> {
 export function uiConfirm(message: string): Promise<boolean> {
   return send<boolean>('ui.confirm', { message });
 }
+
+/**
+ * Native quick-pick (type-to-filter autocomplete). Resolves to the chosen
+ * item, or null if cancelled. Used for "switch to branch" so the user gets a
+ * filterable branch list instead of typing a name blind.
+ */
+export function uiPick(items: string[], placeholder = ''): Promise<string | null> {
+  return send<string | null>('ui.pick', { items, placeholder });
+}

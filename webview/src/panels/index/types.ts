@@ -73,6 +73,7 @@ export interface GitStatus {
   ahead: number;
   behind: number;
   modified: number;
+  detached?: boolean;
 }
 
 export interface Tag {

@@ -236,6 +236,18 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, u)
 
+	case "user.set":
+		var p struct {
+			Name   string `json:"name"`
+			Email  string `json:"email"`
+			Global bool   `json:"global"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.SetUser(repoPath, p.Name, p.Email, p.Global); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "blame":
 		var p struct {
 			Path     string `json:"path"`
@@ -362,6 +374,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "branch.delete.remote":
+		var p struct {
+			Remote string `json:"remote"`
+			Branch string `json:"branch"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.DeleteRemoteBranch(repoPath, p.Remote, p.Branch); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "branch.rename":
 		var p struct {
 			From string `json:"from"`
@@ -396,6 +419,17 @@ func handle(repoPath string, req Request) Response {
 			return fail(id, err)
 		}
 		return ok(id, renamed)
+
+	case "branch.rename.folder.remote":
+		var p struct {
+			NewPrefix string `json:"newPrefix"`
+		}
+		json.Unmarshal(req.Params, &p)
+		propagated, err := git.RenameBranchFolderRemote(repoPath, p.NewPrefix)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, propagated)
 
 	case "branch.containing":
 		var p struct {
@@ -477,6 +511,13 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, map[string]bool{"stashed": stashed})
 
+	case "undo.last":
+		res, err := git.UndoLast(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, res)
+
 	case "reflog":
 		entries, err := git.Reflog(repoPath)
 		if err != nil {
@@ -512,6 +553,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		json.Unmarshal(req.Params, &p)
 		conflict, err := git.RunInteractiveRebase(repoPath, p.Base, p.Items)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"conflict": conflict})
+
+	case "commit.squash":
+		var p struct {
+			Commit string `json:"commit"`
+		}
+		json.Unmarshal(req.Params, &p)
+		conflict, err := git.SquashWithParent(repoPath, p.Commit)
 		if err != nil {
 			return fail(id, err)
 		}

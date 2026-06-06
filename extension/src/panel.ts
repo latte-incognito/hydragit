@@ -266,6 +266,14 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({ id: msg.id, ok: true, data: pick === 'Yes' });
         return;
       }
+      if (msg.cmd === 'ui.pick') {
+        const choice = await vscode.window.showQuickPick(msg.params?.items ?? [], {
+          placeHolder: msg.params?.placeholder ?? '',
+          matchOnDescription: true,
+        });
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data: choice ?? null });
+        return;
+      }
 
       try {
         const data = await this.goProcess.send(msg.cmd, msg.params ?? {});

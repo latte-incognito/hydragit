@@ -226,6 +226,21 @@
 
   <div class="tb-spacer"></div>
 
+  <!-- Undo last operation — express lane: abort an in-progress op, else rewind
+       to ORIG_HEAD (the state before the last merge/rebase/reset/pull). -->
+  <button
+    class="undo-btn"
+    on:click={() => onAction('undo')}
+    on:mouseenter={(e) => showTip(e, 'Undo last operation')}
+    on:mouseleave={hideTip}
+  >
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M4 3L1.5 5.5 4 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M1.5 5.5H8a3.5 3.5 0 010 7H5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+    </svg>
+    Undo
+  </button>
+
 </div>
 
 <style>
@@ -447,6 +462,18 @@
   }
   .filter-pill:hover { border-color: var(--vscode-focusBorder, #007fd4); color: var(--vscode-foreground, #ccc); }
   .filter-pill.active { background: rgba(86,200,232,0.08); border-color: #1a5a7a; color: #56c8e8; }
+
+  /* ── Undo button ── */
+  .undo-btn {
+    display: flex; align-items: center; gap: 4px;
+    border: 0.5px solid var(--vscode-widget-border, #3a3a3a);
+    border-radius: 3px; padding: 2px 8px;
+    font-size: var(--hg-font-xxs); font-family: var(--hg-font-family);
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    color: var(--vscode-disabledForeground, #888);
+    background: none; transition: all 0.12s;
+  }
+  .undo-btn:hover { border-color: #e0a030; color: #e0a030; background: rgba(224,160,48,0.08); }
 
   /* ── Tooltip ── */
   .hg-tooltip {
