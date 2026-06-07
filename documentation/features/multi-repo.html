@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Multi-repo workspaces — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Views &amp; Layout<span class="sep">/</span>Multi-repo</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#discovery" class="head">Repo discovery</a>
+      <a href="#groups">Grouped sidebar</a>
+      <a href="#focus">Focus &amp; the main panel</a>
+      <a href="#breadcrumb">Status-bar breadcrumb</a>
+      <a href="#scoping">Per-repo command scoping</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Multi-repo workspaces</h1>
+      <p class="lede">
+        One HydraGit window, many repositories. When a workspace contains more than one git
+        repo (multi-root folders or a nested repo), the sidebar shows each as its own
+        collapsible group — VS Code's native Source Control layout — while the main panel
+        (log graph, branch tree, diff) follows whichever repo you <b>focus</b>.
+      </p>
+
+      <section class="feature" id="discovery">
+        <h2>Repo discovery <span class="cmd">RepoService</span></h2>
+        <h3 class="lbl">Where repos come from</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Built-in Git API</span><span class="what">Discovery leans on VS Code's <code>vscode.git</code> extension (<code>getAPI(1).repositories</code>), kept live via <b>onDidOpenRepository</b> / <b>onDidCloseRepository</b> — it finds multi-root and nested repos.</span></li>
+          <li><span class="where">Fallback scan</span><span class="what">If the built-in Git extension is unavailable, HydraGit scans each workspace folder for a <code>.git</code>.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>The active (focused) repo is persisted per-workspace in <code>workspaceState</code> and restored on reload.</li>
+          <li>The repo list + active root are pushed to both webviews as the <b>repoState</b> message; a freshly-mounted view pulls it once via <span class="cmd">repo.list</span>.</li>
+          <li>Single-repo workspaces are unaffected — the grouping UI and status-bar switcher stay hidden.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="groups">
+        <h2>Grouped sidebar <span class="cmd">RepoGroup</span></h2>
+        <p>Each repo renders as its own section: a header (<b>name · branch · change count</b>), its conflict banner, its changed-files tree, and its own commit area. Staging and committing in a group are scoped entirely to that repo.</p>
+        <ul class="plain">
+          <li><b>Click the header line</b> to expand / collapse the group (and focus the repo).</li>
+          <li>Each group polls its own <span class="cmd">status</span> every 3&nbsp;seconds and re-renders only when something actually changed.</li>
+          <li>With a single repo the header is hidden and the view stays flat — identical to the classic sidebar.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="sidebar.html">Sidebar — staging view</a><a href="commit.html">Staging &amp; commit</a></div>
+      </section>
+
+      <section class="feature" id="focus">
+        <h2>Focus &amp; the main panel</h2>
+        <p>Clicking a group focuses its repo. Focus <em>is</em> the active repo, so the main panel — log graph, branch tree, diff — repaints to show the focused repo's history. One graph at a time, driven by which group you touch.</p>
+        <div class="related"><b>Related</b><a href="main-panel.html">Main panel</a><a href="commit-log-graph.html">Commit log &amp; graph</a></div>
+      </section>
+
+      <section class="feature" id="breadcrumb">
+        <h2>Status-bar breadcrumb <span class="cmd">repo.pick</span></h2>
+        <p>The main panel's bottom status bar shows <code>repo ▸ branch</code> for the focused repo. Clicking the repo segment opens the native repo quick-pick (<span class="cmd">repo.pick</span>). VS Code's own status bar also carries a <code>$(repo)</code> switcher (<span class="cmd">hydragit.selectRepo</span>) that survives any panel being closed.</p>
+        <div class="related"><b>Related</b><a href="status.html">Repository status, status bar &amp; badge</a></div>
+      </section>
+
+      <section class="feature" id="scoping">
+        <h2>Per-repo command scoping</h2>
+        <p>Every IPC request carries an optional <code>repo</code> root. The grouped sidebar stamps each group's root so it can read and commit a specific repo <b>without changing focus</b>; when omitted the request falls back to the focused repo, then to the Go process's spawn default.</p>
+        <ol class="flow">
+          <li>Webview <code>send(cmd, params, repo?)</code> → host <code>goProcess.send(cmd, params, repo?)</code> → Go's <code>Request.Repo</code>.</li>
+          <li>The Go handler runs <code>git</code> against <code>req.Repo</code> when set, else the spawn-time <code>HYDRAGIT_REPO</code>. One process serves every repo.</li>
+          <li>Host path-helpers (diff/open) also accept the repo root, so a diff opened from a non-focused group resolves against the right files.</li>
+        </ol>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="sidebar.html"><small>Prev</small> Sidebar</a>
+        <a class="next" href="status.html"><small>Next</small> Repository status</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Multi-repo</footer>
+</body>
+</html>

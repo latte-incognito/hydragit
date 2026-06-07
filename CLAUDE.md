@@ -42,12 +42,13 @@ internal/git/worktree.go      Worktrees (list), WorktreeAdd/AddNew, Remove, Lock
 internal/graph/lanes.go       Lane assignment algorithm — output sent to Webview as LaidOutCommit
 internal/ipc/handler.go       Routes cmd strings to git.* functions, timing + logging
 internal/logger/logger.go     Daily rotating JSON-lines log files, package-level singleton
-extension/src/extension.ts    activate(), spawn Go binary, register commands
-extension/src/goProcess.ts    ChildProcess wrapper, pending promise map
+extension/src/extension.ts    activate(), spawn Go binary, register commands, multi-repo wiring + status-bar switcher
+extension/src/goProcess.ts    ChildProcess wrapper, pending promise map, per-request repo stamping
+extension/src/RepoService.ts  Multi-repo: discovery (vscode.git API/scan), active(focused) repo, persistence
 extension/src/panel.ts        WebviewPanel providers (main + sidebar + badge), postMessage relay, diff/open/url helpers
 extension/src/Logger.ts       TS-side Output Channel logger
 extension/src/HydraStatusService.ts  Polls status every 3s, fires onDidChange
-webview/src/panels/sidebar/   Svelte sidebar: file tree, staging, commit area
+webview/src/panels/sidebar/   Svelte sidebar: RepoGroup per repo (file tree, staging, commit area); shared/repoStore.ts holds repo state
 webview/src/panels/index/     Svelte main panel: branch tree, log, detail/diff pane
 webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame cards
 ```
@@ -107,6 +108,7 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 | Blame (buffer-aware), committer info | `blame`, `user` |
 | File history + line/selection history | `file.history`, `line.history` |
 | Worktrees list + add/remove/lock/unlock/move/prune/open | `worktree.list`, `worktree.*`, `worktree.open` (host) |
+| Multi-repo (grouped sidebar, focused main panel) | `repo.list`, `repo.select`, `repo.pick` (host); every request takes an optional `repo` root |
 
 > Backlog + what's deliberately not built yet → `docs/ideas.md` (single source of
 > truth). Don't implement a new feature without asking first.
