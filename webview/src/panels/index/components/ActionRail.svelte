@@ -114,20 +114,10 @@
     flex-shrink: 0;
     height: 100%;
     min-height: 0;
-    /* Scroll only when the buttons don't fit a short viewport; no scrollbar
-       otherwise. Thin + transparent track so it stays unobtrusive on the rail. */
+    /* Scroll only when the buttons don't fit a short viewport. The scrollbar
+       styling (thin, auto-hide) comes from the global rule in vscode-theme.css. */
     overflow-y: auto;
-    scrollbar-width: thin;
   }
-  .rail::-webkit-scrollbar { width: 6px; }
-  .rail::-webkit-scrollbar-thumb {
-    background: var(--vscode-scrollbarSlider-background, #79797966);
-    border-radius: 3px;
-  }
-  .rail::-webkit-scrollbar-thumb:hover {
-    background: var(--vscode-scrollbarSlider-hoverBackground, #646464b3);
-  }
-  .rail::-webkit-scrollbar-track { background: transparent; }
 
   .rail-btn {
     width: 26px;

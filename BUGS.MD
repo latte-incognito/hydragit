@@ -1,0 +1,1 @@
+1. Scroll Bar inside activity rail next to branch pane, and isnisde branch pain should not widen on mouse over
