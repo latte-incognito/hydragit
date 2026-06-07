@@ -9,24 +9,37 @@ GitLens went paywalled. VS Code's built-in git panel has no history view.
 If you came from IntelliJ and miss having everything in one panel — this is it.
 
 ## Features
-- Branch tree — local + remote, right-click actions
-- Commit log — lane graph, subject, author, date, branch/tag pills, search
-- Inline diff — click a commit, see changed files and diff
-- Stage & commit — file tree, commit / commit & push, right from the sidebar
-- Stash manager — list, pop, apply, drop, show, save
-- Branch actions — checkout, merge, rebase, reset, rename, delete, push
-- Tags — list, create, delete
-- History & blame — file history, line/selection history, inline blame
+- **Branch tree** — local + remote, folder grouping, right-click actions, ahead/behind
+- **Commit log + lane graph** — HydraGit's own lane engine, virtualized full history, hover-highlight, search (message / hash / file / author)
+- **Inline diff** — click a commit, see changed files and per-file hunks
+- **Compare** — branch/ref ↔ ref, ref ↔ working tree, file ↔ local
+- **Stage & commit** — file tree, commit / commit & push / amend, right from the sidebar
+- **Stash manager** — list, save, pop, apply, drop, clear, show
+- **Branch actions** — checkout, create, merge, rebase, reset, rename (local + remote + folder), delete (local + remote)
+- **History rewriting** — interactive rebase editor, squash, drop, reword, create patch, push-up-to — all pause-on-conflict
+- **Conflict resolution** — guided banner: keep current/incoming, open merge editor, continue/abort
+- **Remotes** — one-click Sync, fetch/pull (+ mode)/push, safe force-push (`--force-with-lease`), auto-set upstream
+- **Undo & safety** — reflog undo timeline (soft/mixed/hard reset), undo last operation, auto-stash net, detached-HEAD & identity banners
+- **Tags** — list, create (lightweight/annotated), delete
+- **History & blame** — file history, line/selection history, inline blame
+
+📖 **Full feature documentation** (every entry point → what happens next):
+[`documentation/index.html`](documentation/index.html) ·
+name index: [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md)
 
 ## Install
 Search `HydraGit` in Extensions, or: `ext install vkushnarenko.hydragit`
 
 ## Usage
-Command palette → `HydraGit: Open`
-Or click the HydraGit button in the Source Control panel header.
+Open it from either surface:
+- Click the **HydraGit** hexagon in the **activity bar** (sidebar staging view).
+- Open the **HydraGit** tab in VS Code's **bottom panel** (branch tree + log + diff).
 
-**The GIF is not optional.** Extensions without a GIF get ~5x fewer installs.
-Record it before publishing. 15 seconds: open panel → branch tree → click branch → log updates → click commit → detail panel → click file → diff → right-click branch → context menu.
+Editor extras: right-click a file → **HydraGit: File History**; select lines →
+**History for Selection**; **Toggle Line Blame** for inline blame.
+
+> **TODO before publishing:** record the demo GIF for the Marketplace listing
+> (15s: open panel → branch tree → click branch → log → click commit → detail → file → diff → right-click → context menu). Extensions without a GIF get ~5× fewer installs.
 
 ---
 Marketplace: vkushnarenko.hydragit

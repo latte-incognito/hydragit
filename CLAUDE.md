@@ -25,14 +25,18 @@ VS Code spawns the Go binary on activation. TypeScript bridges postMessage (Webv
 cmd/hydragit/main.go          IPC loop — bufio.Scanner on stdin, fmt.Println to stdout
 internal/git/repo.go          run()/runStdin() — the only place os/exec is called
 internal/git/status.go        Status (ahead/behind, modified count, file list)
-internal/git/branches.go      Branches, Checkout, Create, Delete, Rename, Containing, Merge, Rebase, Reset, Push, Fetch, Pull, PullMode
+internal/git/branches.go      Branches, Checkout, Create, Delete(+Remote), Rename(+Remote/Folder), Containing, Merge, Rebase, Reset/ResetWithAutostash, Push, PushForce, PushCommit (push up to commit), Fetch, Pull, PullMode
 internal/git/log.go           Log, LogWith, LogFile, FileHistory, LineHistory
-internal/git/diff.go          DiffCommit (file list), DiffFile (hunks)
-internal/git/stash.go         StashList, StashPop, StashApply, StashDrop, StashShow, StashFiles, StashSave
-internal/git/commit.go        CreateCommit, CommitAndPush (stage paths + commit)
+internal/git/diff.go          DiffCommit (file list), DiffFile (hunks), DiffRangeFiles/DiffRefFiles (compare), FormatPatch
+internal/git/stash.go         StashList, StashPop, StashApply, StashDrop, StashClear, StashShow, StashFiles, StashSave
+internal/git/commit.go        CreateCommit, CommitAndPush (stage paths + commit), AmendCommit, LastCommitMessage
+internal/git/rebase.go        RunInteractiveRebase, DropCommit, RewordCommit, SquashWithParent, Rebase{Continue,Skip,Abort}, RebaseInProgress
+internal/git/conflict.go      Conflicts, KeepCurrent/KeepIncoming, MarkResolved, Continue/AbortConflict
+internal/git/reflog.go        Reflog — HEAD undo timeline
+internal/git/undo.go          UndoLast — abort in-progress op, else reset --hard ORIG_HEAD
 internal/git/tags.go          Tags, CreateTag, DeleteTag
 internal/git/blame.go         Blame — per-line, buffer-aware via runStdin
-internal/git/config.go        User (committer name/email)
+internal/git/config.go        User (committer name/email), SetUser (global identity)
 internal/git/cherrypick.go    CherryPick, Revert
 internal/graph/lanes.go       Lane assignment algorithm — output sent to Webview as LaidOutCommit
 internal/ipc/handler.go       Routes cmd strings to git.* functions, timing + logging
@@ -81,9 +85,10 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 
 ---
 
-## Current feature surface (v0.2.0, in repo)
+## Current feature surface (manifest v0.2.1; 0.3.0 wave in repo)
 
-> Full, authoritative inventory: `IMPLEMENTED_FEATURES.md`. Quick map below.
+> Name index: `IMPLEMENTED_FEATURES.md`. Per-feature HTML docs (UI entry point →
+> what happens next): `documentation/index.html`. Quick map below.
 
 | Feature | cmd |
 |---|---|
@@ -121,7 +126,8 @@ See `docs/ideas.md` for the full backlog and rationale.
 | File | Read when |
 |---|---|
 | `docs/PROJECT_CONTEXT.md` | Full architecture, data types, IPC reference, known issues |
-| `IMPLEMENTED_FEATURES.md` | Authoritative inventory of what already ships |
+| `IMPLEMENTED_FEATURES.md` | Authoritative name index of what ships — links into `documentation/` |
+| `documentation/index.html` | Per-feature HTML docs: UI entry point → what happens next (browsable) |
 | `docs/ideas.md` | Backlog — what's deliberately not built yet |
 | `docs/RELEASE.md` | Packaging, publishing, Marketplace |
 | `docs/SECURITY.md` | Threat model + open hardening TODOs |
