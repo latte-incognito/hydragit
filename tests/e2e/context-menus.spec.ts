@@ -20,7 +20,7 @@ async function mainFrame(page: any) {
 
 // ── Branch context menu ────────────────────────────────────────────────────────
 const BRANCH_ITEMS = [
-  "Checkout", "New Branch from", "Checkout and Rebase onto", "Compare with",
+  "Switch to Branch", "New Branch from", "Checkout and Rebase onto", "Compare with",
   "Show Diff with Working Tree", "Rebase", "Merge", "Pull into", "Delete",
 ];
 
