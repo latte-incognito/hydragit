@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Search &amp; filter — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Search &amp; filter</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#modes" class="head">Search modes</a>
+      <a href="#message">Message</a>
+      <a href="#hash">Hash prefix</a>
+      <a href="#file">File</a>
+      <a href="#author">Author</a>
+      <a href="#scope">Branch scope</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Search &amp; filter</h1>
+      <p class="lede">
+        The toolbar search box narrows the commit log four different ways, and the all-branches
+        toggle controls how much history is in scope. Message and author searches run
+        server-side so the lane graph is re-laid-out over just the matches.
+      </p>
+
+      <section class="feature" id="modes">
+        <h2>Search modes</h2>
+        <p>A mode switch sits to the left of the search input; each mode tints the box and has its own placeholder.</p>
+        <h3 class="lbl">Entry point</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Toolbar</span><span class="what">Click a mode icon (<span class="chip">Message</span> <span class="chip a">Hash</span> <span class="chip g">File</span> <span class="chip p">Author</span>), then type.</span></li>
+        </ul>
+      </section>
+
+      <section class="feature" id="message">
+        <h2>Message filter <span class="cmd">log --grep</span></h2>
+        <ol class="flow">
+          <li>Typing debounces, then Go re-runs <span class="cmd">log</span> with <code>grep</code>.</li>
+          <li>The graph is <b>re-laid-out over the matching commits</b> — connectors reflect just the filtered set.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="hash">
+        <h2>Hash prefix jump</h2>
+        <ol class="flow">
+          <li>Entered as a hash prefix (e.g. <code>a0c103</code>).</li>
+          <li>Resolved <b>client-side</b> against the loaded history to jump to the matching commit.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="file">
+        <h2>File search <span class="cmd">log.file</span></h2>
+        <ol class="flow">
+          <li>Enter a file name or path.</li>
+          <li>Go returns the commits touching that path (backs the same query as <a href="history.html#filehistory">file history</a>).</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="author">
+        <h2>Author filter <span class="cmd">log --author</span></h2>
+        <ol class="flow">
+          <li>Enter an author name or email.</li>
+          <li>Go re-runs <span class="cmd">log</span> with <code>author</code> server-side; the graph re-lays out over the matches.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="scope">
+        <h2>Branch scope</h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Toolbar pill</span><span class="what"><b>All branches / This branch</b> toggle.</span></li>
+          <li><span class="where">Branch combobox</span><span class="what">Picking a branch restricts the log to that branch.</span></li>
+        </ul>
+        <p>"All branches" passes <code>--all</code>; otherwise the log is scoped to the selected branch only.</p>
+        <div class="related"><b>Related</b><a href="commit-log-graph.html">Commit log &amp; graph</a><a href="branches.html">Branches</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="commit-log-graph.html"><small>Prev</small> Commit log &amp; graph</a>
+        <a class="next" href="diff.html"><small>Next</small> Commit diff</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Search &amp; filter</footer>
+</body>
+</html>

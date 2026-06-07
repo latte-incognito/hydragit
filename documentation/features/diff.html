@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Commit diff — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Diff &amp; Compare<span class="sep">/</span>Commit diff</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#filelist" class="head">Changed-file list</a>
+      <a href="#hunks">Per-file hunks</a>
+      <a href="#tabs">Preview vs persistent tab</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Commit diff</h1>
+      <p class="lede">
+        For any selected commit, the changed-file list plus per-file hunks — shown inline in the
+        detail pane, or opened in a real diff editor tab.
+      </p>
+
+      <section class="feature" id="filelist">
+        <h2>Changed-file list <span class="cmd">diff</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Log pane</span><span class="what">Click a commit row → the detail pane lists its changed files as a tree.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>Go runs <span class="cmd">diff</span> with <code>{ commit }</code> and returns <code>[]FileStat</code> — the changed paths with add/delete/rename status.</li>
+          <li>The detail pane renders them in a collapsible file tree.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="hunks">
+        <h2>Per-file hunks <span class="cmd">diff</span></h2>
+        <ol class="flow">
+          <li>Clicking a file calls <span class="cmd">diff</span> with <code>{ commit, file }</code>, returning <code>[]Hunk</code>.</li>
+          <li>The hunks render as an inline diff with added (<span class="chip g">+</span>) and removed (<span class="chip r">−</span>) lines.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="tabs">
+        <h2>Preview vs persistent tab</h2>
+        <ul class="plain">
+          <li><b>Single-click</b> a file → opens in a <b>preview</b> tab (italic title, reused for the next file).</li>
+          <li><b>Double-click</b>, or use <b>"Show Diff in a New Tab"</b>, → opens a <b>persistent</b> editor tab.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="compare.html">Compare (ref / working tree)</a><a href="commit-log-graph.html#detail">Commit detail pane</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="search-filter.html"><small>Prev</small> Search &amp; filter</a>
+        <a class="next" href="compare.html"><small>Next</small> Compare</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Commit diff</footer>
+</body>
+</html>

@@ -7,6 +7,12 @@ These are the things actually worth thinking about.
 > **Audited 2026-05-30 against the code.** Status legend in each section:
 > ✅ done · ⚠️ still open · 🔎 verified. Most hardening TODOs below are still open —
 > they describe intended defenses, not the current state.
+>
+> **Re-verified 2026-06-06:** the stray tracked `hydragit-server` binary is now
+> gone (✅). Still open: the message-bus command allowlist / shape validation, the
+> `HYDRAGIT_REPO` repo check in `main.go`, and empty-param rejection in `handler.go`.
+> The 0.3.0 wave added history-rewriting and force-push commands — see
+> **Destructive Operations** below.
 
 ---
 
@@ -63,6 +69,9 @@ font-src   data:;
 | `stash.drop` | No undo — stash is permanently gone | Already requires explicit user action in UI. Go side: validate index is in range before running | ⚠️ Open — `stash.go` formats `stash@{N}` and lets git reject out-of-range (safe but unvalidated). |
 | `rebase` | Rewrites history. On shared branches, force-push required, breaks teammates | No code fix — this is a git concept. Surface a warning in UI before rebasing non-local branches | Add `isRemote` check in webview before sending `rebase` cmd; show confirmation if true |
 | `push` with arbitrary branch param | Could push to wrong branch if param is wrong | Validate branch param matches a known local branch (already in your branch list) | Cross-check `push` param against last-known branch list in extension host before forwarding to Go |
+| `push.force` (force-with-lease) | Rewrites the remote branch; can clobber teammates' work | Already uses `--force-with-lease` (refuses to overwrite unseen remote commits) and is only offered after a rejected push. | 🔎 Mitigated — lease guards against unseen commits. Still warn loudly for shared branches. |
+| History rewriting (`rebase.interactive`, `rebase.drop`, `rebase.reword`, `commit.squash`, `commit.amend`, `push.upto`) | Rewrites local commits; needs force-push to publish; breaks teammates on shared branches | UI confirms each rewrite and pauses (never auto-aborts) on conflict; `ORIG_HEAD`/reflog allow recovery via the undo timeline. | ⚠️ Open — no extension-host check that the target isn't a published/shared branch before rewriting. |
+| Reflog reset (`reset --hard` via undo timeline) + `undo.last` | Discards uncommitted work / moves HEAD | Hard reset auto-stashes a dirty tree first (`ResetWithAutostash`); each reset takes one confirmation. | ✅ Auto-stash net in place — destructive reset is recoverable from the stash. |
 
 ---
 
@@ -80,7 +89,7 @@ font-src   data:;
 | Thing | Risk | Fix | TODO |
 |---|---|---|---|
 | Binary in `bin/` is not signed | macOS Gatekeeper may block it; users get security prompts | Sign and notarize the binary for macOS distribution | Set up `codesign` + `xcrun notarytool` in Makefile `build-darwin` target before publishing |
-| Binary committed to git | Large binaries bloat repo history | Binaries should be gitignored, bundled only in `.vsix` | ⚠️ Partly — `bin/hydragit-server*` is gitignored, but a stray root `hydragit-server` (~3 MB) is still tracked. `git rm --cached hydragit-server` to untrack. |
+| Binary committed to git | Large binaries bloat repo history | Binaries should be gitignored, bundled only in `.vsix` | ✅ Done — `bin/hydragit-server*` is gitignored and no `hydragit-server` binary is tracked (`git ls-files` clean as of 2026-06-06). |
 | `.vsix` contains all 4 platform binaries | Users download binaries for platforms they don't use (~adds ~10MB) | Acceptable for v0.1. Future: platform-specific `.vsix` via `vsce package --target` | Post-v0.1: add `--target` builds to Makefile for each platform |
 
 ---

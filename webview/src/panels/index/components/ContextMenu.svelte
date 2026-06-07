@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { Worktree } from '../types';
+
   // Branch context menu
   export let branchMenu: {
     visible: boolean;
@@ -32,9 +34,18 @@
     current: '',
   };
 
+  // Worktree context menu
+  export let worktreeMenu: { visible: boolean; x: number; y: number; wt: Worktree | null } = {
+    visible: false,
+    x: 0,
+    y: 0,
+    wt: null,
+  };
+
   export let onBranchAction: (a: string) => void = () => {};
   export let onStashAction: (a: string) => void = () => {};
   export let onTagAction: (a: string) => void = () => {};
+  export let onWorktreeAction: (a: string) => void = () => {};
 
   function fitMenu(node: HTMLElement) {
     requestAnimationFrame(() => {
@@ -126,6 +137,29 @@
     <div class="ci" on:click={() => onTagAction('push')}>Push to origin</div>
     <div class="ctx-sep"></div>
     <div class="ci danger" on:click={() => onTagAction('delete')}>Delete</div>
+  </div>
+{/if}
+
+<!-- Worktree context menu -->
+{#if worktreeMenu.visible && worktreeMenu.wt}
+  {@const wt = worktreeMenu.wt}
+  <div class="ctx show" style="left:{worktreeMenu.x}px;top:{worktreeMenu.y}px" use:fitMenu>
+    <div class="ci" class:disabled={wt.isMain} on:click={() => onWorktreeAction('open')}>
+      Open in New Window
+    </div>
+    <div class="ctx-sep"></div>
+    {#if wt.locked}
+      <div class="ci" on:click={() => onWorktreeAction('unlock')}>Unlock</div>
+    {:else}
+      <div class="ci" class:disabled={wt.isMain} on:click={() => onWorktreeAction('lock')}>Lock</div>
+    {/if}
+    <div class="ci" class:disabled={wt.isMain} on:click={() => onWorktreeAction('move')}>Move…</div>
+    <div class="ctx-sep"></div>
+    <div class="ci" on:click={() => onWorktreeAction('prune')}>Prune Stale Worktrees</div>
+    <div class="ctx-sep"></div>
+    <div class="ci danger" class:disabled={wt.isMain} on:click={() => onWorktreeAction('remove')}>
+      Remove
+    </div>
   </div>
 {/if}
 

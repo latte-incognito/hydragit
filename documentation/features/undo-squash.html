@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Undo &amp; squash — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Undo &amp; Safety<span class="sep">/</span>Undo &amp; squash</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#undo" class="head">Undo last operation</a>
+      <a href="#squash">Squash with parent</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Undo &amp; squash</h1>
+      <p class="lede">
+        A one-button escape hatch for "that wasn't what I meant", and a quick way to fold a commit
+        into its parent.
+      </p>
+
+      <section class="feature" id="undo">
+        <h2>Undo last operation <span class="cmd amber">undo.last</span></h2>
+        <p>The toolbar express lane that does the right thing depending on repo state.</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Toolbar</span><span class="what">The <b>Undo</b> button (right side, amber on hover).</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>If a merge / rebase / cherry-pick / revert is in progress, it <b>aborts</b> that operation.</li>
+          <li>Otherwise it rewinds to <code>ORIG_HEAD</code> with <code>reset --hard</code> — the state before the last merge/rebase/reset/pull.</li>
+          <li>A dirty tree is <b>auto-stashed first</b>, so nothing is lost.</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="reflog.html">Reflog (finer-grained undo)</a><a href="conflicts.html">Conflict resolution</a></div>
+      </section>
+
+      <section class="feature" id="squash">
+        <h2>Squash with parent <span class="cmd amber">commit.squash</span></h2>
+        <p>Folds a commit into its parent — the two become one, messages combined — via the interactive-rebase machinery.</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Commit menu</span><span class="what"><b>Squash with Parent</b>.</span></li>
+        </ul>
+        <p>Full flow (with confirmation and pause-on-conflict) on the <a href="interactive-rebase.html#squash">history rewriting</a> page.</p>
+        <div class="related"><b>Related</b><a href="interactive-rebase.html">History rewriting</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="reflog.html"><small>Prev</small> Reflog timeline</a>
+        <a class="next" href="health-banners.html"><small>Next</small> Health banners</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Undo &amp; squash</footer>
+</body>
+</html>

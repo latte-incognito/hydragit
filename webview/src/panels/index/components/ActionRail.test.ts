@@ -7,9 +7,11 @@ import ActionRail from './ActionRail.svelte';
 // Order matches ActionRail.svelte top-to-bottom.
 const RAIL_ACTIONS = [
   'sync',                           // primary — fetch + integrate
+  'branch.switch',                  // checkout — high-frequency, kept near the top
   'fetch', 'pull', 'push',          // granular remote group
   'branch.new', 'merge', 'rebase', 'branch.delete', // branch group
   'stash.save', 'tag',              // stash / tag group
+  'worktree.new',                   // new worktree (purple accent)
 ];
 
 describe('ActionRail', () => {
@@ -41,6 +43,15 @@ describe('ActionRail', () => {
     const { container } = render(ActionRail, {});
     const danger = container.querySelectorAll('button.rail-btn.danger');
     expect(danger.length).toBe(1);
+  });
+
+  it('marks the worktree button purple and fires worktree.new', async () => {
+    const onAction = vi.fn();
+    const { container } = render(ActionRail, { onAction });
+    const wt = container.querySelector('button.rail-btn.worktree') as HTMLElement;
+    expect(wt).toBeTruthy();
+    await fireEvent.click(wt);
+    expect(onAction).toHaveBeenCalledWith('worktree.new');
   });
 
   it('Sync is the first, primary-accented button', async () => {

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Logging &amp; diagnostics — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Tooling<span class="sep">/</span>Logging &amp; diagnostics</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#logs" class="head">Logs folder</a>
+      <a href="#version">Version info</a>
+      <a href="#refresh">Force refresh</a>
+      <a href="#layers">Where logs live</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Logging &amp; diagnostics</h1>
+      <p class="lede">
+        Diagnostics for when something looks off: open the rotating log files, check the running
+        version, or force a full reload of the panel data.
+      </p>
+
+      <section class="feature" id="logs">
+        <h2>Open logs folder <span class="cmd">hydragit.openLogs</span></h2>
+        <ul class="entrypoints">
+          <li class="kbd"><span class="where">Command</span><span class="what"><b>HydraGit: Open Logs Folder</b> — reveals the log directory in your OS file manager.</span></li>
+        </ul>
+      </section>
+
+      <section class="feature" id="version">
+        <h2>Show version info <span class="cmd">hydragit.showVersionInfo</span></h2>
+        <ul class="entrypoints">
+          <li class="kbd"><span class="where">Command</span><span class="what"><b>HydraGit: Show Version Info</b> — shows the version (and build metadata) in the Output Channel and an info message.</span></li>
+        </ul>
+      </section>
+
+      <section class="feature" id="refresh">
+        <h2>Force refresh <span class="cmd">hydragit.forceRefresh</span></h2>
+        <ul class="entrypoints">
+          <li class="kbd"><span class="where">Command</span><span class="what"><b>HydraGit: Force Refresh</b> — re-pulls status, branches, log, stash and tags if the panel ever looks stale.</span></li>
+        </ul>
+      </section>
+
+      <section class="feature" id="layers">
+        <h2>Where logs live</h2>
+        <table>
+          <tr><th>Layer</th><th>Format</th><th>Location</th></tr>
+          <tr><td>Go backend</td><td>JSON lines, daily files <code>hydragit-YYYY-MM-DD.log</code> (kept 7 days)</td><td>Logs folder (<code>HYDRAGIT_LOG_DIR</code>)</td></tr>
+          <tr><td>Extension host</td><td><code>TIMESTAMP LEVEL [source] msg</code></td><td>Output Channel "HydraGit"</td></tr>
+          <tr><td>Webview</td><td><code>console.*</code></td><td>Webview DevTools (F12)</td></tr>
+        </table>
+        <p>The Go log captures every git command (with duration + exit code) and every IPC request/response; the TS channel captures activate/deactivate, process spawn/crash and Go stderr.</p>
+        <div class="note"><span class="ic">i</span><span>To inspect logs, filter by a specific request <code>id</code> or time range rather than reading whole files.</span></div>
+        <div class="related"><b>Related</b><a href="health-banners.html#reload">Critical-error reload</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="context-menus.html"><small>Prev</small> Context menus</a>
+        <a class="next" href="../index.html"><small>Back</small> Documentation home</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Logging &amp; diagnostics</footer>
+</body>
+</html>

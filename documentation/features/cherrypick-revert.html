@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cherry-pick &amp; revert — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Integrate &amp; Resolve<span class="sep">/</span>Cherry-pick &amp; revert</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#cherrypick" class="head">Cherry-pick</a>
+      <a href="#revert">Revert</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Cherry-pick &amp; revert</h1>
+      <p class="lede">
+        Replay a commit onto the current branch, or create an inverse commit that undoes one —
+        both straight from the commit context menu.
+      </p>
+
+      <section class="feature" id="cherrypick">
+        <h2>Cherry-pick <span class="cmd">cherrypick</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Commit menu</span><span class="what">Right-click a commit → <b>Cherry-Pick</b>.</span></li>
+        </ul>
+        <ol class="flow">
+          <li>Go runs <span class="cmd">cherrypick</span> with <code>{ commit }</code>, applying that commit onto the current branch.</li>
+          <li>A toast confirms (e.g. "Cherry-picked a0c103f"); a conflict pauses with the <a href="conflicts.html">resolution banner</a> (Continue commits it).</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="revert">
+        <h2>Revert <span class="cmd">revert</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Commit menu</span><span class="what">Right-click a commit → <b>Revert Commit</b>.</span></li>
+        </ul>
+        <ol class="flow">
+          <li>Go runs <span class="cmd">revert</span> with <code>{ commit }</code>, creating a new commit that undoes its changes.</li>
+          <li>A conflict pauses with Continue / Abort.</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="conflicts.html">Conflict resolution</a><a href="merge-rebase-reset.html">Merge · Rebase · Reset</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="merge-rebase-reset.html"><small>Prev</small> Merge · Rebase · Reset</a>
+        <a class="next" href="conflicts.html"><small>Next</small> Conflict resolution</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Cherry-pick &amp; revert</footer>
+</body>
+</html>

@@ -50,6 +50,42 @@ func CreateCommit(repoPath, message string, paths []string) (*CommitResult, erro
 	return &CommitResult{Hash: out, Message: message}, nil
 }
 
+// AmendCommit rewrites the most recent commit: stages the given paths (if any)
+// then amends with a new message — or keeps the existing message when `message`
+// is empty (--no-edit). Used for "edit last commit message" / "fold staged
+// changes into HEAD" from the sidebar. No editor is launched.
+func AmendCommit(repoPath, message string, paths []string) (*CommitResult, error) {
+	if len(paths) > 0 {
+		addArgs := append([]string{"add", "--"}, paths...)
+		if _, err := run(repoPath, addArgs...); err != nil {
+			return nil, err
+		}
+	}
+
+	args := []string{"commit", "--amend"}
+	if strings.TrimSpace(message) != "" {
+		args = append(args, "-m", message)
+	} else {
+		args = append(args, "--no-edit")
+	}
+	if _, err := runEnv(repoPath, []string{"GIT_EDITOR=true"}, args...); err != nil {
+		return nil, err
+	}
+
+	out, _ := run(repoPath, "log", "-1", "--format=%H %s")
+	out = strings.TrimSpace(out)
+	if idx := strings.Index(out, " "); idx > 0 {
+		return &CommitResult{Hash: out[:idx], Message: out[idx+1:]}, nil
+	}
+	return &CommitResult{Hash: out, Message: message}, nil
+}
+
+// LastCommitMessage returns HEAD's full commit message — used to prefill the
+// amend input.
+func LastCommitMessage(repoPath string) (string, error) {
+	return run(repoPath, "log", "-1", "--format=%B")
+}
+
 // CommitAndPush creates a commit then pushes the current branch.
 func CommitAndPush(repoPath, message string, paths []string) (*CommitResult, error) {
 	result, err := CreateCommit(repoPath, message, paths)

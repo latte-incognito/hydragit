@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"hydragit/internal/git"
@@ -65,6 +66,71 @@ func TestCommit_basic(t *testing.T) {
 	}
 	if result.Message == "" {
 		t.Error("expected non-empty message")
+	}
+}
+
+func headSubject(t *testing.T, repo string) string {
+	t.Helper()
+	cmd := exec.Command("git", "log", "-1", "--format=%s")
+	cmd.Dir = repo
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out[:len(out)-1])
+}
+
+func TestAmendCommit_messageOnly(t *testing.T) {
+	repo := initRepo(t)
+	writeFile(t, repo, "x.txt", "x\n")
+	first, _ := git.CreateCommit(repo, "original message", []string{"x.txt"})
+
+	res, err := git.AmendCommit(repo, "reworded message", nil)
+	if err != nil {
+		t.Fatalf("AmendCommit failed: %v", err)
+	}
+	if headSubject(t, repo) != "reworded message" {
+		t.Fatalf("HEAD subject = %q; want reworded", headSubject(t, repo))
+	}
+	// Amend rewrites history → the hash changes.
+	if res.Hash == first.Hash {
+		t.Error("amend should produce a new commit hash")
+	}
+}
+
+func TestAmendCommit_foldsStagedChanges(t *testing.T) {
+	repo := initRepo(t)
+	writeFile(t, repo, "a.txt", "a\n")
+	git.CreateCommit(repo, "c1", []string{"a.txt"})
+
+	// New file folded into the amended commit (empty message → keep "c1").
+	writeFile(t, repo, "b.txt", "b\n")
+	if _, err := git.AmendCommit(repo, "", []string{"b.txt"}); err != nil {
+		t.Fatalf("AmendCommit fold failed: %v", err)
+	}
+	if headSubject(t, repo) != "c1" {
+		t.Fatalf("message should be unchanged (c1), got %q", headSubject(t, repo))
+	}
+	// b.txt is now part of HEAD.
+	cmd := exec.Command("git", "ls-tree", "--name-only", "HEAD")
+	cmd.Dir = repo
+	out, _ := cmd.Output()
+	if !strings.Contains(string(out), "b.txt") {
+		t.Fatalf("b.txt should be in HEAD after amend; tree:\n%s", out)
+	}
+}
+
+func TestLastCommitMessage(t *testing.T) {
+	repo := initRepo(t)
+	writeFile(t, repo, "x.txt", "x\n")
+	git.CreateCommit(repo, "subject line", []string{"x.txt"})
+
+	msg, err := git.LastCommitMessage(repo)
+	if err != nil {
+		t.Fatalf("LastCommitMessage failed: %v", err)
+	}
+	if msg != "subject line" {
+		t.Fatalf("LastCommitMessage = %q; want 'subject line'", msg)
 	}
 }
 

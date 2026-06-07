@@ -18,6 +18,7 @@ type StatusResult struct {
 	Behind      int          `json:"behind"`
 	Modified    int          `json:"modified"`
 	HasUpstream bool         `json:"hasUpstream"`
+	Detached    bool         `json:"detached"` // true when HEAD is not on a branch
 	Files       []FileStatus `json:"files"`
 }
 
@@ -31,6 +32,8 @@ func Status(repoPath string) (StatusResult, error) {
 		return res, err
 	}
 	res.Branch = branch
+	// `rev-parse --abbrev-ref HEAD` yields the literal "HEAD" when detached.
+	res.Detached = branch == "HEAD"
 
 	// Ahead/behind relative to upstream — non-fatal if no upstream is set.
 	if ab, err := run(repoPath, "rev-list", "--left-right", "--count", "@{u}...HEAD"); err == nil {

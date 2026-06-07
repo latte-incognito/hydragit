@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { send } from '$shared/messageBus';
+
   export let hasFiles: boolean = false;
   export let stagedCount: number = 0;
   export let hasUpstream: boolean = false;
@@ -7,20 +9,35 @@
 
   export let onCommit: (msg: string) => void = () => {};
   export let onCommitPush: (msg: string) => void = () => {};
+  export let onAmend: (msg: string) => void = () => {};
 
   let message = '';
+  // Amend mode rewrites HEAD: edit its message and/or fold staged changes in.
+  let amend = false;
 
-  $: canCommit = message.trim().length > 0 && stagedCount > 0;
+  // In amend mode you can commit with just a message (staging is optional).
+  $: canCommit = message.trim().length > 0 && (amend || stagedCount > 0);
   $: reason = !hasFiles
     ? 'No changes'
     : stagedCount === 0
       ? 'Stage files to commit'
       : `${stagedCount} file${stagedCount === 1 ? '' : 's'} staged`;
 
+  async function toggleAmend() {
+    amend = !amend;
+    // Prefill the input with HEAD's message so the user can edit it.
+    if (amend && !message.trim()) {
+      try {
+        message = ((await send<string>('commit.lastMessage')) ?? '').trim();
+      } catch { /* non-fatal */ }
+    }
+  }
+
   function handleCommit() {
     const msg = message.trim();
     if (!canCommit) return;
-    onCommit(msg);
+    if (amend) onAmend(msg);
+    else onCommit(msg);
   }
 
   function handleCommitPush() {
@@ -29,7 +46,7 @@
     onCommitPush(msg);
   }
 
-  export function clearMessage() { message = ''; }
+  export function clearMessage() { message = ''; amend = false; }
 </script>
 
 <div class="commit-area">
@@ -40,10 +57,15 @@
   <textarea
     class="commit-input"
     bind:value={message}
-    placeholder="Message"
+    placeholder={amend ? 'Amend commit message' : 'Message'}
     rows={3}
-    disabled={!hasFiles}
+    disabled={!hasFiles && !amend}
   ></textarea>
+
+  <label class="amend-toggle" title="Rewrite the last commit (edit its message and/or fold in staged changes) instead of creating a new one">
+    <input type="checkbox" checked={amend} on:change={toggleAmend} />
+    <span>Amend last commit</span>
+  </label>
 
   <div class="meta-row">
     <span class="branch-chip" title="Committing to {branch || 'HEAD'}">
@@ -63,9 +85,9 @@
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
         <path d="M2.5 7.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <span>Commit{stagedCount > 0 ? ` ${stagedCount}` : ''}</span>
+      <span>{amend ? 'Amend' : `Commit${stagedCount > 0 ? ` ${stagedCount}` : ''}`}</span>
     </button>
-    {#if hasUpstream}
+    {#if hasUpstream && !amend}
       <button class="btn btn-secondary" disabled={!canCommit} on:click={handleCommitPush} title="Commit &amp; Push">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M7 11V3.5M7 3.5L4 6.5M7 3.5l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -153,6 +175,18 @@
     text-overflow: ellipsis;
   }
   .staged-note.active { color: #4ec94e; }
+
+  .amend-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--hg-font-xxs, 10px);
+    color: var(--vscode-descriptionForeground, #8c8c8c);
+    cursor: pointer;
+    padding: 0 1px;
+    user-select: none;
+  }
+  .amend-toggle input { margin: 0; cursor: pointer; }
 
   .btn-row { display: flex; gap: 6px; }
 

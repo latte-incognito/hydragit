@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>History rewriting — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>History Rewriting</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#editor" class="head">Interactive rebase editor</a>
+      <a href="#pause">Pause on conflict</a>
+      <a href="#squash">Squash with parent</a>
+      <a href="#drop">Drop commit</a>
+      <a href="#reword">Edit / reword message</a>
+      <a href="#patch">Create patch</a>
+      <a href="#pushupto">Push up to a commit</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>History rewriting</h1>
+      <p class="lede">
+        Reorder, squash, fixup, drop and reword commits — driven from the commit context menu and
+        a drag-to-reorder editor. Every path runs <code>git rebase</code> non-interactively and
+        <b>pauses</b> (never auto-aborts) if a conflict appears.
+      </p>
+
+      <section class="feature" id="editor">
+        <h2>Interactive rebase editor <span class="cmd amber">rebase.interactive</span></h2>
+        <p>A modal (<code>InteractiveRebase</code>) listing the commits from a chosen point to HEAD, oldest-first, each with a per-commit action.</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Commit menu</span><span class="what">Right-click a commit → <b>Interactively Rebase from Here…</b></span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>The editor opens with the range (its parent is the rebase base). Each row has a <b>grip</b> to drag, an action dropdown (<span class="chip">pick</span> <span class="chip a">squash</span> <span class="chip a">fixup</span> <span class="chip r">drop</span>), the short SHA, the subject, and ↑/↓ move buttons.</li>
+          <li>The first kept (non-drop) commit must be <b>pick</b> — squash/fixup fold into the commit above, so a warning shows if it isn't.</li>
+          <li><b>Start Rebasing</b> sends the plan to <span class="cmd amber">rebase.interactive</span>, which scripts <code>git rebase -i</code> non-interactively.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="pause">
+        <h2>Pause on conflict</h2>
+        <p>If the rebase conflicts it <b>pauses</b> rather than aborting. The toolbar surfaces <b>Continue / Skip / Abort</b> (<span class="cmd amber">rebase.continue</span> / <span class="cmd amber">rebase.skip</span> / <span class="cmd amber">rebase.abort</span>), and the state is restored across reloads via <span class="cmd amber">rebase.status</span>.</p>
+        <div class="related"><b>Related</b><a href="conflicts.html">Conflict resolution</a></div>
+      </section>
+
+      <section class="feature" id="squash">
+        <h2>Squash with parent <span class="cmd amber">commit.squash</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Commit menu</span><span class="what"><b>Squash with Parent</b>.</span></li>
+        </ul>
+        <ol class="flow">
+          <li>You confirm (it rewrites history; the two commits' messages are combined).</li>
+          <li>Go runs <span class="cmd amber">commit.squash</span> via the interactive-rebase machinery, folding the commit into its parent.</li>
+          <li>If it conflicts, the rebase pauses with Continue.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="drop">
+        <h2>Drop commit <span class="cmd amber">rebase.drop</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Commit menu</span><span class="what"><b>Drop Commit</b>.</span></li>
+        </ul>
+        <ol class="flow">
+          <li>You confirm the rewrite.</li>
+          <li>Go runs <span class="cmd amber">rebase.drop</span>, removing the commit by rebasing later commits onto its parent (<code>rebase --onto</code>).</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="reword">
+        <h2>Edit / reword message <span class="cmd amber">rebase.reword</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Commit menu</span><span class="what"><b>Edit Commit Message…</b></span></li>
+        </ul>
+        <ol class="flow">
+          <li>You're prompted with the current message pre-filled; edit and confirm.</li>
+          <li>For HEAD it's a <code>commit --amend</code>; for an older commit a scripted rebase reword (<span class="cmd amber">rebase.reword</span>).</li>
+          <li>A conflict pauses the rebase with Continue.</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="commit.html#amend">Amend last commit</a></div>
+      </section>
+
+      <section class="feature" id="patch">
+        <h2>Create patch <span class="cmd amber">patch.format</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Commit menu</span><span class="what"><b>Create Patch…</b></span></li>
+        </ul>
+        <ol class="flow">
+          <li>Go runs <span class="cmd amber">patch.format</span> (<code>git format-patch</code>) for the commit.</li>
+          <li>A native <b>save dialog</b> (host helper <code>savePatch</code>) writes the <code>&lt;sha&gt;.patch</code> file where you choose.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="pushupto">
+        <h2>Push up to a commit <span class="cmd amber">push.upto</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Commit menu</span><span class="what"><b>Push All up to Here…</b></span></li>
+        </ul>
+        <ol class="flow">
+          <li>You confirm pushing all commits up to the chosen one onto <code>origin/&lt;branch&gt;</code>.</li>
+          <li>Go runs <span class="cmd amber">push.upto</span> with <code>{ commit, branch }</code> — publishing history only up to that commit.</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="remotes.html#push">Push</a><a href="reflog.html">Reflog (recover after a rewrite)</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="commit.html"><small>Prev</small> Staging &amp; commit</a>
+        <a class="next" href="merge-rebase-reset.html"><small>Next</small> Merge · Rebase · Reset</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · History rewriting</footer>
+</body>
+</html>

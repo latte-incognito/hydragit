@@ -26,3 +26,19 @@ func User(repoPath string) (GitUser, error) {
 		Email: strings.TrimSpace(email),
 	}, nil
 }
+
+// SetUser configures the git identity (ideas.md "Git identity setup"). When
+// global is true it writes to the user's global config (the usual fix for the
+// cryptic "Please tell me who you are" on a fresh install); otherwise it's
+// scoped to this repo. Both name and email are required.
+func SetUser(repoPath, name, email string, global bool) error {
+	scope := "--local"
+	if global {
+		scope = "--global"
+	}
+	if _, err := run(repoPath, "config", scope, "user.name", name); err != nil {
+		return err
+	}
+	_, err := run(repoPath, "config", scope, "user.email", email)
+	return err
+}

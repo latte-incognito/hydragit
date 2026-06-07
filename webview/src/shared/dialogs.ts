@@ -18,3 +18,20 @@ export function uiPrompt(message: string, value = ''): Promise<string | null> {
 export function uiConfirm(message: string): Promise<boolean> {
   return send<boolean>('ui.confirm', { message });
 }
+
+/** A richer quick-pick row: a label plus optional grey description/detail. */
+export interface PickItem {
+  label: string;
+  description?: string;
+  detail?: string;
+}
+
+/**
+ * Native quick-pick (type-to-filter autocomplete). Items can be plain strings
+ * or {label, description} rows; either way it resolves to the chosen item's
+ * label, or null if cancelled. Used for "switch to branch" and the worktree
+ * branch picker so the user gets a filterable, annotated list.
+ */
+export function uiPick(items: (string | PickItem)[], placeholder = ''): Promise<string | null> {
+  return send<string | null>('ui.pick', { items, placeholder });
+}

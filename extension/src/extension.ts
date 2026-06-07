@@ -65,6 +65,20 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
   goProcess = new GoProcess(binaryPath, workspaceRoot, logDir);
 
+  // Critical-error surfacing (#3): if the git backend dies, the panel can no
+  // longer talk to git, so offer a one-click reload of the window (which
+  // restarts the extension host and respawns the process).
+  goProcess.onCrash = (reason: string) => {
+    Logger.error('extension', `Go process crashed: ${reason}`);
+    void vscode.window
+      .showErrorMessage(`${reason} Reload to restart HydraGit.`, { modal: false }, 'Reload Window')
+      .then((choice) => {
+        if (choice === 'Reload Window') {
+          void vscode.commands.executeCommand('workbench.action.reloadWindow');
+        }
+      });
+  };
+
   const statusService = new HydraStatusService(goProcess, 3000);
   ctx.subscriptions.push(statusService);
 

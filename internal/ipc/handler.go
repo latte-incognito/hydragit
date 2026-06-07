@@ -236,6 +236,18 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, u)
 
+	case "user.set":
+		var p struct {
+			Name   string `json:"name"`
+			Email  string `json:"email"`
+			Global bool   `json:"global"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.SetUser(repoPath, p.Name, p.Email, p.Global); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "blame":
 		var p struct {
 			Path     string `json:"path"`
@@ -362,6 +374,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "branch.delete.remote":
+		var p struct {
+			Remote string `json:"remote"`
+			Branch string `json:"branch"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.DeleteRemoteBranch(repoPath, p.Remote, p.Branch); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "branch.rename":
 		var p struct {
 			From string `json:"from"`
@@ -397,6 +420,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, renamed)
 
+	case "branch.rename.folder.remote":
+		var p struct {
+			NewPrefix string `json:"newPrefix"`
+		}
+		json.Unmarshal(req.Params, &p)
+		propagated, err := git.RenameBranchFolderRemote(repoPath, p.NewPrefix)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, propagated)
+
 	case "branch.containing":
 		var p struct {
 			Commit string `json:"commit"`
@@ -418,6 +452,53 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "conflicts":
+		info, err := git.Conflicts(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, info)
+
+	case "conflict.keepCurrent", "conflict.keepIncoming", "conflict.resolve":
+		var p struct {
+			File string `json:"file"`
+		}
+		json.Unmarshal(req.Params, &p)
+		var cerr error
+		switch req.Cmd {
+		case "conflict.keepCurrent":
+			cerr = git.KeepCurrent(repoPath, p.File)
+		case "conflict.keepIncoming":
+			cerr = git.KeepIncoming(repoPath, p.File)
+		default:
+			cerr = git.MarkResolved(repoPath, p.File)
+		}
+		if cerr != nil {
+			return fail(id, cerr)
+		}
+		return ok(id, nil)
+
+	case "conflict.continue":
+		var p struct {
+			Operation string `json:"operation"`
+		}
+		json.Unmarshal(req.Params, &p)
+		conflict, err := git.ContinueConflict(repoPath, p.Operation)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"conflict": conflict})
+
+	case "conflict.abort":
+		var p struct {
+			Operation string `json:"operation"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.AbortConflict(repoPath, p.Operation); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "reset":
 		var p struct {
 			Commit string `json:"commit"`
@@ -429,6 +510,13 @@ func handle(repoPath string, req Request) Response {
 			return fail(id, err)
 		}
 		return ok(id, map[string]bool{"stashed": stashed})
+
+	case "undo.last":
+		res, err := git.UndoLast(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, res)
 
 	case "reflog":
 		entries, err := git.Reflog(repoPath)
@@ -465,6 +553,17 @@ func handle(repoPath string, req Request) Response {
 		}
 		json.Unmarshal(req.Params, &p)
 		conflict, err := git.RunInteractiveRebase(repoPath, p.Base, p.Items)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"conflict": conflict})
+
+	case "commit.squash":
+		var p struct {
+			Commit string `json:"commit"`
+		}
+		json.Unmarshal(req.Params, &p)
+		conflict, err := git.SquashWithParent(repoPath, p.Commit)
 		if err != nil {
 			return fail(id, err)
 		}
@@ -592,6 +691,25 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, result)
 
+	case "commit.amend":
+		var p struct {
+			Message string   `json:"message"`
+			Paths   []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		result, err := git.AmendCommit(repoPath, p.Message, p.Paths)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, result)
+
+	case "commit.lastMessage":
+		msg, err := git.LastCommitMessage(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, msg)
+
 	case "revert":
 		var p struct {
 			Commit string `json:"commit"`
@@ -627,6 +745,81 @@ func handle(repoPath string, req Request) Response {
 		}
 		json.Unmarshal(req.Params, &p)
 		if err := git.DeleteTag(repoPath, p.Name); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "worktree.list":
+		wts, err := git.Worktrees(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, wts)
+
+	case "worktree.add":
+		var p struct {
+			Path      string `json:"path"`
+			Branch    string `json:"branch"`
+			NewBranch string `json:"newBranch"`
+			Start     string `json:"start"`
+		}
+		json.Unmarshal(req.Params, &p)
+		var werr error
+		if p.NewBranch != "" {
+			werr = git.WorktreeAddNew(repoPath, p.Path, p.NewBranch, p.Start)
+		} else {
+			werr = git.WorktreeAdd(repoPath, p.Path, p.Branch)
+		}
+		if werr != nil {
+			return fail(id, werr)
+		}
+		return ok(id, nil)
+
+	case "worktree.remove":
+		var p struct {
+			Path  string `json:"path"`
+			Force bool   `json:"force"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.WorktreeRemove(repoPath, p.Path, p.Force); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "worktree.lock":
+		var p struct {
+			Path   string `json:"path"`
+			Reason string `json:"reason"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.WorktreeLock(repoPath, p.Path, p.Reason); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "worktree.unlock":
+		var p struct {
+			Path string `json:"path"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.WorktreeUnlock(repoPath, p.Path); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "worktree.move":
+		var p struct {
+			From string `json:"from"`
+			To   string `json:"to"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.WorktreeMove(repoPath, p.From, p.To); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "worktree.prune":
+		if err := git.WorktreePrune(repoPath); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)

@@ -42,3 +42,24 @@ webview/node_modules/
 
 # ── Node modules ───────────────────────────────────────────────────
 node_modules/
+
+# ── Test artifacts & e2e output ────────────────────────────────────
+playwright-report/
+test-results/
+tests/
+playwright.config.ts
+vitest.config.ts
+vitest-setup.ts
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+
+# ── Dev binary (runtime uses bin/<platform>) ───────────────────────
+hydragit-server
+
+# ── Dev docs / notes (not used at runtime) ─────────────────────────
+BUGS.MD
+BUGS.md
+IMPLEMENTED_FEATURES.md
+documentation/
+.vscode/

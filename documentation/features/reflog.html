@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HEAD undo timeline (reflog) — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Undo &amp; Safety<span class="sep">/</span>Reflog timeline</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#open" class="head">Opening the timeline</a>
+      <a href="#reset">Reset to any point</a>
+      <a href="#autostash">Auto-stash safety net</a>
+      <a href="#live">Live refresh</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>HEAD undo timeline (reflog)</h1>
+      <p class="lede">
+        The branch tree's HEAD row doubles as an undo timeline: it swaps the commit graph for
+        <code>git reflog</code> as a flat list, where every past position of HEAD can be reset to —
+        with destructiveness colour-coded.
+      </p>
+
+      <section class="feature" id="open">
+        <h2>Opening the timeline <span class="cmd">reflog</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Branch tree</span><span class="what">Click the <b>HEAD</b> row (top of the tree, labelled <code>HEAD · &lt;branch&gt;</code>).</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>The commit graph is replaced by the <code>ReflogPane</code> — a flat list from <span class="cmd">reflog</span>, with a <b>‹ Graph</b> back button and the subtitle "undo timeline — reset to any point".</li>
+          <li>The detail pane hides to make room.</li>
+          <li>Pressing <b>‹ Graph</b> (or selecting a branch) fully restores the normal view.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="reset">
+        <h2>Reset to any point</h2>
+        <p>Each reflog row has three reset buttons, coloured green → amber → red by destructiveness:</p>
+        <table>
+          <tr><th>Button</th><th>Title</th><th>Effect</th></tr>
+          <tr><td><span class="chip g">soft</span></td><td>move HEAD here, keep changes staged</td><td><code>reset --soft</code></td></tr>
+          <tr><td><span class="chip a">mixed</span></td><td>move HEAD here, keep changes (unstaged)</td><td><code>reset --mixed</code></td></tr>
+          <tr><td><span class="chip r">hard</span></td><td>move HEAD here, DISCARD all changes</td><td><code>reset --hard</code></td></tr>
+        </table>
+        <p>Each click takes <b>one confirmation</b>; the buttons are themed via VS Code colour vars.</p>
+      </section>
+
+      <section class="feature" id="autostash">
+        <h2>Auto-stash safety net</h2>
+        <ol class="flow">
+          <li>A <b>hard</b> reset on a dirty tree auto-stashes tracked changes first (<code>ResetWithAutostash</code>).</li>
+          <li>Nothing is lost — the toast notes the changes were auto-stashed, recoverable from the <a href="stash.html">stash manager</a>.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="live">
+        <h2>Live refresh</h2>
+        <div class="note teal"><span class="ic">i</span><span>Any git activity (here or external) writes <code>.git/logs/HEAD</code>; the file watcher catches it and reloads the timeline while it's open.</span></div>
+        <div class="related"><b>Related</b><a href="merge-rebase-reset.html#reset">Reset</a><a href="undo-squash.html#undo">Undo last operation</a><a href="stash.html">Stash manager</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="remotes.html"><small>Prev</small> Remotes &amp; Sync</a>
+        <a class="next" href="undo-squash.html"><small>Next</small> Undo &amp; squash</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Reflog undo timeline</footer>
+</body>
+</html>

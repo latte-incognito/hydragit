@@ -92,9 +92,10 @@ describe('BranchPane — branch selection', () => {
 
   it('calls onNewBranch when + is clicked', async () => {
     const onNewBranch = vi.fn();
-    const { getByText } = render(BranchPane, { branches, stashes: [], activeBranch: 'main', onNewBranch });
+    const { getByTitle } = render(BranchPane, { branches, stashes: [], activeBranch: 'main', onNewBranch });
 
-    await fireEvent.click(getByText('+'));
+    // Target the Branches header "+" by title — the Worktrees header also has a "+".
+    await fireEvent.click(getByTitle('New branch'));
     expect(onNewBranch).toHaveBeenCalledOnce();
   });
 });

@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { on, send } from '$shared/messageBus';
-  import { uiPrompt, uiConfirm } from '$shared/dialogs';
-  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag } from './types';
+  import { uiPrompt, uiConfirm, uiPick } from '$shared/dialogs';
+  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag, Worktree } from './types';
 
   import Toolbar     from './components/Toolbar.svelte';
   import ActionRail  from './components/ActionRail.svelte';
@@ -21,6 +21,7 @@
   let filtered:    Commit[]   = [];
   let stashes:     Stash[]    = [];
   let tags:        Tag[]      = [];
+  let worktrees:   Worktree[] = [];
   let activeBranch = 'master';
   let selCommitIdx: number | null = null;
   let selStashIdx:  number | null = null;
@@ -36,6 +37,10 @@
   // True while the repo is paused mid-rebase (conflict) — drives the
   // Continue/Skip/Abort bar. See commitMenuAction 'drop'.
   let rebaseInProgress = false;
+  // HEAD is detached (not on a branch) — drives the calm "create a branch" banner.
+  let detached = false;
+  // No user.name / user.email configured — drives the "set up git identity" banner.
+  let identityMissing = false;
   // "HEAD" undo timeline: when on, the commit graph is replaced by the reflog
   // view and the detail pane is hidden for room. Entered from the HEAD row.
   type ReflogEntry = { hash: string; selector: string; subject: string; date: string };
@@ -49,7 +54,16 @@
 
   let sbBranch = 'master';
   let sbInfo   = '';
+  let sbInfoTitle = ''; // raw ↑/↓ symbols, shown as a tooltip for git pros
   let sbCounts = '';
+
+  // Plain-language ahead/behind (ideas.md): "↑2 ↓1" → "2 to push, 1 to pull".
+  function aheadBehindText(ahead: number, behind: number): string {
+    const parts: string[] = [];
+    if (ahead) parts.push(`${ahead} to push`);
+    if (behind) parts.push(`${behind} to pull`);
+    return parts.length ? ' · ' + parts.join(', ') : '';
+  }
   let iconUri  = document.body.dataset.iconUri ?? '';
   let repoName = 'HydraGit';
 
@@ -69,8 +83,10 @@
   let branchMenu  = { visible: false, x: 0, y: 0, branch: '', isCurrent: false, current: '' };
   let stashMenu   = { visible: false, x: 0, y: 0, label: '' };
   let tagMenu     = { visible: false, x: 0, y: 0, name: '', current: '' };
+  let worktreeMenu = { visible: false, x: 0, y: 0, wt: null as Worktree | null };
   let ctxBranch   = '';
   let ctxStashIdx: number | null = null;
+  let ctxWorktree: Worktree | null = null;
 
   // ── Flash bar ────────────────────────────────────────────────────────────
   let flashMsg   = '';
@@ -92,11 +108,13 @@
   // ── Load everything ───────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [status, brs, rawStashes, rawTags] = await Promise.all([
+      const [status, brs, rawStashes, rawTags, rawWorktrees, user] = await Promise.all([
         send<GitStatus>('status'),
         send<Branch[]>('branches'),
         send<Stash[]>('stash'),
         send<Tag[]>('tags'),
+        send<Worktree[]>('worktree.list'),
+        send<{ name: string; email: string }>('user'),
       ]);
       // Resolve the current branch before requesting its log, so the initial
       // graph shows HEAD's branch rather than the hardcoded default (and so
@@ -108,12 +126,16 @@
       const rawCommits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 0 });
 
       sbBranch    = status.branch || activeBranch;
-      sbInfo      = status.ahead || status.behind ? ` · ↑${status.ahead} ↓${status.behind}` : '';
+      sbInfo      = aheadBehindText(status.ahead ?? 0, status.behind ?? 0);
+      sbInfoTitle = status.ahead || status.behind ? `↑${status.ahead} ↓${status.behind}` : '';
       hasPending  = (status.behind ?? 0) > 0;
+      detached    = !!status.detached;
+      identityMissing = !user?.name || !user?.email;
       branches    = brs;
       commits     = rawCommits;
       stashes     = rawStashes;
       tags        = rawTags ?? [];
+      worktrees   = rawWorktrees ?? [];
       sbCounts    = `${commits.length} commits · ${branches.filter(b => !b.isRemote).length} branches`;
       // Surface a paused rebase (e.g. a Drop/Edit that hit a conflict) so the
       // Continue/Skip/Abort bar reappears across reloads.
@@ -435,8 +457,64 @@
     }
   }
 
+  // Undo last operation (ideas.md express lane): abort an in-progress
+  // merge/rebase/cherry-pick/revert, else rewind to ORIG_HEAD (the state before
+  // the last merge/rebase/reset/pull), auto-stashing a dirty tree first.
+  async function undoLast() {
+    const confirmed = await uiConfirm(
+      `Undo the last git operation?\n\n` +
+      `Aborts an in-progress merge/rebase, or rewinds to the state before the ` +
+      `last merge/rebase/reset/pull. Uncommitted changes are stashed first, not lost.`
+    );
+    if (!confirmed) return;
+    flash('Undoing…');
+    try {
+      const res = await send<{ action: string; stashed: boolean }>('undo.last');
+      flash(
+        `Undone: ${res?.action ?? 'done'}${res?.stashed ? ' · changes stashed' : ''}`,
+        '#4ec94e'
+      );
+      loadAll();
+    } catch (e: unknown) {
+      flash('Undo failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // Detached-HEAD rescue (ideas.md): create a branch at the current commit so
+  // work isn't stranded on a detached HEAD.
+  async function createBranchHere() {
+    const name = await uiPrompt('Create a branch here to keep your work — branch name:');
+    if (!name) return;
+    flash(`Creating ${name}…`);
+    try {
+      await send('branch.create', { name }); // checkout -b at current HEAD
+      flash(`On new branch ${name}`, '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      flash('Create failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // Git identity setup (ideas.md): friendly inline fix for the cryptic
+  // "Please tell me who you are" — sets user.name/user.email globally.
+  async function setupIdentity() {
+    const name = await uiPrompt('Your name (for commit authorship):');
+    if (!name) return;
+    const email = await uiPrompt('Your email (for commit authorship):');
+    if (!email) return;
+    flash('Saving git identity…');
+    try {
+      await send('user.set', { name, email, global: true });
+      flash('Git identity set', '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      flash('Could not set identity: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
   async function tbAction(a: string) {
     if (a === 'refresh') { loadAll(); return; }
+    if (a === 'undo') { await undoLast(); return; }
     if (a === 'push') { await doPush(); return; }
     flash({ fetch: 'Fetching…', pull: 'Pulling…', push: 'Pushing…' }[a] ?? a);
     try {
@@ -464,6 +542,18 @@
       }
       return;
     }
+    if (a === 'branch.switch') {
+      // Filterable list of every branch except the one we're already on.
+      const names = branches.map((b) => b.name).filter((n) => n !== activeBranch);
+      const name = await uiPick(names, 'Checkout branch…');
+      if (!name) return;
+      await switchToBranch(name);
+      return;
+    }
+    if (a === 'worktree.new') {
+      await createWorktree();
+      return;
+    }
     if (a === 'branch.new') {
       const name = await uiPrompt('New branch name:');
       if (name) {
@@ -484,6 +574,10 @@
       // only deletes if confirmed.
       const name = await uiPrompt(`Delete branch — enter branch name (cannot delete current branch):`);
       if (!name) return;
+      // If the name resolves to a remote branch, delete it on the remote instead
+      // of silently doing a local-only delete (BUGS.md #2).
+      const match = branches.find((b) => b.name === name);
+      if (match?.isRemote) { await deleteRemoteBranch(name); return; }
       if (name === activeBranch) {
         flash(`Cannot delete the current branch: ${name}`, '#f07070');
         return;
@@ -656,6 +750,25 @@
         // savePatch is host-only (native save dialog) — fire and forget.
         send('savePatch', { content: patch, name: `${hash.slice(0, 7)}.patch` });
       },
+      squash: async () => {
+        if (!(await uiConfirm(
+          `Squash ${hash.slice(0, 7)} into its parent?\n\n` +
+          `The two commits become one (their messages are combined). This rewrites history.`
+        ))) return;
+        flash(`Squashing ${hash.slice(0, 7)}…`);
+        try {
+          const res = await send<{ conflict: boolean }>('commit.squash', { commit: hash });
+          if (res?.conflict) {
+            rebaseInProgress = true;
+            flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
+          } else {
+            flash(`Squashed ${hash.slice(0, 7)} into its parent`, '#4ec94e');
+          }
+        } catch (e: unknown) {
+          flash('Squash failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+        }
+        loadAll();
+      },
       'push-here': async () => {
         if (!(await uiConfirm(
           `Push all commits up to ${hash.slice(0, 7)} onto origin/${activeBranch}?`
@@ -784,6 +897,11 @@
       prefix
     );
     if (!newPrefix || newPrefix === prefix) return;
+    // Which branches under this folder track a remote — captured BEFORE the
+    // rename, while `branches` still holds the old names + their upstreams.
+    const tracked = branches.filter(
+      (b) => !b.isRemote && (b.name === prefix || b.name.startsWith(prefix + '/')) && !!b.upstream
+    );
     try {
       const renamed = await send<string[]>('branch.rename.folder', {
         oldPrefix: prefix,
@@ -791,9 +909,92 @@
       });
       const n = renamed?.length ?? 0;
       flash(`Renamed ${n} branch${n === 1 ? '' : 'es'} to ${newPrefix}/`, '#4ec94e');
+
+      // Folder rename is local-only by default; offer to propagate to the remote
+      // for the branches that track one (#6). Reversible — rename the folder back.
+      if (tracked.length) {
+        const ok = await uiConfirm(
+          `Also rename on the remote?\n\n` +
+          `${tracked.length} branch${tracked.length === 1 ? '' : 'es'} under "${prefix}/" ` +
+          `track a remote. This pushes the new names and deletes the old remote ` +
+          `branches. Reversible: rename the folder back to restore.`
+        );
+        if (ok) {
+          flash('Renaming on remote…');
+          try {
+            const pushed = await send<string[]>('branch.rename.folder.remote', { newPrefix });
+            const m = pushed?.length ?? 0;
+            flash(`Renamed ${m} branch${m === 1 ? '' : 'es'} on the remote too`, '#4ec94e');
+          } catch (err: unknown) {
+            flash('Remote folder rename failed: ' + (err instanceof Error ? err.message : String(err)), '#f07070');
+          }
+        }
+      }
       loadAll();
     } catch (err: unknown) {
       flash('Folder rename failed: ' + (err instanceof Error ? err.message : String(err)), '#f07070');
+    }
+  }
+
+  // Delete a REMOTE branch row (name like "origin/feature"). Runs
+  // `git push <remote> --delete <branch>` via the host, which removes it on the
+  // server AND prunes the local tracking ref — fixing BUGS.md #1/#2 where the
+  // old path sent the tracking name to `git branch -d` (local-only) and failed.
+  async function deleteRemoteBranch(fullName: string) {
+    const slash = fullName.indexOf('/');
+    const remote = slash === -1 ? 'origin' : fullName.slice(0, slash);
+    const branch = slash === -1 ? fullName : fullName.slice(slash + 1);
+    const confirmed = await uiConfirm(
+      `Delete remote branch "${fullName}"?\n\n` +
+      `This runs 'git push ${remote} --delete ${branch}' and removes it on ${remote} ` +
+      `for everyone. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    flash(`Deleting ${fullName} on ${remote}…`);
+    try {
+      await send('branch.delete.remote', { remote, branch });
+      flash(`Deleted ${fullName}`, '#f07070');
+    } catch (e: unknown) {
+      flash('Remote delete failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+    loadAll();
+  }
+
+  // Switch to a branch, handling the common "local changes would be overwritten"
+  // failure by offering to stash first (or cancel). A remote row
+  // ("origin/feature") checks out as a local tracking branch of the same short
+  // name. Shared by the rail switch and the branch context-menu entry.
+  async function switchToBranch(name: string) {
+    const target = branches.find((b) => b.name === name)?.isRemote
+      ? name.slice(name.indexOf('/') + 1)
+      : name;
+    flash(`Checking out ${target}…`);
+    try {
+      await send('checkout', { branch: target });
+      flash(`Checked out ${target}`, '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // git refuses to switch when uncommitted changes would be clobbered.
+      const blocked = /overwritten by checkout|stash them before you switch/i.test(msg);
+      if (!blocked) {
+        flash('Checkout failed: ' + msg, '#f07070');
+        return;
+      }
+      const stash = await uiConfirm(
+        `Local changes would be overwritten by checking out "${target}".\n\n` +
+        `Stash them and check out? (Cancel to stay put — your changes are kept.)`
+      );
+      if (!stash) { flash('Checkout cancelled', '#e0a030'); return; }
+      try {
+        await send('stash.save', { message: `hydragit: auto-stash before checkout of ${target}` });
+        await send('checkout', { branch: target });
+        flash(`Stashed changes and checked out ${target}`, '#4ec94e');
+        loadAll();
+      } catch (e2: unknown) {
+        flash('Checkout failed: ' + (e2 instanceof Error ? e2.message : String(e2)), '#f07070');
+        loadAll();
+      }
     }
   }
 
@@ -811,11 +1012,21 @@
   async function branchAction(a: string) {
     branchMenu = { ...branchMenu, visible: false };
     const acts: Record<string, () => Promise<void>> = {
-      checkout:  async () => { await send('checkout', { branch: ctxBranch });                flash(`Checked out ${ctxBranch}`, '#4ec94e'); loadAll(); },
+      checkout:  async () => { await switchToBranch(ctxBranch); },
       merge:     async () => { await send('merge',    { branch: ctxBranch });                flash(`Merged ${ctxBranch}`, '#4ec94e');     loadAll(); },
       rebase:    async () => { await send('rebase',   { onto:   ctxBranch });                flash('Rebased', '#4ec94e');                 loadAll(); },
       push:      async () => { await doPush(ctxBranch); },
-      delete:    async () => { await send('branch.delete', { name: ctxBranch, force: false }); flash(`Deleted ${ctxBranch}`, '#f07070'); loadAll(); },
+      delete:    async () => {
+        const b = branches.find((x) => x.name === ctxBranch);
+        if (b?.isRemote) { await deleteRemoteBranch(ctxBranch); return; }
+        try {
+          await send('branch.delete', { name: ctxBranch, force: false });
+          flash(`Deleted ${ctxBranch}`, '#f07070');
+        } catch (e: unknown) {
+          flash('Delete failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+        }
+        loadAll(); // refresh regardless of outcome so a failed delete never leaves a stale row
+      },
       copy:      async () => { flash(`Copied: ${ctxBranch}`, '#4ec94e'); },
       rename:    async () => {
         const from = ctxBranch;
@@ -899,6 +1110,163 @@
     await stashAction(a);
   }
 
+  // ── Worktrees ─────────────────────────────────────────────────────────────
+  // Default location follows the GitLens convention: a sibling
+  // "<repo>.worktrees/" folder, keyed by branch (slashes flattened). Derived
+  // from the main worktree's absolute path so it works regardless of cwd.
+  function defaultWorktreePath(branch: string): string {
+    const safe = branch.replace(/[\\/]/g, '-');
+    const main = worktrees.find((w) => w.isMain)?.path ?? '';
+    if (!main) return `../worktrees/${safe}`;
+    const parts = main.split(/[\\/]/);
+    const repo = parts.pop() || 'repo';
+    const parent = parts.join('/');
+    return `${parent}/${repo}.worktrees/${safe}`;
+  }
+
+  function openWorktree(path: string) {
+    // Host-only relay: opens the folder in a new VS Code window.
+    send('worktree.open', { path });
+    flash('Opening worktree in a new window…', '#4ec94e');
+  }
+
+  // Create a worktree: pick an existing branch (one not already checked out in
+  // another worktree) or start a new branch, then choose the folder.
+  async function createWorktree() {
+    const NEW = '✚ Create new branch…';
+
+    // A branch can only live in one worktree at a time — hide any already
+    // checked out (this also covers the current branch via the main worktree).
+    const inWorktree = new Set(worktrees.map((w) => w.branch).filter(Boolean));
+    const locals = branches.filter((b) => !b.isRemote);
+    const localNames = new Set(locals.map((b) => b.name));
+
+    // Local branches: the bread-and-butter picks.
+    const localItems = locals
+      .filter((b) => !inWorktree.has(b.name))
+      .map((b) => ({ label: b.name, description: b.trackShort ? `local · ${b.trackShort}` : 'local' }));
+
+    // Remote branches without a local of the same short name — picking one
+    // creates a local tracking branch in the new worktree (GitLens-style).
+    const remoteItems = branches
+      .filter((b) => b.isRemote)
+      .map((b) => ({ full: b.name, short: b.name.slice(b.name.indexOf('/') + 1) }))
+      .filter((r) => r.short !== 'HEAD' && !localNames.has(r.short) && !inWorktree.has(r.short))
+      .map((r) => ({ label: r.full, description: `remote → new branch '${r.short}'` }));
+
+    const items = [
+      { label: NEW, description: `from ${activeBranch}` },
+      ...localItems,
+      ...remoteItems,
+    ];
+    const choice = await uiPick(items, 'Branch for the new worktree — local, remote, or create new');
+    if (!choice) return;
+
+    let branch = choice; // resulting (local) branch name, used for the default path
+    let newBranch = '';
+    let start = '';
+    if (choice === NEW) {
+      const name = await uiPrompt('New branch name for the worktree:');
+      if (!name) return;
+      newBranch = name;
+      branch = name;
+    } else {
+      const picked = branches.find((b) => b.name === choice);
+      if (picked?.isRemote) {
+        // Create a local branch tracking the remote ref inside the worktree.
+        const short = choice.slice(choice.indexOf('/') + 1);
+        newBranch = short;
+        start = choice;
+        branch = short;
+      }
+    }
+
+    const path = await uiPrompt('Worktree folder path:', defaultWorktreePath(branch));
+    if (!path) return;
+    flash(`Creating worktree at ${path}…`);
+    try {
+      await send('worktree.add', newBranch ? { path, newBranch, start } : { path, branch });
+      flash(`Worktree created for ${branch}`, '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      flash('Create worktree failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  function showWorktreeCtx(e: MouseEvent, wt: Worktree) {
+    e.preventDefault();
+    e.stopPropagation();
+    ctxWorktree = wt;
+    worktreeMenu = {
+      visible: true,
+      wt,
+      x: Math.min(e.clientX, window.innerWidth - 280),
+      y: Math.min(e.clientY, window.innerHeight - 220),
+    };
+  }
+
+  async function worktreeCtxAction(a: string) {
+    const wt = ctxWorktree;
+    worktreeMenu = { ...worktreeMenu, visible: false };
+    if (!wt) return;
+    try {
+      switch (a) {
+        case 'open':
+          openWorktree(wt.path);
+          break;
+        case 'lock':
+          await send('worktree.lock', { path: wt.path });
+          flash('Worktree locked', '#4ec94e');
+          loadAll();
+          break;
+        case 'unlock':
+          await send('worktree.unlock', { path: wt.path });
+          flash('Worktree unlocked', '#4ec94e');
+          loadAll();
+          break;
+        case 'move': {
+          const to = await uiPrompt('Move worktree to path:', wt.path);
+          if (!to || to === wt.path) return;
+          await send('worktree.move', { from: wt.path, to });
+          flash('Worktree moved', '#4ec94e');
+          loadAll();
+          break;
+        }
+        case 'prune':
+          await send('worktree.prune');
+          flash('Pruned stale worktrees', '#4ec94e');
+          loadAll();
+          break;
+        case 'remove': {
+          const ok = await uiConfirm(
+            `Remove worktree at ${wt.path}?\n\n` +
+              `The folder and its checkout are removed. Committed work on the branch is kept.`
+          );
+          if (!ok) return;
+          try {
+            await send('worktree.remove', { path: wt.path, force: false });
+            flash('Worktree removed', '#4ec94e');
+            loadAll();
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            const force = await uiConfirm(
+              `Could not remove worktree:\n${msg}\n\n` +
+                `Force remove? Uncommitted changes in the worktree will be lost.`
+            );
+            if (force) {
+              await send('worktree.remove', { path: wt.path, force: true });
+              flash('Worktree force-removed', '#e0a030');
+              loadAll();
+            }
+          }
+          break;
+        }
+      }
+    } catch (e: unknown) {
+      flash(`${a} failed: ` + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
   // ── Tag context menu ──────────────────────────────────────────────────────
   function showTagCtx(e: MouseEvent, name: string) {
     e.preventDefault(); e.stopPropagation();
@@ -943,10 +1311,22 @@
     }
   }
 
+  // Left-click on a worktree row: open it in a new window (the chosen primary
+  // action), except the main worktree — that's already this window.
+  function selectWorktree(path: string) {
+    const wt = worktrees.find((w) => w.path === path);
+    if (wt?.isMain) {
+      flash('This is the current worktree', '#e0a030');
+      return;
+    }
+    openWorktree(path);
+  }
+
   function closeMenus() {
-    branchMenu = { ...branchMenu, visible: false };
-    stashMenu  = { ...stashMenu,  visible: false };
-    tagMenu    = { ...tagMenu,    visible: false };
+    branchMenu   = { ...branchMenu,   visible: false };
+    stashMenu    = { ...stashMenu,    visible: false };
+    tagMenu      = { ...tagMenu,      visible: false };
+    worktreeMenu = { ...worktreeMenu, visible: false };
   }
 </script>
 
@@ -983,6 +1363,24 @@
     />
   {/if}
 
+  {#if identityMissing}
+    <div class="info-bar">
+      <span class="info-bar-msg">Git doesn't know who you are yet — set a name &amp; email so your commits are attributed.</span>
+      <div class="rebase-bar-actions">
+        <button class="rebase-btn" on:click={setupIdentity}>Set up identity</button>
+      </div>
+    </div>
+  {/if}
+
+  {#if detached}
+    <div class="info-bar">
+      <span class="info-bar-msg">You're not on a branch (detached HEAD). Create one here to keep your work.</span>
+      <div class="rebase-bar-actions">
+        <button class="rebase-btn" on:click={createBranchHere}>Create branch here</button>
+      </div>
+    </div>
+  {/if}
+
   {#if rebaseInProgress}
     <div class="rebase-bar">
       <span class="rebase-bar-msg">⚠ Rebase in progress — resolve conflicts, then continue.</span>
@@ -1002,6 +1400,7 @@
         {branches}
         {stashes}
         {tags}
+        {worktrees}
         {activeBranch}
         {selStashIdx}
         onSelectBranch={selectBranch}
@@ -1014,6 +1413,8 @@
         onStashCtx={showStashCtx}
         onTagCtx={showTagCtx}
         onTagSelect={selectTagCommit}
+        onSelectWorktree={selectWorktree}
+        onWorktreeCtx={showWorktreeCtx}
       />
     </div>
 
@@ -1061,6 +1462,7 @@
   <StatusBar
     branch={sbBranch}
     info={sbInfo}
+    infoTitle={sbInfoTitle}
     countsText={flashMsg ? `⚡ ${flashMsg}` : sbCounts}
     {iconUri}
   />
@@ -1069,9 +1471,11 @@
     {branchMenu}
     {stashMenu}
     {tagMenu}
+    {worktreeMenu}
     onBranchAction={branchAction}
     onStashAction={stashCtxAction}
     onTagAction={tagCtxAction}
+    onWorktreeAction={worktreeCtxAction}
   />
 </div>
 
@@ -1102,6 +1506,22 @@
     flex-shrink: 0;
   }
   .rebase-bar-actions { display: flex; gap: 6px; }
+
+  /* Calm informational banners (detached HEAD, missing identity) — blue, not the
+     amber "something's wrong" tone of the rebase bar. */
+  .info-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 12px;
+    background: rgba(77, 170, 252, 0.12);
+    border-bottom: 0.5px solid rgba(77, 170, 252, 0.4);
+    color: #6cb6ff;
+    font-size: var(--hg-font-sm);
+    flex-shrink: 0;
+  }
+  .info-bar-msg { overflow: hidden; text-overflow: ellipsis; }
   .rebase-btn {
     padding: 2px 10px;
     font-size: var(--hg-font-xs);

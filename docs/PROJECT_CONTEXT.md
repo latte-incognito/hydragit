@@ -4,7 +4,14 @@
 > Built because GitLens went paywalled and VS Code's built-in git panel has no history view.
 
 **Publisher:** `vkushnarenko.hydragit` (reserved — not yet published to Marketplace)
-**Status:** v0.2.0 in repo, pre-publish — staging/commit, tags, blame, and file/line history built on top of the v0.1 core. The repo is the source of truth.
+**Status:** manifest `v0.2.1`, pre-publish. The repo is the source of truth and already
+contains the **0.3.0 feature wave** on top of the v0.1/v0.2 core: interactive rebase,
+branch/ref compare, conflict-resolution guidance, reflog/undo timeline, sync, safe
+force-push, amend/reword/squash/drop, and local+remote/folder branch rename.
+
+> **Browsable feature docs:** [`documentation/index.html`](../documentation/index.html)
+> documents every feature from the UI (entry point → what happens next).
+> Authoritative name index: [`IMPLEMENTED_FEATURES.md`](../IMPLEMENTED_FEATURES.md).
 
 ---
 
@@ -85,15 +92,27 @@ internal/git/
   status.go                 — Status() → StatusResult { branch, ahead, behind, modified, files[] }
   log.go                    — Log()/LogWith()/LogFile()/FileHistory()/LineHistory() → []Commit
   branches.go               — Branches(), Checkout(), CreateBranch(), DeleteBranch(),
-                              RenameBranch(), BranchContaining(), Merge(), Rebase(), Reset(),
-                              Push(), Fetch(), Pull(), PullMode()
-  diff.go                   — DiffCommit() → []FileStat, DiffFile() → []Hunk
+                              DeleteRemoteBranch(), RenameBranch(), RenameRemoteBranch(),
+                              RenameBranchFolder()(+Remote), BranchContaining(), Merge(),
+                              Rebase(), Reset()/ResetWithAutostash(), Push(), PushForce(),
+                              PushCommit() (push up to a commit), Fetch(), Pull(), PullMode()
+  diff.go                   — DiffCommit() → []FileStat, DiffFile() → []Hunk,
+                              DiffRangeFiles()/DiffRefFiles() (compare two refs / ref↔working
+                              tree), FormatPatch() → `git format-patch` output for a commit
   stash.go                  — StashList(), StashPop(), StashApply(), StashDrop(),
-                              StashShow(), StashFiles(), StashSave()
-  commit.go                 — CreateCommit(), CommitAndPush() (stage paths + commit)
+                              StashClear(), StashShow(), StashFiles(), StashSave()
+  commit.go                 — CreateCommit(), CommitAndPush() (stage paths + commit),
+                              AmendCommit(), LastCommitMessage()
+  rebase.go                 — RunInteractiveRebase(), DropCommit(), RewordCommit(),
+                              SquashWithParent(), Rebase{Continue,Skip,Abort}(),
+                              RebaseInProgress() — scripted `git rebase -i`, pause-on-conflict
+  reflog.go                 — Reflog() → []ReflogEntry (HEAD undo timeline)
+  undo.go                   — UndoLast() (abort in-progress op, else reset --hard ORIG_HEAD)
+  conflict.go               — Conflicts(), KeepCurrent(), KeepIncoming(), MarkResolved(),
+                              Continue/AbortConflict() — merge/rebase/cherry-pick guidance
   tags.go                   — Tags(), CreateTag(), DeleteTag()
   blame.go                  — Blame() → per-line blame, buffer-aware via runStdin
-  config.go                 — User() → committer name/email from git config
+  config.go                 — User() → committer name/email; SetUser() (global identity)
   cherrypick.go             — CherryPick(), Revert()
   *_test.go                 — one real test per source file + scenarios_test.go
                               (real temp-repo scenarios, no mocking)
@@ -200,6 +219,9 @@ Rules:
 
 ## IPC command reference
 
+Authoritative list = the `case` strings in `internal/ipc/handler.go`.
+
+**Status / read**
 | cmd | params | returns |
 |-----|--------|---------|
 | ping | — | "pong" |
@@ -210,32 +232,80 @@ Rules:
 | file.history | { path, ref? } | []Commit |
 | line.history | { path, start, end } | []Commit |
 | diff | { commit, file? } | []Hunk or []FileStat |
+| diff.range | { from, to } | []FileStat / []Hunk |
+| diff.ref | { ref, file? } | []FileStat / []Hunk |
 | blame | { path, ref?, contents?, dirty? } | []BlameLine |
 | user | — | { name, email } |
-| stash | — | []StashEntry |
-| stash.pop / stash.apply / stash.drop | { index } | — |
-| stash.show | { index } | []Hunk |
-| stash.files | { index } | []FileStat |
-| stash.save | { message? } | — |
+
+**Branches / refs**
+| cmd | params | returns |
+|-----|--------|---------|
 | checkout | { branch } | — |
 | branch.create | { name, from? } | — |
 | branch.delete | { name, force } | — |
+| branch.delete.remote | { name } | — |
 | branch.rename | { from, to } | — |
+| branch.rename.remote | { from, to } | — |
+| branch.rename.folder | { from, to } | — |
+| branch.rename.folder.remote | { from, to } | — |
 | branch.containing | { commit } | string |
+| tags | — | []Tag |
+| tag.create | { name, commit?, message? } | — |
+| tag.delete | { name } | — |
+
+**Integrate / rewrite history**
+| cmd | params | returns |
+|-----|--------|---------|
 | merge | { branch } | — |
 | rebase | { onto } | — |
-| reset | { commit, mode } | — |
+| reset | { commit, mode } | { stashed } |
+| cherrypick | { commit } | — |
+| revert | { commit } | — |
+| rebase.interactive | { base, items[] } | { conflict } |
+| rebase.drop | { commit } | { conflict } |
+| rebase.reword | { commit, message } | { conflict } |
+| commit.squash | { commit } | { conflict } |
+| rebase.continue / rebase.skip | — | { conflict } |
+| rebase.abort / rebase.status | — | — / status |
+| patch.format | { commit } | string (.patch) |
+| push.upto | { commit, branch } | — |
+
+**Conflicts**
+| cmd | params | returns |
+|-----|--------|---------|
+| conflicts | — | ConflictInfo |
+| conflict.keepCurrent / conflict.keepIncoming | { file } | — |
+| conflict.continue / conflict.abort | — | — |
+
+**Remotes**
+| cmd | params | returns |
+|-----|--------|---------|
 | fetch | — | — |
 | pull | — | — |
 | pull.mode | { mode } | — |
 | push | { branch? } | — |
-| cherrypick | { commit } | — |
-| revert | { commit } | — |
+| push.force | { branch? } | — (force-with-lease) |
+
+**Stash**
+| cmd | params | returns |
+|-----|--------|---------|
+| stash | — | []StashEntry |
+| stash.pop / stash.apply / stash.drop | { index } | — |
+| stash.clear | — | — |
+| stash.show | { index } | []Hunk |
+| stash.files | { index } | []FileStat |
+| stash.save | { message? } | — |
+
+**Commit / undo / config**
+| cmd | params | returns |
+|-----|--------|---------|
 | commit | { message, paths[] } | CommitResult |
 | commit.push | { message, paths[] } | CommitResult |
-| tags | — | []Tag |
-| tag.create | { name, commit?, message? } | — |
-| tag.delete | { name } | — |
+| commit.amend | { message, paths[] } | CommitResult |
+| commit.lastMessage | — | string |
+| undo.last | — | UndoResult |
+| reflog | — | []ReflogEntry |
+| user.set | { name, email, global? } | — |
 
 ---
 
@@ -254,6 +324,7 @@ Rules:
 |---------|-------|-------------|
 | hydragit.showVersionInfo | HydraGit: Show Version Info | shows version in Output Channel + info message |
 | hydragit.openLogs | HydraGit: Open Logs Folder | reveals log dir in OS file manager |
+| hydragit.forceRefresh | HydraGit: Force Refresh | re-pulls status/branches/log/stash/tags |
 | hydragit.fileHistory | HydraGit: File History | opens per-file commit timeline |
 | hydragit.selectionHistory | HydraGit: History for Selection | history for an editor selection / line range |
 | hydragit.lineHistory | (internal) | line-range history entry point |
@@ -386,8 +457,11 @@ See `IMPLEMENTED_FEATURES.md` for the full, current inventory.
 
 ## Open follow-ups
 
-Polish and not-yet-built items live in `docs/ideas.md` (backlog) — e.g. interactive
-rebase editor, branch/ref compare, worktree UI, undo/reflog timeline, amend/reword.
+The 0.3.0 wave (interactive rebase, branch/ref compare, conflict guidance, undo/reflog
+timeline, sync, safe force-push, amend/reword/squash/drop) is **now built and in the repo**.
+Remaining not-yet-built items live in `docs/ideas.md` (backlog) — e.g. worktree UI,
+settings panel, PR diff, and graph polish (lane straightening, wide-graph compression,
+focus/linear/hide-merges view).
 
 ---
 
@@ -406,5 +480,5 @@ rebase editor, branch/ref compare, worktree UI, undo/reflog timeline, amend/rewo
 |---|---|---|
 | `0.1.x` | Branch tree + commit log + stash + inline diff. Core two-pane layout. | ✅ Built (in repo) |
 | `0.2.0` | Stage/unstage + commit from extension, tags, blame, file/line history | ✅ Built (in repo, pre-publish) |
-| `0.3.0` | Interactive rebase UI, branch compare / ref diff, conflict resolution hints | Planned |
-| `1.0.0` | All features, polished, AI commit message (Claude API, opt-in) | Planned |
+| `0.3.0` | Interactive rebase UI, branch compare / ref diff, conflict-resolution guidance, undo/reflog timeline, sync, safe force-push, amend, local+remote/folder rename | ✅ Built (in repo) |
+| `1.0.0` | Beginner-safety wave (pre-commit secret guard, auto-upstream, detached-HEAD banner), worktrees, polish | Planned |

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Commit log &amp; graph — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Commit log &amp; graph</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.1</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#log" class="head">Commit log</a>
+      <a href="#graph">Lane graph</a>
+      <a href="#hover">Hover-highlight</a>
+      <a href="#detail">Commit detail pane</a>
+      <a href="#columns">Columns &amp; virtualization</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Commit log &amp; graph</h1>
+      <p class="lede">
+        The centre of the main panel: the entire commit history, drawn with HydraGit's own
+        lane-assignment engine (not <code>git log --graph</code>), virtualized so it scrolls
+        smoothly at any repository size.
+      </p>
+
+      <section class="feature" id="log">
+        <h2>Commit log <span class="cmd">log</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Main panel</span><span class="what">The log loads automatically when the panel opens — no action needed.</span></li>
+          <li><span class="where">Toolbar</span><span class="what">The branch pill scopes the log to a branch; the all-branches toggle switches to <code>--all</code>.</span></li>
+          <li><span class="where">Search</span><span class="what">The search box re-queries the log server-side — see <a href="search-filter.html">Search &amp; filter</a>.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>Go runs <span class="cmd">log</span> with <code>{ branch?, limit?, grep?, author? }</code>, <code>--topo-order</code>, returning author / date / message / refs / parents.</li>
+          <li>The commits pass through <code>internal/graph</code> (<code>AssignLanes</code>) which returns <code>LaidOutCommit</code>s with lane, color and connector paths.</li>
+          <li>The webview renders the rows. <b>No row cap</b> — the entire history loads.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="graph">
+        <h2>Lane graph</h2>
+        <p>The inline SVG graph: colored dots, branch-line colors and merge curves. Key properties of the engine:</p>
+        <ul class="plain">
+          <li><b>Correct connections</b> — a branch only ever connects to its real parent; a merge node's incoming lines are only its real parents (no false folds).</li>
+          <li><b>Compact</b> — branches sharing an ancestor reuse lanes via short bundle diagonals (the <code>| |/</code> shape). 50 branches off one base render in ~3 lanes, validated row-by-row against <code>git log --graph</code>.</li>
+          <li><b>Genuinely-parallel branches still render wide</b> — correct, not collapsed.</li>
+          <li>Handles <b>merges, octopus (3+ parents), criss-cross, multiple roots, re-merge churn, lane recycling, same-timestamp</b> topologies.</li>
+          <li><b>Per-branch-line color</b> — color follows the branch line, not the lane (lanes get reused), so each line stays consistently colored.</li>
+        </ul>
+      </section>
+
+      <section class="feature" id="hover">
+        <h2>Hover-highlight</h2>
+        <p>Hovering a commit row highlights that commit's branch line end-to-end and dims the rest of the graph, making a single thread easy to follow through merges.</p>
+      </section>
+
+      <section class="feature" id="detail">
+        <h2>Commit detail pane <span class="cmd">diff</span></h2>
+        <p>Clicking a row loads it into the right-hand <code>DetailPane</code>: metadata (author, date, full message, refs), the changed-file tree, and an inline diff. Selecting a file runs <span class="cmd">diff</span> for its hunks.</p>
+        <div class="related"><b>Related</b><a href="diff.html">Commit diff</a><a href="context-menus.html#commit">Commit context menu</a></div>
+      </section>
+
+      <section class="feature" id="columns">
+        <h2>Columns &amp; virtualization</h2>
+        <ul class="plain">
+          <li><b>Resizable columns</b> — drag the edges of the Commit / Author / Date headers.</li>
+          <li><b>Virtualized window</b> — only the visible rows are in the DOM (<code>graphSvg.ts</code> builds just the windowed SVG paths), keeping huge histories fast.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="search-filter.html">Search &amp; filter</a><a href="reflog.html">Reflog timeline</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="branches.html"><small>Prev</small> Branches</a>
+        <a class="next" href="search-filter.html"><small>Next</small> Search &amp; filter</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Commit log &amp; graph</footer>
+</body>
+</html>
