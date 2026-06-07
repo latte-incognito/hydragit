@@ -3,3 +3,4 @@
 3. when brunch is unpablished. show the state inside main vew status bar, after branch name with ability to clikc and push it to remote
 4. Ammend with sync on remote not ammending 3. when brunch is unpablished. show the state inside main vew status bar, after branch name with ability to clikc and push it to remote
 5. after amennding commits, magic sync not working it's rebasing back
+6. Dont foget mostly all of cloros should be from vscode -> status bar inside Hydragit is not  changing color properl
