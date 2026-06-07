@@ -117,6 +117,16 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 - [Delete tag](documentation/features/tags.html#delete)
 - [Checkout · diff · merge · push tag](documentation/features/tags.html#more)
 
+## Worktrees
+
+- [Worktree list](documentation/features/worktrees.html#list)
+- [Add worktree](documentation/features/worktrees.html#add)
+- [Open in new window](documentation/features/worktrees.html#open)
+- [Lock / unlock](documentation/features/worktrees.html#lock)
+- [Move](documentation/features/worktrees.html#move)
+- [Remove](documentation/features/worktrees.html#remove)
+- [Prune stale](documentation/features/worktrees.html#prune)
+
 ## Context Menus & Tooling
 
 - [Commit context menu](documentation/features/context-menus.html#commit)
@@ -134,7 +144,6 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 See [`docs/ideas.md`](docs/ideas.md) for rationale.
 
 - PR diff (branch/ref compare itself ships — see [Compare](documentation/features/compare.html))
-- Worktree management UI
 - Settings panel
 
 ## Testing

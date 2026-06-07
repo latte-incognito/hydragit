@@ -38,6 +38,7 @@ internal/git/tags.go          Tags, CreateTag, DeleteTag
 internal/git/blame.go         Blame — per-line, buffer-aware via runStdin
 internal/git/config.go        User (committer name/email), SetUser (global identity)
 internal/git/cherrypick.go    CherryPick, Revert
+internal/git/worktree.go      Worktrees (list), WorktreeAdd/AddNew, Remove, Lock/Unlock, Move, Prune
 internal/graph/lanes.go       Lane assignment algorithm — output sent to Webview as LaidOutCommit
 internal/ipc/handler.go       Routes cmd strings to git.* functions, timing + logging
 internal/logger/logger.go     Daily rotating JSON-lines log files, package-level singleton
@@ -63,7 +64,7 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 - **No `Co-authored-by: Claude` in commit messages**
 - **Never run tests** — the user runs them. Write/change tests if asked, but do not execute them; suggest the command for the user to run instead.
 - **Never read binaries, assets, or raw logs** — never Read/cat the `hydragit-server` binary, image assets (e.g. `docs/HydraGitLogo.png`), `package-lock.json`, or raw log files. They flood context with noise. To inspect logs, grep/filter for a specific `id` or time range; for deps, read `package.json`.
-
+- **Don't build yourself i can do it from terminal
 ---
 
 ## IPC protocol
@@ -105,17 +106,17 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 | Tags list/create/delete | `tags`, `tag.create`, `tag.delete` |
 | Blame (buffer-aware), committer info | `blame`, `user` |
 | File history + line/selection history | `file.history`, `line.history` |
+| Worktrees list + add/remove/lock/unlock/move/prune/open | `worktree.list`, `worktree.*`, `worktree.open` (host) |
 
 ## Still OUT (do not implement without asking)
 
 - PR diff (branch/ref compare itself now ships)
-- Worktree management UI
 - Settings panel
 
 > Now shipped (previously OUT): interactive rebase editor, branch/ref compare,
 > amend/reword, reflog/undo timeline, conflict-resolution guidance, sync,
-> safe force-push, local+remote & folder branch rename. See
-> `IMPLEMENTED_FEATURES.md`.
+> safe force-push, local+remote & folder branch rename, worktree management UI.
+> See `IMPLEMENTED_FEATURES.md`.
 
 See `docs/ideas.md` for the full backlog and rationale.
 

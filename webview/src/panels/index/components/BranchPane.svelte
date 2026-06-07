@@ -1,9 +1,10 @@
 <script lang="ts">
-  import type { Branch, Stash } from '../types';
+  import type { Branch, Stash, Worktree } from '../types';
 
   export let branches: Branch[] = [];
   export let stashes: Stash[] = [];
   export let tags: { name: string; hash: string; date?: string }[] = [];
+  export let worktrees: Worktree[] = [];
   export let activeBranch: string = '';
   export let selStashIdx: number | null = null;
 
@@ -17,6 +18,8 @@
   export let onStashCtx: (e: MouseEvent, i: number) => void = () => {};
   export let onTagCtx: (e: MouseEvent, name: string) => void = () => {};
   export let onTagSelect: (hash: string) => void = () => {};
+  export let onSelectWorktree: (path: string) => void = () => {};
+  export let onWorktreeCtx: (e: MouseEvent, wt: Worktree) => void = () => {};
 
   // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,6 +176,16 @@
   let remoteOriginOpen: Record<string, boolean> = {};
   let tagsOpen = false;
   let stashOpen = false;
+  let worktreesOpen = false;
+
+  // Label for a worktree row: branch name, else a short detached hash, else the
+  // folder basename (covers bare/odd cases).
+  function worktreeLabel(wt: Worktree): string {
+    if (wt.bare) return '(bare)';
+    if (wt.branch) return wt.branch;
+    if (wt.detached && wt.head) return `${wt.head.slice(0, 7)} (detached)`;
+    return wt.path.split(/[\\/]/).pop() ?? wt.path;
+  }
 
   function isOriginOpen(o: string) { return remoteOriginOpen[o] ?? true; }
   function toggleOrigin(o: string) {
@@ -447,6 +460,37 @@
       {/if}
     {/if}
 
+    <!-- ── WORKTREES ─────────────────────────────────────────────────────────── -->
+    <div class="tgroup-hdr" on:click={() => (worktreesOpen = !worktreesOpen)} role="button" tabindex="0">
+      <span class="tgroup-arrow" class:closed={!worktreesOpen}>▾</span>
+      <span class="tgroup-label">Worktrees</span>
+      <span class="tgroup-count">{worktrees.length}</span>
+    </div>
+    {#if worktreesOpen}
+      {#if worktrees.length === 0}
+        <div class="stash-empty">No worktrees</div>
+      {:else}
+        {#each worktrees as wt}
+          <div
+            class="titem worktree"
+            class:current={wt.isMain}
+            on:click={() => onSelectWorktree(wt.path)}
+            on:contextmenu|preventDefault={(e) => onWorktreeCtx(e, wt)}
+            title={wt.locked && wt.lockReason ? `${wt.path}\nLocked: ${wt.lockReason}` : wt.path}
+            role="option"
+            aria-selected="false"
+            tabindex="0"
+          >
+            <span class="titem-icon">{wt.locked ? '⊘' : '⧉'}</span>
+            <span class="titem-name">{worktreeLabel(wt)}</span>
+            {#if wt.isMain}<span class="track">main</span>
+            {:else if wt.prunable}<span class="track gone">missing</span>
+            {:else if wt.locked}<span class="track">locked</span>{/if}
+          </div>
+        {/each}
+      {/if}
+    {/if}
+
   </div><!-- /tree-scroll -->
 
 </div>
@@ -524,6 +568,9 @@
     color: var(--vscode-disabledForeground, #3a3a3a);
     margin-left: auto;
   }
+  /* ── Worktree rows ───────────────────────────────────────────────────────── */
+  .titem.worktree { font-size: var(--hg-font-xs); }
+  .titem.worktree .titem-icon { opacity: 0.7; }
 
   /* ── Tree items ──────────────────────────────────────────────────────────── */
   .titem {
