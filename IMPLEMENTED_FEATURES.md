@@ -139,12 +139,8 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 
 ---
 
-## Still OUT (not implemented yet)
-
-See [`docs/ideas.md`](docs/ideas.md) for rationale.
-
-- PR diff (branch/ref compare itself ships — see [Compare](documentation/features/compare.html))
-- Settings panel
+> Backlog / not-yet-built features live in [`docs/ideas.md`](docs/ideas.md) — the
+> single source of truth for what's planned.
 
 ## Testing
 
