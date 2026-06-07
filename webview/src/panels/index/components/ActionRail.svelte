@@ -92,6 +92,13 @@
     <i class="codicon codicon-tag"></i>
   </button>
 
+  <!-- New worktree — a parallel checkout of a branch in its own folder, opened
+       in a new window. Purple-accented to stand apart from the git ops above. -->
+  <button class="rail-btn worktree" aria-label="New worktree" on:click={() => onAction('worktree.new')}
+          on:mouseenter={(e) => showTip(e, 'New worktree')} on:mouseleave={hideTip}>
+    <i class="codicon codicon-multiple-windows"></i>
+  </button>
+
 </div>
 
 <style>
@@ -106,6 +113,10 @@
     gap: 1px;
     flex-shrink: 0;
     height: 100%;
+    min-height: 0;
+    /* Scroll only when the buttons don't fit a short viewport. The scrollbar
+       styling (thin, auto-hide) comes from the global rule in vscode-theme.css. */
+    overflow-y: auto;
   }
 
   .rail-btn {
@@ -141,6 +152,17 @@
   .rail-btn.pending:hover {
     background: rgba(86,200,232,0.1);
   }
+  /* Worktree — purple accent, matching the active-stash highlight elsewhere. */
+  .rail-btn.worktree {
+    color: #9a7ae8;
+    opacity: 0.75;
+  }
+  .rail-btn.worktree:hover {
+    background: rgba(154, 122, 232, 0.12);
+    color: #b29bef;
+    opacity: 1;
+  }
+
   /* Sync is the primary action — accented so it reads above the granular ops. */
   .rail-btn.primary {
     color: var(--vscode-textLink-foreground, #4daafc);

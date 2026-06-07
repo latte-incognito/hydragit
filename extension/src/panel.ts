@@ -247,6 +247,19 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
         await openCommitUrl(msg.params);
         return;
       }
+      // Open a worktree's folder in a new VS Code window (the primary worktree
+      // action — keeps the current window's context). Host-only: not a Go cmd.
+      if (msg.cmd === 'worktree.open') {
+        const wtPath = msg.params?.path;
+        if (wtPath) {
+          await vscode.commands.executeCommand(
+            'vscode.openFolder',
+            vscode.Uri.file(wtPath),
+            { forceNewWindow: true }
+          );
+        }
+        return;
+      }
       // Dialog seam: the webview asks the host to show native prompt/confirm UI
       // and awaits the result over the same id-based bus (see webview dialogs.ts).
       if (msg.cmd === 'ui.prompt') {
@@ -271,7 +284,11 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
           placeHolder: msg.params?.placeholder ?? '',
           matchOnDescription: true,
         });
-        webviewView.webview.postMessage({ id: msg.id, ok: true, data: choice ?? null });
+        // Items may be plain strings or {label, description} rows — resolve both
+        // to the chosen label so callers always get a string back.
+        const value =
+          choice == null ? null : typeof choice === 'string' ? choice : (choice as vscode.QuickPickItem).label;
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data: value });
         return;
       }
 
@@ -293,7 +310,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       // logs/HEAD is the reflog — watch it so the HEAD undo timeline refreshes
       // when git activity happens while it's open.
       this.watcher = vscode.workspace.createFileSystemWatcher(
-        new vscode.RelativePattern(workspaceRoot, '.git/{HEAD,refs/**,COMMIT_EDITMSG,logs/HEAD}')
+        new vscode.RelativePattern(workspaceRoot, '.git/{HEAD,refs/**,COMMIT_EDITMSG,logs/HEAD,worktrees/**}')
       );
       const refresh = () => webviewView.webview.postMessage({ type: 'refresh' });
       this.watcher.onDidChange(refresh);

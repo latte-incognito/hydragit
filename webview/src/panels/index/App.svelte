@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { on, send } from '$shared/messageBus';
   import { uiPrompt, uiConfirm, uiPick } from '$shared/dialogs';
-  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag } from './types';
+  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag, Worktree } from './types';
 
   import Toolbar     from './components/Toolbar.svelte';
   import ActionRail  from './components/ActionRail.svelte';
@@ -21,6 +21,7 @@
   let filtered:    Commit[]   = [];
   let stashes:     Stash[]    = [];
   let tags:        Tag[]      = [];
+  let worktrees:   Worktree[] = [];
   let activeBranch = 'master';
   let selCommitIdx: number | null = null;
   let selStashIdx:  number | null = null;
@@ -82,8 +83,10 @@
   let branchMenu  = { visible: false, x: 0, y: 0, branch: '', isCurrent: false, current: '' };
   let stashMenu   = { visible: false, x: 0, y: 0, label: '' };
   let tagMenu     = { visible: false, x: 0, y: 0, name: '', current: '' };
+  let worktreeMenu = { visible: false, x: 0, y: 0, wt: null as Worktree | null };
   let ctxBranch   = '';
   let ctxStashIdx: number | null = null;
+  let ctxWorktree: Worktree | null = null;
 
   // ── Flash bar ────────────────────────────────────────────────────────────
   let flashMsg   = '';
@@ -105,11 +108,12 @@
   // ── Load everything ───────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [status, brs, rawStashes, rawTags, user] = await Promise.all([
+      const [status, brs, rawStashes, rawTags, rawWorktrees, user] = await Promise.all([
         send<GitStatus>('status'),
         send<Branch[]>('branches'),
         send<Stash[]>('stash'),
         send<Tag[]>('tags'),
+        send<Worktree[]>('worktree.list'),
         send<{ name: string; email: string }>('user'),
       ]);
       // Resolve the current branch before requesting its log, so the initial
@@ -131,6 +135,7 @@
       commits     = rawCommits;
       stashes     = rawStashes;
       tags        = rawTags ?? [];
+      worktrees   = rawWorktrees ?? [];
       sbCounts    = `${commits.length} commits · ${branches.filter(b => !b.isRemote).length} branches`;
       // Surface a paused rebase (e.g. a Drop/Edit that hit a conflict) so the
       // Continue/Skip/Abort bar reappears across reloads.
@@ -543,6 +548,10 @@
       const name = await uiPick(names, 'Checkout branch…');
       if (!name) return;
       await switchToBranch(name);
+      return;
+    }
+    if (a === 'worktree.new') {
+      await createWorktree();
       return;
     }
     if (a === 'branch.new') {
@@ -1101,6 +1110,163 @@
     await stashAction(a);
   }
 
+  // ── Worktrees ─────────────────────────────────────────────────────────────
+  // Default location follows the GitLens convention: a sibling
+  // "<repo>.worktrees/" folder, keyed by branch (slashes flattened). Derived
+  // from the main worktree's absolute path so it works regardless of cwd.
+  function defaultWorktreePath(branch: string): string {
+    const safe = branch.replace(/[\\/]/g, '-');
+    const main = worktrees.find((w) => w.isMain)?.path ?? '';
+    if (!main) return `../worktrees/${safe}`;
+    const parts = main.split(/[\\/]/);
+    const repo = parts.pop() || 'repo';
+    const parent = parts.join('/');
+    return `${parent}/${repo}.worktrees/${safe}`;
+  }
+
+  function openWorktree(path: string) {
+    // Host-only relay: opens the folder in a new VS Code window.
+    send('worktree.open', { path });
+    flash('Opening worktree in a new window…', '#4ec94e');
+  }
+
+  // Create a worktree: pick an existing branch (one not already checked out in
+  // another worktree) or start a new branch, then choose the folder.
+  async function createWorktree() {
+    const NEW = '✚ Create new branch…';
+
+    // A branch can only live in one worktree at a time — hide any already
+    // checked out (this also covers the current branch via the main worktree).
+    const inWorktree = new Set(worktrees.map((w) => w.branch).filter(Boolean));
+    const locals = branches.filter((b) => !b.isRemote);
+    const localNames = new Set(locals.map((b) => b.name));
+
+    // Local branches: the bread-and-butter picks.
+    const localItems = locals
+      .filter((b) => !inWorktree.has(b.name))
+      .map((b) => ({ label: b.name, description: b.trackShort ? `local · ${b.trackShort}` : 'local' }));
+
+    // Remote branches without a local of the same short name — picking one
+    // creates a local tracking branch in the new worktree (GitLens-style).
+    const remoteItems = branches
+      .filter((b) => b.isRemote)
+      .map((b) => ({ full: b.name, short: b.name.slice(b.name.indexOf('/') + 1) }))
+      .filter((r) => r.short !== 'HEAD' && !localNames.has(r.short) && !inWorktree.has(r.short))
+      .map((r) => ({ label: r.full, description: `remote → new branch '${r.short}'` }));
+
+    const items = [
+      { label: NEW, description: `from ${activeBranch}` },
+      ...localItems,
+      ...remoteItems,
+    ];
+    const choice = await uiPick(items, 'Branch for the new worktree — local, remote, or create new');
+    if (!choice) return;
+
+    let branch = choice; // resulting (local) branch name, used for the default path
+    let newBranch = '';
+    let start = '';
+    if (choice === NEW) {
+      const name = await uiPrompt('New branch name for the worktree:');
+      if (!name) return;
+      newBranch = name;
+      branch = name;
+    } else {
+      const picked = branches.find((b) => b.name === choice);
+      if (picked?.isRemote) {
+        // Create a local branch tracking the remote ref inside the worktree.
+        const short = choice.slice(choice.indexOf('/') + 1);
+        newBranch = short;
+        start = choice;
+        branch = short;
+      }
+    }
+
+    const path = await uiPrompt('Worktree folder path:', defaultWorktreePath(branch));
+    if (!path) return;
+    flash(`Creating worktree at ${path}…`);
+    try {
+      await send('worktree.add', newBranch ? { path, newBranch, start } : { path, branch });
+      flash(`Worktree created for ${branch}`, '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      flash('Create worktree failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  function showWorktreeCtx(e: MouseEvent, wt: Worktree) {
+    e.preventDefault();
+    e.stopPropagation();
+    ctxWorktree = wt;
+    worktreeMenu = {
+      visible: true,
+      wt,
+      x: Math.min(e.clientX, window.innerWidth - 280),
+      y: Math.min(e.clientY, window.innerHeight - 220),
+    };
+  }
+
+  async function worktreeCtxAction(a: string) {
+    const wt = ctxWorktree;
+    worktreeMenu = { ...worktreeMenu, visible: false };
+    if (!wt) return;
+    try {
+      switch (a) {
+        case 'open':
+          openWorktree(wt.path);
+          break;
+        case 'lock':
+          await send('worktree.lock', { path: wt.path });
+          flash('Worktree locked', '#4ec94e');
+          loadAll();
+          break;
+        case 'unlock':
+          await send('worktree.unlock', { path: wt.path });
+          flash('Worktree unlocked', '#4ec94e');
+          loadAll();
+          break;
+        case 'move': {
+          const to = await uiPrompt('Move worktree to path:', wt.path);
+          if (!to || to === wt.path) return;
+          await send('worktree.move', { from: wt.path, to });
+          flash('Worktree moved', '#4ec94e');
+          loadAll();
+          break;
+        }
+        case 'prune':
+          await send('worktree.prune');
+          flash('Pruned stale worktrees', '#4ec94e');
+          loadAll();
+          break;
+        case 'remove': {
+          const ok = await uiConfirm(
+            `Remove worktree at ${wt.path}?\n\n` +
+              `The folder and its checkout are removed. Committed work on the branch is kept.`
+          );
+          if (!ok) return;
+          try {
+            await send('worktree.remove', { path: wt.path, force: false });
+            flash('Worktree removed', '#4ec94e');
+            loadAll();
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            const force = await uiConfirm(
+              `Could not remove worktree:\n${msg}\n\n` +
+                `Force remove? Uncommitted changes in the worktree will be lost.`
+            );
+            if (force) {
+              await send('worktree.remove', { path: wt.path, force: true });
+              flash('Worktree force-removed', '#e0a030');
+              loadAll();
+            }
+          }
+          break;
+        }
+      }
+    } catch (e: unknown) {
+      flash(`${a} failed: ` + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
   // ── Tag context menu ──────────────────────────────────────────────────────
   function showTagCtx(e: MouseEvent, name: string) {
     e.preventDefault(); e.stopPropagation();
@@ -1145,10 +1311,22 @@
     }
   }
 
+  // Left-click on a worktree row: open it in a new window (the chosen primary
+  // action), except the main worktree — that's already this window.
+  function selectWorktree(path: string) {
+    const wt = worktrees.find((w) => w.path === path);
+    if (wt?.isMain) {
+      flash('This is the current worktree', '#e0a030');
+      return;
+    }
+    openWorktree(path);
+  }
+
   function closeMenus() {
-    branchMenu = { ...branchMenu, visible: false };
-    stashMenu  = { ...stashMenu,  visible: false };
-    tagMenu    = { ...tagMenu,    visible: false };
+    branchMenu   = { ...branchMenu,   visible: false };
+    stashMenu    = { ...stashMenu,    visible: false };
+    tagMenu      = { ...tagMenu,      visible: false };
+    worktreeMenu = { ...worktreeMenu, visible: false };
   }
 </script>
 
@@ -1222,6 +1400,7 @@
         {branches}
         {stashes}
         {tags}
+        {worktrees}
         {activeBranch}
         {selStashIdx}
         onSelectBranch={selectBranch}
@@ -1234,6 +1413,8 @@
         onStashCtx={showStashCtx}
         onTagCtx={showTagCtx}
         onTagSelect={selectTagCommit}
+        onSelectWorktree={selectWorktree}
+        onWorktreeCtx={showWorktreeCtx}
       />
     </div>
 
@@ -1290,9 +1471,11 @@
     {branchMenu}
     {stashMenu}
     {tagMenu}
+    {worktreeMenu}
     onBranchAction={branchAction}
     onStashAction={stashCtxAction}
     onTagAction={tagCtxAction}
+    onWorktreeAction={worktreeCtxAction}
   />
 </div>
 

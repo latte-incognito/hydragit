@@ -81,3 +81,16 @@ export interface Tag {
   hash: string;   // short commit hash
   date?: string;  // ISO date string (git creatordate:short)
 }
+
+export interface Worktree {
+  path: string;
+  head: string;          // commit hash, "" for a bare main worktree
+  branch: string;        // short branch name, "" if detached/bare
+  isMain: boolean;       // the primary working tree (first in the list)
+  detached: boolean;
+  bare: boolean;
+  locked: boolean;
+  lockReason?: string;
+  prunable: boolean;     // gitdir gone — a stale entry that prune would clear
+  pruneReason?: string;
+}

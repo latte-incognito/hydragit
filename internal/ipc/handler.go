@@ -749,6 +749,81 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "worktree.list":
+		wts, err := git.Worktrees(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, wts)
+
+	case "worktree.add":
+		var p struct {
+			Path      string `json:"path"`
+			Branch    string `json:"branch"`
+			NewBranch string `json:"newBranch"`
+			Start     string `json:"start"`
+		}
+		json.Unmarshal(req.Params, &p)
+		var werr error
+		if p.NewBranch != "" {
+			werr = git.WorktreeAddNew(repoPath, p.Path, p.NewBranch, p.Start)
+		} else {
+			werr = git.WorktreeAdd(repoPath, p.Path, p.Branch)
+		}
+		if werr != nil {
+			return fail(id, werr)
+		}
+		return ok(id, nil)
+
+	case "worktree.remove":
+		var p struct {
+			Path  string `json:"path"`
+			Force bool   `json:"force"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.WorktreeRemove(repoPath, p.Path, p.Force); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "worktree.lock":
+		var p struct {
+			Path   string `json:"path"`
+			Reason string `json:"reason"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.WorktreeLock(repoPath, p.Path, p.Reason); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "worktree.unlock":
+		var p struct {
+			Path string `json:"path"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.WorktreeUnlock(repoPath, p.Path); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "worktree.move":
+		var p struct {
+			From string `json:"from"`
+			To   string `json:"to"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if err := git.WorktreeMove(repoPath, p.From, p.To); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "worktree.prune":
+		if err := git.WorktreePrune(repoPath); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	default:
 		return Response{ID: id, OK: false, Error: "unknown command: " + req.Cmd}
 	}

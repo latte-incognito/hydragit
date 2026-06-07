@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Worktrees — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Branches<span class="sep">/</span>Worktrees</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.2</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#list" class="head">Worktree list</a>
+      <a href="#add">Add worktree</a>
+      <a href="#open">Open in new window</a>
+      <a href="#lock">Lock / unlock</a>
+      <a href="#move">Move</a>
+      <a href="#remove">Remove</a>
+      <a href="#prune">Prune stale</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Worktrees</h1>
+      <p class="lede">
+        Multiple working directories for one repo — each on a different branch — managed from the
+        <b>WORKTREES</b> section of the branch tree. A branch can only be checked out in one
+        worktree at a time, so worktrees let you build/run one branch while editing another.
+      </p>
+
+      <section class="feature" id="list">
+        <h2>Worktree list <span class="cmd amber">worktree.list</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Branch tree</span><span class="what">The <b>WORKTREES</b> section (collapsed by default). The main working tree is badged <b>main</b>; locked trees show a lock glyph, stale ones show <b>missing</b>.</span></li>
+        </ul>
+        <p>Go runs <span class="cmd amber">worktree.list</span> (<code>git worktree list --porcelain</code>) and returns <code>[]Worktree</code> — path, HEAD, branch, and the main/detached/bare/locked/prunable flags.</p>
+      </section>
+
+      <section class="feature" id="add">
+        <h2>Add worktree <span class="cmd amber">worktree.add</span></h2>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Action rail</span><span class="what">The purple <b>New worktree</b> button (overlapping-windows icon) at the bottom of the rail, after <b>Create tag</b>.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>A filterable quick-pick opens listing, each with a description:
+            <ul class="plain">
+              <li><b>✚ Create new branch…</b> — <i>from &lt;current branch&gt;</i>; prompts for a name and branches off HEAD.</li>
+              <li><b>Local branches</b> — <i>local · &lt;ahead/behind&gt;</i>; any branch not already checked out in another worktree (your current branch is excluded — it lives in the main worktree).</li>
+              <li><b>Remote branches</b> — <i>remote → new branch '&lt;short&gt;'</i>; only those without a local twin. Picking one creates a local tracking branch (<code>start = origin/&lt;short&gt;</code>, so git sets the upstream).</li>
+            </ul>
+          </li>
+          <li>Confirm the folder — defaults to <code>&lt;repo&gt;.worktrees/&lt;branch&gt;</code> alongside the repo (GitLens convention).</li>
+          <li>Go runs <span class="cmd amber">worktree.add</span> with <code>{ path, branch }</code> for an existing local branch, or <code>{ path, newBranch, start? }</code> for a new/remote-tracking branch (<code>git worktree add [-b]</code>).</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="open">
+        <h2>Open in new window <span class="cmd amber">worktree.open</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Worktree row</span><span class="what">Click a linked worktree, or use <b>Open in New Window</b> from its menu.</span></li>
+        </ul>
+        <p>Host-only — the extension runs <code>vscode.openFolder</code> with <code>forceNewWindow</code> so the current window's context is kept. The main worktree is skipped (already open).</p>
+      </section>
+
+      <section class="feature" id="lock">
+        <h2>Lock / unlock <span class="cmd amber">worktree.lock</span> <span class="cmd amber">worktree.unlock</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Worktree menu</span><span class="what"><b>Lock</b> / <b>Unlock</b>.</span></li>
+        </ul>
+        <p>Locking marks a worktree so prune won't reclaim it (e.g. on removable media or a long-running agent checkout). Go runs <span class="cmd amber">worktree.lock</span> / <span class="cmd amber">worktree.unlock</span> with <code>{ path }</code>.</p>
+      </section>
+
+      <section class="feature" id="move">
+        <h2>Move <span class="cmd amber">worktree.move</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Worktree menu</span><span class="what"><b>Move…</b> — prompts for a new path.</span></li>
+        </ul>
+        <p>Go runs <span class="cmd amber">worktree.move</span> with <code>{ from, to }</code> (<code>git worktree move</code>).</p>
+      </section>
+
+      <section class="feature" id="remove">
+        <h2>Remove <span class="cmd amber">worktree.remove</span></h2>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li><b>Remove</b> (red) in the worktree menu, after confirmation.</li>
+          <li>If the worktree has uncommitted changes git refuses; you're offered a <b>force remove</b>.</li>
+          <li>Go runs <span class="cmd amber">worktree.remove</span> with <code>{ path, force }</code>. Committed work on the branch is kept.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="prune">
+        <h2>Prune stale <span class="cmd amber">worktree.prune</span></h2>
+        <ul class="entrypoints">
+          <li><span class="where">Worktree menu</span><span class="what"><b>Prune Stale Worktrees</b> — repo-wide cleanup.</span></li>
+        </ul>
+        <p>Clears administrative entries for worktrees whose directories were deleted from disk (the rows badged <b>missing</b>). Go runs <span class="cmd amber">worktree.prune</span> (<code>git worktree prune</code>).</p>
+        <div class="related"><b>Related</b><a href="context-menus.html">Context menus</a><a href="branches.html">Branches</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="branches.html"><small>Prev</small> Branches</a>
+        <a class="next" href="context-menus.html"><small>Next</small> Context menus</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Worktrees</footer>
+</body>
+</html>

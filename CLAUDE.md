@@ -38,6 +38,7 @@ internal/git/tags.go          Tags, CreateTag, DeleteTag
 internal/git/blame.go         Blame — per-line, buffer-aware via runStdin
 internal/git/config.go        User (committer name/email), SetUser (global identity)
 internal/git/cherrypick.go    CherryPick, Revert
+internal/git/worktree.go      Worktrees (list), WorktreeAdd/AddNew, Remove, Lock/Unlock, Move, Prune
 internal/graph/lanes.go       Lane assignment algorithm — output sent to Webview as LaidOutCommit
 internal/ipc/handler.go       Routes cmd strings to git.* functions, timing + logging
 internal/logger/logger.go     Daily rotating JSON-lines log files, package-level singleton
@@ -63,7 +64,7 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 - **No `Co-authored-by: Claude` in commit messages**
 - **Never run tests** — the user runs them. Write/change tests if asked, but do not execute them; suggest the command for the user to run instead.
 - **Never read binaries, assets, or raw logs** — never Read/cat the `hydragit-server` binary, image assets (e.g. `docs/HydraGitLogo.png`), `package-lock.json`, or raw log files. They flood context with noise. To inspect logs, grep/filter for a specific `id` or time range; for deps, read `package.json`.
-
+- **Don't build yourself i can do it from terminal
 ---
 
 ## IPC protocol
@@ -85,7 +86,7 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 
 ---
 
-## Current feature surface (manifest v0.2.1; 0.3.0 wave in repo)
+## Feature → cmd map
 
 > Name index: `IMPLEMENTED_FEATURES.md`. Per-feature HTML docs (UI entry point →
 > what happens next): `documentation/index.html`. Quick map below.
@@ -105,19 +106,10 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 | Tags list/create/delete | `tags`, `tag.create`, `tag.delete` |
 | Blame (buffer-aware), committer info | `blame`, `user` |
 | File history + line/selection history | `file.history`, `line.history` |
+| Worktrees list + add/remove/lock/unlock/move/prune/open | `worktree.list`, `worktree.*`, `worktree.open` (host) |
 
-## Still OUT (do not implement without asking)
-
-- PR diff (branch/ref compare itself now ships)
-- Worktree management UI
-- Settings panel
-
-> Now shipped (previously OUT): interactive rebase editor, branch/ref compare,
-> amend/reword, reflog/undo timeline, conflict-resolution guidance, sync,
-> safe force-push, local+remote & folder branch rename. See
-> `IMPLEMENTED_FEATURES.md`.
-
-See `docs/ideas.md` for the full backlog and rationale.
+> Backlog + what's deliberately not built yet → `docs/ideas.md` (single source of
+> truth). Don't implement a new feature without asking first.
 
 ---
 
@@ -136,11 +128,46 @@ See `docs/ideas.md` for the full backlog and rationale.
 
 ## Testing approach
 
-The suite is now broad: a `_test.go` per `internal/git` source file plus
+The suite is broad: a `_test.go` per `internal/git` source file plus
 `scenarios_test.go` (real temp-repo scenarios), `internal/graph` topology tests,
-Vitest component + `graphSvg` tests, and Playwright e2e. Keep extending it.
+Vitest component + `graphSvg` tests, and Playwright e2e.
 
-Template (`internal/git/repo_test.go`):
+**Every feature ships with tests at the level(s) it touches** — add where it
+makes sense, don't force all three:
+- **Go unit** (`internal/git/*_test.go`, `internal/graph`) — git logic + output parsers.
+- **Vitest** (`webview/**/*.test.ts`) — component render + emit/prop behaviour.
+- **Playwright e2e** (`tests/e2e`) — the user-visible flow end to end.
+
+**Cover both directions — not just one happy path.** Pair each positive test with
+**negative tests**, *especially* for anything that mutates repo state, since
+that's where git destabilises. Negative cases to reach for:
+- dirty tree (uncommitted changes) blocking checkout/reset/merge/rebase
+- conflicts on merge/rebase/cherry-pick → assert the paused/conflict state, not a crash
+- non-fast-forward push rejection; an op already in progress
+- empty repo (no HEAD), detached HEAD, a non-git dir (`fatal: not a git repository`)
+- invalid / nonexistent ref or commit hash
+- operating on the current branch, or a branch already checked out in a worktree
+- removing a dirty / locked worktree without `--force`
+
+A negative test asserts the op **errors *and* leaves the repo intact** — never
+just swallow the error:
+```go
+func TestWorktreeRemove_dirtyWithoutForce(t *testing.T) {
+    dir := initRepo(t)
+    wt := filepath.Join(t.TempDir(), "wt")
+    if err := WorktreeAddNew(dir, wt, "feat", ""); err != nil { t.Fatal(err) }
+    os.WriteFile(filepath.Join(wt, "f.txt"), []byte("dirty"), 0o644)
+
+    if err := WorktreeRemove(dir, wt, false); err == nil {
+        t.Fatal("expected refusal removing a dirty worktree without --force")
+    }
+    if wts, _ := Worktrees(dir); findWorktree(wts, "feat") == nil {
+        t.Fatal("a refused remove must leave the worktree intact")
+    }
+}
+```
+
+Positive template (`internal/git/repo_test.go`):
 ```go
 func TestRun(t *testing.T) {
     dir := t.TempDir()

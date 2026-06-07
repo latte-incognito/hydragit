@@ -44,14 +44,23 @@ body {
   user-select: none;
 }
 
-/* Scrollbars */
+/* Scrollbars — a constant 2px, auto-hiding: the thumb is transparent while idle
+   and fades in (same 2px, no widening) when you hover/scroll the area. The
+   explicit small width forces a custom scrollbar instead of the macOS overlay
+   one, which would otherwise widen on hover. */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 2px;
+  height: 2px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--vscode-scrollbarSlider-background, #424242);
-  border-radius: 2px;
+  background-color: transparent;
+  border-radius: 1px;
+}
+:hover::-webkit-scrollbar-thumb {
+  background-color: var(--vscode-scrollbarSlider-background, #79797966);
 }
 
 /* Spinner */
