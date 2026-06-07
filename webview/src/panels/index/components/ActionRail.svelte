@@ -25,9 +25,10 @@
 
 <div class="rail">
 
-  <!-- Sync — the primary "bring me up to date" action (fetch + integrate). -->
+  <!-- Sync — the primary "bring me up to date" action: fetch, then integrate the
+       current branch (silent ff-pull, or a confirmed rebase/stash/push). -->
   <button class="rail-btn primary" aria-label="Sync" on:click={() => onAction('sync')}
-          on:mouseenter={(e) => showTip(e, 'Sync (fetch + pull)')} on:mouseleave={hideTip}>
+          on:mouseenter={(e) => showTip(e, 'Smart Sync (fetch · pull · push)')} on:mouseleave={hideTip}>
     <i class="codicon codicon-sync"></i>
   </button>
 

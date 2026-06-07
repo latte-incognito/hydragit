@@ -279,6 +279,11 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({ id: msg.id, ok: true, data: pick === 'Yes' });
         return;
       }
+      if (msg.cmd === 'ui.notify') {
+        // Non-modal, persistent info toast (fire-and-forget reminder).
+        void vscode.window.showInformationMessage(msg.params?.message ?? '');
+        return;
+      }
       if (msg.cmd === 'ui.pick') {
         const choice = await vscode.window.showQuickPick(msg.params?.items ?? [], {
           placeHolder: msg.params?.placeholder ?? '',

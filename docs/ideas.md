@@ -1,4 +1,4 @@
-# HydraGit — Ideas
+B# HydraGit — Ideas
 
 The backlog, framed against the PyCharm/IntelliJ git panel ("IntelliJ panel, no
 paywall"). Everything here is doable under the `os/exec + git CLI only`

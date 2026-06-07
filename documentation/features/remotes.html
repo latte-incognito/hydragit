@@ -36,15 +36,27 @@
       </p>
 
       <section class="feature" id="sync">
-        <h2>Sync (fetch + integrate)</h2>
-        <p>The primary "bring me up to date" action, so you don't have to reason about fetch vs pull vs rebase.</p>
+        <h2>Smart Sync (fetch + integrate)</h2>
+        <p>The primary "bring me up to date" action for the <b>current branch</b>, so you
+           don't have to reason about fetch vs pull vs rebase vs push. It does the most it
+           safely can in one click — but only the reversible part runs unattended.</p>
         <h3 class="lbl">Entry points</h3>
         <ul class="entrypoints">
-          <li><span class="where">Action rail</span><span class="what">The accented <b>Sync</b> button (tooltip "Sync (fetch + pull)").</span></li>
+          <li><span class="where">Action rail</span><span class="what">The accented <b>Sync</b> button (tooltip "Smart Sync").</span></li>
         </ul>
+        <h3 class="lbl">What happens next</h3>
         <ol class="flow">
-          <li>Runs <span class="cmd">fetch</span>, then <span class="cmd">pull</span> in sequence.</li>
-          <li>The log, branch tree and status all refresh.</li>
+          <li>Always <span class="cmd">fetch</span> first, then look at the branch's state.</li>
+          <li><b>Clean tree, only behind</b> → a fast-forward <span class="cmd">pull</span> runs
+              <b>silently</b>. It's fully reversible (the <a href="reflog.html#reset">Undo</a>
+              button → <code>reset --hard ORIG_HEAD</code>), so no prompt.</li>
+          <li><b>Diverged, dirty, or you're ahead</b> → one descriptive yes/no confirm spells
+              out the plan ("stash your changes · rebase your 1 commit onto the 4 incoming ·
+              push · restore"), because a rebase/stash is bigger and a <b>push can't be
+              undone</b>. Cancel to do it yourself with the Pull / Push buttons.</li>
+          <li>On confirm it runs the plan via <span class="cmd">stash</span> /
+              <span class="cmd">pull.mode</span> (rebase) / <span class="cmd">push</span>, then
+              flashes a receipt ("Synced · pulled 4 · pushed 1"). Log, tree and status refresh.</li>
         </ol>
       </section>
 

@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { on, send } from '$shared/messageBus';
-  import { uiPrompt, uiConfirm, uiPick } from '$shared/dialogs';
+  import { uiPrompt, uiConfirm, uiPick, uiNotify } from '$shared/dialogs';
   import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag, Worktree } from './types';
+  import { planSync } from './syncPlan';
 
   import Toolbar     from './components/Toolbar.svelte';
   import ActionRail  from './components/ActionRail.svelte';
@@ -526,20 +527,114 @@
     }
   }
 
+  // Smart Sync — fetch, then bring the CURRENT branch in line with its upstream.
+  // A plain fast-forward pull on a clean tree runs silently (fully undoable via
+  // the Undo button → reset --hard ORIG_HEAD). Anything that rebases, stashes, or
+  // pushes (a push can't be undone) happens only behind one descriptive confirm.
+  // See syncPlan.ts for the decision tree.
+  async function smartSync() {
+    flash('Fetching…');
+    let st: GitStatus | null = null;
+    try {
+      await send('fetch');
+      st = await send<GitStatus>('status');
+    } catch (e: unknown) {
+      flash('Sync failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      return;
+    }
+    if (!st) return;
+
+    const ahead = st.ahead ?? 0;
+    const behind = st.behind ?? 0;
+    const plan = planSync(ahead, behind, (st.modified ?? 0) > 0);
+    const branch = st.branch || activeBranch;
+
+    if (plan.kind === 'noop') {
+      flash('Already up to date', '#4ec94e');
+      loadAll();
+      return;
+    }
+
+    if (plan.kind === 'confirm') {
+      const ok = await uiConfirm(
+        `Sync ${branch} will:\n\n` +
+        plan.steps.map((s) => `• ${s}`).join('\n') +
+        `\n\nA push can't be taken back with the Undo button. Prefer to do it ` +
+        `yourself? Cancel and use the Pull / Push buttons.`
+      );
+      if (!ok) { flash('Sync cancelled', '#e0a030'); return; }
+    }
+
+    flash('Syncing…');
+    let pushRejected = false;
+    try {
+      if (plan.stash) await send('stash.save', { message: 'hydragit: auto-stash before sync' });
+
+      if (plan.pull !== 'none') {
+        try {
+          if (plan.pull === 'rebase') await send('pull.mode', { mode: 'rebase' });
+          else await send('pull');
+        } catch (e: unknown) {
+          // A rebase that hits a conflict exits non-zero and parks the repo
+          // mid-rebase. That's not a dead failure — the rebase bar takes over.
+          // The common collab case (your PR branch, main merged in while you
+          // worked) rebases cleanly; conflicts are rare, and here we just hand
+          // off: tell the user to resolve + continue, then push. A flash would
+          // vanish before they're done, so also fire a persistent notification.
+          const paused = await send<{ inProgress: boolean }>('rebase.status')
+            .then((r) => !!r?.inProgress)
+            .catch(() => false);
+          if (paused) {
+            const tail = plan.push
+              ? ` then run Sync again to push your ${ahead} commit${ahead === 1 ? '' : 's'}.`
+              : '.';
+            const note = `Sync paused on a rebase conflict. Resolve it and Continue the rebase (using the bar),${tail}`;
+            flash('Rebase paused on conflicts — resolve, Continue, then Sync again to push.', '#e0a030');
+            uiNotify(note + (plan.stash ? ' Your stashed changes are in the Stashes list.' : ''));
+            loadAll();
+            return;
+          }
+          throw e; // a genuine (non-conflict) pull failure
+        }
+      }
+
+      if (plan.push) {
+        // After a rebase the push is a fast-forward, so a PLAIN push is correct —
+        // never force here. If the remote advanced again between our fetch and this
+        // push, git rejects it; the safe answer is to Sync again (fetch + rebase),
+        // NOT to force, which would clobber the new remote commits.
+        try {
+          await send('push');
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (/non-fast-forward|\brejected\b|fetch first|behind/i.test(msg)) {
+            pushRejected = true;
+          } else {
+            throw e;
+          }
+        }
+      }
+
+      if (plan.stash) await send('stash.pop'); // restore WIP even if the push was rejected
+
+      if (pushRejected) {
+        flash('Pulled & rebased, but the remote moved again — run Sync once more (no force needed).', '#e0a030');
+      } else {
+        const receipt: string[] = [];
+        if (plan.pull !== 'none') receipt.push(`pulled ${behind}`);
+        if (plan.push) receipt.push(`pushed ${ahead}`);
+        flash('Synced' + (receipt.length ? ' · ' + receipt.join(' · ') : ''), '#4ec94e');
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      flash('Sync failed: ' + msg + (plan.stash ? ' · your changes are safe in a stash' : ''), '#f07070');
+    }
+    loadAll();
+  }
+
   async function railAction(a: string) {
     if (a === 'sync') {
-      // One-click "bring me up to date": fetch all remotes, then integrate the
-      // current branch (uses the user's configured pull mode). No push — that
-      // stays a deliberate, separate action.
-      flash('Syncing…');
-      try {
-        await send('fetch');
-        await send('pull');
-        flash('Synced', '#4ec94e');
-        loadAll();
-      } catch (e: unknown) {
-        flash('Sync failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
-      }
+      await smartSync();
       return;
     }
     if (a === 'branch.switch') {
