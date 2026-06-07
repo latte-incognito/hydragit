@@ -87,7 +87,7 @@ test("S7 checkout a branch from the tree context menu", async ({ mainWindow }) =
   // pick a non-current local branch row
   const row = f.locator(".titem").filter({ hasNotText: "⭐" }).nth(1);
   await row.click({ button: "right" });
-  await f.locator(".ctx").getByText("Checkout", { exact: true }).click();
+  await f.locator(".ctx").getByText("Switch to Branch", { exact: true }).click();
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
 });
 

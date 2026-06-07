@@ -14,6 +14,7 @@ import (
 type Request struct {
 	ID     string          `json:"id"`
 	Cmd    string          `json:"cmd"`
+	Repo   string          `json:"repo,omitempty"` // active repo root; falls back to spawn default
 	Params json.RawMessage `json:"params"`
 }
 
@@ -72,6 +73,13 @@ func Handle(repoPath string, req Request) Response {
 // wrap it cleanly with timing and logging.
 func handle(repoPath string, req Request) Response {
 	id := req.ID
+
+	// Per-request repo override: a multi-repo workspace sends the active repo
+	// root on each request. When absent, fall back to the spawn-time default
+	// (HYDRAGIT_REPO). Every git.* call below runs against this path.
+	if req.Repo != "" {
+		repoPath = req.Repo
+	}
 
 	switch req.Cmd {
 

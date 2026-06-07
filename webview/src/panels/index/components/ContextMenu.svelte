@@ -67,7 +67,7 @@
 <!-- Branch context menu -->
 {#if branchMenu.visible}
   <div class="ctx show" style="left:{branchMenu.x}px;top:{branchMenu.y}px" use:fitMenu>
-    <div class="ci" class:disabled={branchMenu.isCurrent} on:click={() => onBranchAction('checkout')}>Checkout</div>
+    <div class="ci" class:disabled={branchMenu.isCurrent} on:click={() => onBranchAction('checkout')}>Switch to Branch</div>
     <div class="ci" on:click={() => onBranchAction('new-from')}>
       New Branch from '{branchMenu.branch}'…
     </div>

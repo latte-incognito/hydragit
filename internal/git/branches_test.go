@@ -291,6 +291,54 @@ func makeRepoWithRemote(t *testing.T) (local string) {
 	return local
 }
 
+// Reproduces the Smart Sync footgun: a diverged branch whose `pull --rebase`
+// hits a CONFLICT. PullMode must surface that as an error AND leave the repo
+// paused mid-rebase. That's exactly why the webview's sequence (pull → push)
+// stops at the pull and the push never fires — resolving the conflict later via
+// rebase-continue doesn't resume Sync, so the user is left still "ahead".
+func TestPullMode_rebaseConflict_pausesAndErrors(t *testing.T) {
+	local := makeRepoWithRemote(t)
+
+	// Seed a tracked file on the remote that both sides will edit.
+	if err := os.WriteFile(filepath.Join(local, "f.txt"), []byte("base\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exec.Command("git", "-C", local, "add", "f.txt").Run()
+	exec.Command("git", "-C", local, "commit", "-m", "add f").Run()
+	exec.Command("git", "-C", local, "push").Run()
+
+	// A second clone advances the remote with a CONFLICTING change to f.txt.
+	out, err := exec.Command("git", "-C", local, "remote", "get-url", "origin").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	remote := strings.TrimSpace(string(out))
+	other := t.TempDir()
+	exec.Command("git", "clone", remote, other).Run()
+	exec.Command("git", "-C", other, "config", "user.email", "test@test.com").Run()
+	exec.Command("git", "-C", other, "config", "user.name", "Test").Run()
+	os.WriteFile(filepath.Join(other, "f.txt"), []byte("remote change\n"), 0o644)
+	exec.Command("git", "-C", other, "add", "f.txt").Run()
+	exec.Command("git", "-C", other, "commit", "-m", "remote edit").Run()
+	exec.Command("git", "-C", other, "push").Run()
+
+	// Local makes its own conflicting commit → now diverged (1 ahead, 1 behind)
+	// with a textual conflict on f.txt.
+	os.WriteFile(filepath.Join(local, "f.txt"), []byte("local change\n"), 0o644)
+	exec.Command("git", "-C", local, "add", "f.txt").Run()
+	exec.Command("git", "-C", local, "commit", "-m", "local edit").Run()
+
+	// The rebase pull must fail (conflict) — this is the error the webview catches.
+	if err := PullMode(local, "rebase"); err == nil {
+		t.Fatal("expected pull --rebase to fail on a conflict, got nil")
+	}
+	// ...and it must leave the repo paused mid-rebase, so any follow-up push the
+	// caller intended is unsafe/won't run until the rebase is resolved.
+	if !RebaseInProgress(local) {
+		t.Fatal("expected the rebase to be paused (in progress) after the conflict")
+	}
+}
+
 func TestPush(t *testing.T) {
 	local := makeRepoWithRemote(t)
 

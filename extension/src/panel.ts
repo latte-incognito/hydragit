@@ -3,15 +3,29 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { GoProcess } from './goProcess';
 import { HydraStatusService, HydraStatusSnapshot } from './HydraStatusService';
+import { RepoInfo } from './RepoService';
+
+// ── Active repo root (multi-repo) ─────────────────────────────────────────────
+// Host-side helpers resolve file paths against the active repo, not blindly
+// against the first workspace folder. extension.ts updates this on every repo
+// switch. When unset, it falls back to the first folder → single-repo behaviour
+// is unchanged.
+let activeRepoRoot: string | undefined;
+export function setActiveRepoRoot(root: string | undefined): void {
+  activeRepoRoot = root;
+}
+function repoRoot(): string {
+  return activeRepoRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+}
 
 // ── Shared diff helpers ───────────────────────────────────────────────────────
 
-async function fileExistsAtRef(absPath: string, ref: string): Promise<boolean> {
+async function fileExistsAtRef(absPath: string, ref: string, root?: string): Promise<boolean> {
   try {
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
     const exec = promisify(execFile);
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+    const workspaceRoot = root ?? repoRoot();
     const relPath = path.relative(workspaceRoot, absPath);
     await exec('git', ['cat-file', '-e', `${ref}:${relPath}`], { cwd: workspaceRoot });
     return true;
@@ -20,8 +34,8 @@ async function fileExistsAtRef(absPath: string, ref: string): Promise<boolean> {
   }
 }
 
-export async function openFile(params: { file: string; ref?: string }): Promise<void> {
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+export async function openFile(params: { file: string; ref?: string }, root?: string): Promise<void> {
+  const workspaceRoot = root ?? repoRoot();
   const absPath = path.join(workspaceRoot, params.file);
   // With a ref, open the file's content as it was at that revision (read-only),
   // via the built-in Git extension's `git:` scheme — "Open Repository Version".
@@ -38,12 +52,15 @@ export async function openFile(params: { file: string; ref?: string }): Promise<
 // openWorkingDiff opens a diff editor comparing a file at a given revision (left)
 // against the current working-tree copy (right) — "Compare with Local". The ref
 // side is read-only via the built-in Git extension's `git:` scheme.
-export async function openWorkingDiff(params: {
-  file: string;
-  ref: string;
-  label?: string;
-}): Promise<void> {
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+export async function openWorkingDiff(
+  params: {
+    file: string;
+    ref: string;
+    label?: string;
+  },
+  root?: string
+): Promise<void> {
+  const workspaceRoot = root ?? repoRoot();
   const absPath = path.join(workspaceRoot, params.file);
   const refUri = vscode.Uri.parse(`git:${absPath}`).with({
     query: JSON.stringify({ path: absPath, ref: params.ref }),
@@ -57,8 +74,8 @@ export async function openWorkingDiff(params: {
 // savePatch prompts for a destination with a native save dialog and writes the
 // patch text there — the IntelliJ "Create Patch…" flow. Fire-and-forget from the
 // webview; feedback is shown natively.
-export async function savePatch(params: { content: string; name?: string }): Promise<void> {
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+export async function savePatch(params: { content: string; name?: string }, root?: string): Promise<void> {
+  const workspaceRoot = root ?? repoRoot();
   const defaultUri = vscode.Uri.file(path.join(workspaceRoot, params.name ?? 'changes.patch'));
   const target = await vscode.window.showSaveDialog({
     defaultUri,
@@ -88,10 +105,10 @@ function remoteUrlToWeb(raw: string): string | null {
   return null;
 }
 
-async function openCommitUrl(params: { commit: string }): Promise<void> {
+async function openCommitUrl(params: { commit: string }, root?: string): Promise<void> {
   const { commit } = params;
   if (!commit) return;
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const workspaceRoot = root ?? repoRoot();
   try {
     const { execFile } = await import('child_process');
     const { promisify } = await import('util');
@@ -114,7 +131,7 @@ async function openCommitUrl(params: { commit: string }): Promise<void> {
 
 export async function openDiff(
   params: { commit: string; parent: string; file: string; newTab?: boolean },
-  opts?: { viewColumn?: vscode.ViewColumn; preserveFocus?: boolean }
+  opts?: { viewColumn?: vscode.ViewColumn; preserveFocus?: boolean; root?: string }
 ): Promise<void> {
   const { commit, parent, file } = params;
 
@@ -127,14 +144,14 @@ export async function openDiff(
     preserveFocus: opts?.preserveFocus,
   };
 
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const workspaceRoot = opts?.root ?? repoRoot();
   const absPath = path.join(workspaceRoot, file);
 
   // ── Working tree diff (sidebar) ──────────────────────────────────────────
   if (commit === 'HEAD' && !parent) {
     const title = `${path.basename(file)} (working tree)`;
     const workingTreeUri = vscode.Uri.file(absPath);
-    const headExists = await fileExistsAtRef(absPath, 'HEAD');
+    const headExists = await fileExistsAtRef(absPath, 'HEAD', workspaceRoot);
 
     if (!headExists) {
       await vscode.commands.executeCommand('vscode.open', workingTreeUri, show, title);
@@ -157,8 +174,8 @@ export async function openDiff(
     });
 
   const [existsInParent, existsInCommit] = await Promise.all([
-    parent ? fileExistsAtRef(absPath, parent) : Promise.resolve(false),
-    fileExistsAtRef(absPath, commit),
+    parent ? fileExistsAtRef(absPath, parent, workspaceRoot) : Promise.resolve(false),
+    fileExistsAtRef(absPath, commit, workspaceRoot),
   ]);
 
   if (!existsInParent && !existsInCommit) {
@@ -182,8 +199,8 @@ export async function openDiff(
 // openMergeEditor opens VS Code's built-in 3-way merge resolver for a conflicted
 // file. Falls back to opening the file (with inline conflict-marker CodeLens) if
 // the git extension's merge-editor command isn't available.
-export async function openMergeEditor(params: { file: string }): Promise<void> {
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+export async function openMergeEditor(params: { file: string }, root?: string): Promise<void> {
+  const workspaceRoot = root ?? repoRoot();
   const uri = vscode.Uri.file(path.join(workspaceRoot, params.file));
   try {
     await vscode.commands.executeCommand('git.openMergeEditor', uri);
@@ -226,25 +243,52 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(webviewView.webview, iconUri);
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
-      // openDiff is handled entirely in the extension host — no Go call needed
+      // openDiff is handled entirely in the extension host — no Go call needed.
+      // msg.repo (when present) scopes path resolution to that repo's root, so
+      // diffs opened from a non-focused sidebar group target the right files.
       if (msg.cmd === 'openDiff') {
-        await openDiff(msg.params);
+        await openDiff(msg.params, { root: msg.repo });
         return;
       }
       if (msg.cmd === 'openFile') {
-        await openFile(msg.params);
+        await openFile(msg.params, msg.repo);
         return;
       }
       if (msg.cmd === 'openWorkingDiff') {
-        await openWorkingDiff(msg.params);
+        await openWorkingDiff(msg.params, msg.repo);
         return;
       }
       if (msg.cmd === 'savePatch') {
-        await savePatch(msg.params);
+        await savePatch(msg.params, msg.repo);
         return;
       }
       if (msg.cmd === 'openCommitUrl') {
-        await openCommitUrl(msg.params);
+        await openCommitUrl(msg.params, msg.repo);
+        return;
+      }
+      // Repo switch requested from the in-panel selector / breadcrumb. Routed
+      // through a command so the panel needn't know about RepoService.
+      if (msg.cmd === 'repo.select') {
+        await vscode.commands.executeCommand('hydragit.setActiveRepo', msg.params?.rootPath);
+        return;
+      }
+      // Initial repo state on webview mount (the push may have fired before the
+      // view resolved). Answered by the host so the panel needn't hold state.
+      // Tolerates a workspace-less window where the command isn't registered —
+      // returns an empty state so the webview resolves rather than hanging.
+      if (msg.cmd === 'repo.list') {
+        let state: unknown = { repos: [], active: undefined };
+        try {
+          state = await vscode.commands.executeCommand('hydragit.getRepoState');
+        } catch {
+          /* multi-repo not wired (no workspace) */
+        }
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data: state });
+        return;
+      }
+      // Breadcrumb click → open the native repo quickpick (same as status bar).
+      if (msg.cmd === 'repo.pick') {
+        await vscode.commands.executeCommand('hydragit.selectRepo');
         return;
       }
       // Open a worktree's folder in a new VS Code window (the primary worktree
@@ -279,6 +323,11 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({ id: msg.id, ok: true, data: pick === 'Yes' });
         return;
       }
+      if (msg.cmd === 'ui.notify') {
+        // Non-modal, persistent info toast (fire-and-forget reminder).
+        void vscode.window.showInformationMessage(msg.params?.message ?? '');
+        return;
+      }
       if (msg.cmd === 'ui.pick') {
         const choice = await vscode.window.showQuickPick(msg.params?.items ?? [], {
           placeHolder: msg.params?.placeholder ?? '',
@@ -293,7 +342,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       }
 
       try {
-        const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
+        const data = await this.goProcess.send(msg.cmd, msg.params ?? {}, msg.repo);
         webviewView.webview.postMessage({ id: msg.id, ok: true, data });
       } catch (err) {
         webviewView.webview.postMessage({
@@ -304,21 +353,35 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       }
     });
 
-    // watch .git/ for file changes → refresh
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (workspaceRoot) {
-      // logs/HEAD is the reflog — watch it so the HEAD undo timeline refreshes
-      // when git activity happens while it's open.
-      this.watcher = vscode.workspace.createFileSystemWatcher(
-        new vscode.RelativePattern(workspaceRoot, '.git/{HEAD,refs/**,COMMIT_EDITMSG,logs/HEAD,worktrees/**}')
-      );
-      const refresh = () => webviewView.webview.postMessage({ type: 'refresh' });
-      this.watcher.onDidChange(refresh);
-      this.watcher.onDidCreate(refresh);
-      this.watcher.onDidDelete(refresh);
-    }
+    // Watch the active repo's .git for changes → refresh. Re-pointed whenever
+    // the active repo switches (see retargetWatcher).
+    this.retargetWatcher(repoRoot());
 
     webviewView.onDidDispose(() => this.watcher?.dispose());
+  }
+
+  /**
+   * Point the .git watcher at `root` (defaults to the active repo). Called on
+   * every repo switch so external git activity in the *current* repo refreshes
+   * the panel. logs/HEAD is the reflog — watched so the undo timeline updates.
+   */
+  retargetWatcher(root: string | undefined = repoRoot()): void {
+    this.watcher?.dispose();
+    this.watcher = undefined;
+    const view = this.view;
+    if (!root || !view) return;
+    this.watcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(root, '.git/{HEAD,refs/**,COMMIT_EDITMSG,logs/HEAD,worktrees/**}')
+    );
+    const refresh = () => view.webview.postMessage({ type: 'refresh' });
+    this.watcher.onDidChange(refresh);
+    this.watcher.onDidCreate(refresh);
+    this.watcher.onDidDelete(refresh);
+  }
+
+  /** Push the repo list + active root to the webview (selector / breadcrumb). */
+  postRepoState(repos: RepoInfo[], active: string | undefined): void {
+    this.view?.webview.postMessage({ type: 'repoState', data: { repos, active } });
   }
 
   focus(): void {
@@ -403,6 +466,22 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
         await vscode.commands.executeCommand('git.clone');
         return;
       }
+      // Repo switch from the sidebar selector — routed via command, same as main.
+      if (msg.cmd === 'repo.select') {
+        await vscode.commands.executeCommand('hydragit.setActiveRepo', msg.params?.rootPath);
+        return;
+      }
+      // Initial repo state on mount — see main panel handler (fault-tolerant).
+      if (msg.cmd === 'repo.list') {
+        let state: unknown = { repos: [], active: undefined };
+        try {
+          state = await vscode.commands.executeCommand('hydragit.getRepoState');
+        } catch {
+          /* multi-repo not wired (no workspace) */
+        }
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data: state });
+        return;
+      }
 
       if (!this.goProcess) {
         webviewView.webview.postMessage({
@@ -412,20 +491,21 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      // openDiff is handled in the extension host — same as main panel
+      // openDiff is handled in the extension host — same as main panel. msg.repo
+      // scopes path resolution to the group's repo (grouped sidebar).
       if (msg.cmd === 'openDiff') {
-        await openDiff(msg.params);
+        await openDiff(msg.params, { root: msg.repo });
         return;
       }
 
       // Conflicted files route to VS Code's 3-way merge resolver.
       if (msg.cmd === 'openMergeEditor') {
-        await openMergeEditor(msg.params);
+        await openMergeEditor(msg.params, msg.repo);
         return;
       }
 
       try {
-        const data = await this.goProcess.send(msg.cmd, msg.params ?? {});
+        const data = await this.goProcess.send(msg.cmd, msg.params ?? {}, msg.repo);
         webviewView.webview.postMessage({ id: msg.id, ok: true, data });
       } catch (err) {
         webviewView.webview.postMessage({
@@ -452,6 +532,16 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
         vscode.commands.executeCommand('hydragit.revealAll');
       }
     });
+  }
+
+  /** Reload the sidebar webview — used on repo switch. */
+  forceRefresh(): void {
+    this.view?.webview.postMessage({ type: 'refresh' });
+  }
+
+  /** Push the repo list + active root to the sidebar (selector). */
+  postRepoState(repos: RepoInfo[], active: string | undefined): void {
+    this.view?.webview.postMessage({ type: 'repoState', data: { repos, active } });
   }
 
   dispose(): void {

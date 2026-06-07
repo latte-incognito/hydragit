@@ -12,6 +12,7 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 
 - [Main panel](documentation/features/main-panel.html)
 - [Sidebar — staging view](documentation/features/sidebar.html)
+- [Multi-repo workspaces (grouped sidebar + focused main panel)](documentation/features/multi-repo.html)
 - [Repository status, status bar & badge](documentation/features/status.html)
 - [Visual file history](documentation/features/history.html#filehistory)
 - [Selection / line history](documentation/features/history.html#linehistory)
@@ -139,12 +140,8 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 
 ---
 
-## Still OUT (not implemented yet)
-
-See [`docs/ideas.md`](docs/ideas.md) for rationale.
-
-- PR diff (branch/ref compare itself ships — see [Compare](documentation/features/compare.html))
-- Settings panel
+> Backlog / not-yet-built features live in [`docs/ideas.md`](docs/ideas.md) — the
+> single source of truth for what's planned.
 
 ## Testing
 

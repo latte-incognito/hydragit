@@ -15,6 +15,8 @@ const HOST_ONLY_CMDS = new Set([
   'savePatch',
   'vscode.openFolder',
   'vscode.cloneRepo',
+  'repo.select',
+  'repo.pick',
 ]);
 
 // One listener for the entire app lifetime
@@ -43,18 +45,28 @@ window.addEventListener('message', (e: MessageEvent) => {
   }
 });
 
-/** Send a command to the extension and await the response. */
-export function send<T = unknown>(cmd: string, params: Record<string, unknown> = {}): Promise<T> {
+/**
+ * Send a command to the extension and await the response.
+ *
+ * @param repo Optional repo root to run the command against. The grouped
+ * sidebar passes each group's root so it can read/commit a specific repo
+ * without changing the focused one. Omit to use the focused (active) repo.
+ */
+export function send<T = unknown>(
+  cmd: string,
+  params: Record<string, unknown> = {},
+  repo?: string
+): Promise<T> {
   // Fire-and-forget — extension host handles these, no response comes back
   if (HOST_ONLY_CMDS.has(cmd)) {
-    vscode.postMessage({ cmd, params });
+    vscode.postMessage({ cmd, params, repo });
     return Promise.resolve() as Promise<T>;
   }
 
   const id = Math.random().toString(36).slice(2, 9);
   return new Promise<T>((resolve, reject) => {
     _pending.set(id, { resolve: resolve as (d: unknown) => void, reject });
-    vscode.postMessage({ id, cmd, params });
+    vscode.postMessage({ id, cmd, params, repo });
   });
 }
 

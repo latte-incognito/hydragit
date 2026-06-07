@@ -12,7 +12,7 @@ describe('ContextMenu — branch', () => {
 
   it('renders all branch menu items', () => {
     const { getByText } = render(ContextMenu, { branchMenu: baseBranchMenu });
-    expect(getByText('Checkout')).toBeTruthy();
+    expect(getByText('Switch to Branch')).toBeTruthy();
     expect(getByText("New Branch from 'feature/auth'…")).toBeTruthy();
     expect(getByText("Checkout and Rebase onto 'main'")).toBeTruthy();
     expect(getByText("Compare with 'main'")).toBeTruthy();
@@ -27,7 +27,8 @@ describe('ContextMenu — branch', () => {
   it('calls onBranchAction with checkout', async () => {
     const onBranchAction = vi.fn();
     const { getByText } = render(ContextMenu, { branchMenu: baseBranchMenu, onBranchAction });
-    await fireEvent.click(getByText('Checkout'));
+    // Label reads "Switch to Branch" but the action is still `checkout`.
+    await fireEvent.click(getByText('Switch to Branch'));
     expect(onBranchAction).toHaveBeenCalledWith('checkout');
   });
 
@@ -48,7 +49,7 @@ describe('ContextMenu — branch', () => {
   it('disables checkout/rebase/merge/delete when isCurrent', () => {
     const menu = { ...baseBranchMenu, isCurrent: true };
     const { getByText } = render(ContextMenu, { branchMenu: menu });
-    expect(getByText('Checkout').classList.contains('disabled')).toBe(true);
+    expect(getByText('Switch to Branch').classList.contains('disabled')).toBe(true);
     expect(getByText('Delete').classList.contains('disabled')).toBe(true);
     expect(getByText("Checkout and Rebase onto 'main'").classList.contains('disabled')).toBe(true);
     expect(getByText("Rebase 'main' onto 'feature/auth'").classList.contains('disabled')).toBe(true);
@@ -58,7 +59,7 @@ describe('ContextMenu — branch', () => {
   it('does not render when visible is false', () => {
     const menu = { ...baseBranchMenu, visible: false };
     const { queryByText } = render(ContextMenu, { branchMenu: menu });
-    expect(queryByText('Checkout')).toBeFalsy();
+    expect(queryByText('Switch to Branch')).toBeFalsy();
   });
 });
 

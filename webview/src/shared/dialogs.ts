@@ -19,6 +19,15 @@ export function uiConfirm(message: string): Promise<boolean> {
   return send<boolean>('ui.confirm', { message });
 }
 
+/**
+ * Native, non-modal notification (a VS Code info toast that persists until
+ * dismissed) — for reminders the user needs after a flash would have vanished,
+ * e.g. "finish the rebase, then push". Fire-and-forget.
+ */
+export function uiNotify(message: string): void {
+  void send('ui.notify', { message });
+}
+
 /** A richer quick-pick row: a label plus optional grey description/detail. */
 export interface PickItem {
   label: string;
