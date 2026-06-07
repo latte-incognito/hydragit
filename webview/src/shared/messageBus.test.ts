@@ -53,6 +53,21 @@ describe('send', () => {
     await expect(promise).rejects.toThrow('not a git repo');
   });
 
+  it('includes repo when passed as the 3rd arg (per-repo scoping)', async () => {
+    const promise = send('status', {}, '/some/repo');
+    const posted = mockPostMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect(posted.repo).toBe('/some/repo');
+
+    postResponse({ id: posted.id, ok: true, data: null });
+    await promise;
+  });
+
+  it('omits repo (undefined) when not passed → falls back to active repo', () => {
+    send('status', {});
+    const posted = mockPostMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect(posted.repo).toBeUndefined();
+  });
+
   it('each send gets a unique id', async () => {
     const p1 = send('status', {});
     const p2 = send('branches', {});
@@ -93,6 +108,12 @@ describe('send — HOST_ONLY_CMDS', () => {
     const posted = mockPostMessage.mock.calls[0][0] as Record<string, unknown>;
     expect(posted.cmd).toBe('openDiff');
     expect(posted.id).toBeUndefined();
+  });
+
+  it('forwards repo for host-only cmds so the host scopes path resolution', async () => {
+    await send('openDiff', { commit: 'a', file: 'foo.ts', parent: 'b' }, '/some/repo');
+    const posted = mockPostMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect(posted.repo).toBe('/some/repo');
   });
 
   it('openDiff does not add to pending — no hanging promise', async () => {

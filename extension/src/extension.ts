@@ -2,9 +2,15 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { buildInfo } from './generated/buildInfo';
 import { GoProcess } from './goProcess';
-import { HydraBadgeTreeProvider, HydraSidebarProvider, HydraViewProvider } from './panel';
+import {
+  HydraBadgeTreeProvider,
+  HydraSidebarProvider,
+  HydraViewProvider,
+  setActiveRepoRoot,
+} from './panel';
 import { HistoryPanelManager } from './historyPanel';
 import { HydraStatusService } from './HydraStatusService';
+import { RepoService } from './RepoService';
 import { BlameController } from './blameAnnotation';
 import { Logger } from './Logger';
 
@@ -93,6 +99,84 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('hydragit.forceRefresh', () => mainProvider.forceRefresh())
   );
+
+  // ── Multi-repo ─────────────────────────────────────────────────────────────
+  // RepoService owns "which repos exist" + "which is active". GoProcess stamps
+  // the active root onto every request; the host path-helpers (panel.ts) resolve
+  // against it. The status-bar item is the always-visible anchor (survives any
+  // panel being closed) and only appears when there's more than one repo.
+  const repoService = new RepoService(ctx);
+  ctx.subscriptions.push(repoService);
+
+  const repoStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  repoStatusItem.command = 'hydragit.selectRepo';
+  ctx.subscriptions.push(repoStatusItem);
+
+  const updateRepoStatusItem = () => {
+    const repos = repoService.getRepos();
+    const active = repoService.getActive();
+    if (repos.length <= 1) {
+      repoStatusItem.hide();
+      return;
+    }
+    repoStatusItem.text = `$(repo) ${active?.name ?? '—'}`;
+    repoStatusItem.tooltip = `HydraGit repository: ${active?.rootPath ?? 'none'} — click to switch`;
+    repoStatusItem.show();
+  };
+
+  ctx.subscriptions.push(
+    // Routed from the in-panel selector / breadcrumb (panel.ts repo.select).
+    vscode.commands.registerCommand('hydragit.setActiveRepo', (rootPath?: string) => {
+      if (rootPath) repoService.setActive(rootPath);
+    }),
+    // Initial repo state for a freshly-mounted webview (panel.ts repo.list).
+    vscode.commands.registerCommand('hydragit.getRepoState', () => ({
+      repos: repoService.getRepos(),
+      active: repoService.getActiveRoot(),
+    })),
+    // Status-bar / palette repo switcher.
+    vscode.commands.registerCommand('hydragit.selectRepo', async () => {
+      const repos = repoService.getRepos();
+      if (repos.length === 0) {
+        vscode.window.showInformationMessage('HydraGit: no git repositories found.');
+        return;
+      }
+      const active = repoService.getActiveRoot();
+      const pick = await vscode.window.showQuickPick(
+        repos.map((r) => ({
+          label: r.name,
+          description: r.rootPath === active ? '$(check) current' : r.rootPath,
+          rootPath: r.rootPath,
+        })),
+        { placeHolder: 'Select active repository' }
+      );
+      if (pick) repoService.setActive((pick as { rootPath: string }).rootPath);
+    })
+  );
+
+  // Fan-out on change. Cheap updates (status item, repo list → panels) run every
+  // time; the heavy reload only fires when the *active* repo actually changes,
+  // so the git API's open/close churn at startup doesn't thrash the panels.
+  let lastActiveRoot: string | undefined;
+  ctx.subscriptions.push(
+    repoService.onDidChange(() => {
+      const active = repoService.getActiveRoot();
+      const repos = repoService.getRepos();
+      updateRepoStatusItem();
+      mainProvider.postRepoState(repos, active);
+      sidebarProvider.postRepoState(repos, active);
+      if (active === lastActiveRoot) return;
+      lastActiveRoot = active;
+      goProcess!.setActiveRepo(active);
+      setActiveRepoRoot(active);
+      mainProvider.retargetWatcher(active);
+      mainProvider.forceRefresh();
+      sidebarProvider.forceRefresh();
+      void statusService.refresh();
+    })
+  );
+
+  void repoService.init();
 
   // Inline blame: faint trailing annotation on the active editor line + hover.
   const blameController = new BlameController(goProcess, workspaceRoot);

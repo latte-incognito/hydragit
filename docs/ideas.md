@@ -137,11 +137,13 @@ data already exists; this is presentation.
 
 ## Scale, topology & platform
 
-**Multi-repo / multi-root workspaces** — ★★★★☆ · Effort: High · GitLens: ✓ · IntelliJ: ~
-Today we key off `workspaceFolders[0]` — one repo per window. Real workspaces
-often have several repos (and nested/sub repos). Needs a repo picker/scope in the
-panel and the Go side parameterised per repo. Architectural, not a feature row —
-decide before a confident v1, as many users hit this immediately.
+**Multi-repo / multi-root workspaces** — ✅ Shipped → see
+[`multi-repo`](../documentation/features/multi-repo.html). Sidebar shows every
+repo as a collapsible group; the main panel follows the focused repo; the Go side
+is parameterised per request (`Request.Repo`). *Remaining gaps:* inline blame
+still binds to the first workspace folder (wrong for a file in a non-focused
+repo); per-group 3s polling rather than file watchers; no Playwright e2e yet
+(needs a multi-root fixture).
 
 **Submodules** — ★★☆☆☆ · Effort: Med-High · GitLens: ✓ · IntelliJ: ✓
 List + update/init/sync submodules, show their status, open a submodule's own

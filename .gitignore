@@ -3,6 +3,9 @@ bin/
 hydragit-server
 *.exe
 *.test
+
+# Throwaway nested repo for testing multi-repo support — not part of HydraGit
+/alpharius/
 *.out
 vendor/
 
@@ -48,4 +51,5 @@ webview/sidebar.js
 webview/sidebar.css
 webview/messageBus.css
 webview/messageBus*
+webview/repoStore*
 webview/index.css

@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { on, send } from '$shared/messageBus';
   import { uiPrompt, uiConfirm, uiPick, uiNotify } from '$shared/dialogs';
+  import { repoState, requestRepoState, openRepoPicker } from '$shared/repoStore';
   import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag, Worktree } from './types';
   import { planSync } from './syncPlan';
 
@@ -57,6 +58,13 @@
   let sbInfo   = '';
   let sbInfoTitle = ''; // raw ↑/↓ symbols, shown as a tooltip for git pros
   let sbCounts = '';
+
+  // Multi-repo breadcrumb: the active repo's name, shown before the branch in
+  // the status bar (repo ▸ branch). Empty in single-repo workspaces → hidden.
+  $: repoName =
+    $repoState.repos.length > 1
+      ? $repoState.repos.find((r) => r.rootPath === $repoState.active)?.name ?? ''
+      : '';
 
   // Plain-language ahead/behind (ideas.md): "↑2 ↓1" → "2 to push, 1 to pull".
   function aheadBehindText(ahead: number, behind: number): string {
@@ -165,6 +173,7 @@
 
   onMount(() => {
     loadAll();
+    requestRepoState();
     document.addEventListener('contextmenu', (e) => {
       const target = e.target as HTMLElement;
       if (!target.closest('.ctx-menu, .ctx, .ci, .ctx-item')) {
@@ -1555,6 +1564,8 @@
   </div>
 
   <StatusBar
+    repo={repoName}
+    onRepoClick={openRepoPicker}
     branch={sbBranch}
     info={sbInfo}
     infoTitle={sbInfoTitle}

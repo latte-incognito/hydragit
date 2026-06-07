@@ -8,6 +8,12 @@ export class GoProcess {
   private proc: cp.ChildProcess;
   private pending = new Map<string, Pending>();
   private disposed = false;
+  /**
+   * Active repo root, stamped onto every request as `repo` so the Go handler
+   * routes to it. When undefined, Go falls back to its spawn-time default
+   * (HYDRAGIT_REPO) — i.e. single-repo behaviour is unchanged.
+   */
+  private activeRepo: string | undefined;
 
   /**
    * Fired when the Go process dies unexpectedly (crash/error), NOT on an
@@ -80,11 +86,24 @@ export class GoProcess {
     for (const p of pending) p.reject(reason);
   }
 
-  send(cmd: string, params: object = {}): Promise<unknown> {
+  /** Set the repo every subsequent request runs against (multi-repo switch). */
+  setActiveRepo(repoPath: string | undefined): void {
+    this.activeRepo = repoPath;
+  }
+
+  /**
+   * @param repo Optional per-call repo override. Used by the grouped sidebar to
+   * read/commit a specific repo without changing the focused (active) one. When
+   * omitted, falls back to the active repo, then to Go's spawn default.
+   */
+  send(cmd: string, params: object = {}, repo?: string): Promise<unknown> {
     const id = Math.random().toString(36).slice(2, 9);
+    const target = repo ?? this.activeRepo;
+    const req: { id: string; cmd: string; params: object; repo?: string } = { id, cmd, params };
+    if (target) req.repo = target;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.proc.stdin!.write(JSON.stringify({ id, cmd, params }) + '\n');
+      this.proc.stdin!.write(JSON.stringify(req) + '\n');
     });
   }
 

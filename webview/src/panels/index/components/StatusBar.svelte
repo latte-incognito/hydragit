@@ -4,6 +4,10 @@
   export let infoTitle: string = ''; // tooltip with the raw ↑/↓ symbols
   export let countsText: string = '';
   export let iconUri: string = '';
+  // Multi-repo: the active repo name + a click handler that opens the picker.
+  // When repo is empty (single-repo workspace) the segment is hidden.
+  export let repo: string = '';
+  export let onRepoClick: () => void = () => {};
 </script>
 
 <div class="statusbar" id="statusbar">
@@ -15,6 +19,12 @@
     <path d="M2.5 3.3C2.5 6.5 6 8 6 8M9.5 3.3C9.5 6.5 6 8 6 8M6 3.3V8M6 8v4.7"
           stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
   </svg>
+  {#if repo}
+    <button class="sb-repo" title="Active repository — click to switch" on:click={onRepoClick}>
+      {repo}
+    </button>
+    <span class="sb-sep" aria-hidden="true">▸</span>
+  {/if}
   <span class="sb-branch">{branch}</span>
   <span class="sb-info" title={infoTitle}>{info}</span>
   <span class="sb-right">{countsText}</span>
@@ -44,6 +54,24 @@
     flex-shrink: 0;
     color: #7abdd4;
     margin-right: -4px;
+  }
+  .sb-repo {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: #9ad4e8;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .sb-repo:hover {
+    color: #c4ecf7;
+    text-decoration: underline;
+  }
+  .sb-sep {
+    color: #4a7a8a;
+    margin: 0 -2px;
   }
   .sb-branch {
     color: #7abdd4;
