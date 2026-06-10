@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { on, send } from '$shared/messageBus';
+  import { uiConfirm } from '$shared/dialogs';
   import type { RepoInfo } from '$shared/repoStore';
   import type { GitFile, GitStatus } from '../types';
 
@@ -177,6 +178,22 @@
   async function runCommit(cmd: 'commit' | 'commit.push' | 'commit.amend', msg: string) {
     commitError = '';
     try {
+      // Pre-commit safety net: warn (never block) on likely secrets, leftover
+      // conflict markers, huge files, protected branch. Which checks run comes
+      // from user settings, resolved by the extension host.
+      try {
+        const warnings = (await call('commit.precheck', { paths: [...stagedPaths] })) as
+          | { type: string; path: string; detail: string }[]
+          | null;
+        if (warnings?.length) {
+          const lines = warnings
+            .slice(0, 6)
+            .map((w) => `• ${w.path ? w.path + ' — ' : ''}${w.detail}`)
+            .join('\n');
+          const more = warnings.length > 6 ? `\n…and ${warnings.length - 6} more` : '';
+          if (!(await uiConfirm(`Safety check found:\n${lines}${more}\n\nCommit anyway?`))) return;
+        }
+      } catch { /* precheck unavailable — never block the commit on it */ }
       await call(cmd, { message: msg, paths: [...stagedPaths] });
       stagedPaths = new Set();
       commitAreaRef?.clearMessage();

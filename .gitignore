@@ -52,4 +52,5 @@ webview/sidebar.css
 webview/messageBus.css
 webview/messageBus*
 webview/repoStore*
+webview/dialogs*
 webview/index.css

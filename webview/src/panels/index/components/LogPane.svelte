@@ -296,6 +296,8 @@
       <span class="ci-text">Reset Current Branch to Here…</span>
     </div>
     <div class="ctx-item" onclick={() => runAction('revert')}><span class="ci-icon"></span><span class="ci-text">Revert Commit</span></div>
+    <div class="ctx-item" onclick={() => runAction('fixup')}><span class="ci-icon"></span><span class="ci-text">Fixup: Commit Changes into This…</span></div>
+    <div class="ctx-item" onclick={() => runAction('autosquash')}><span class="ci-icon"></span><span class="ci-text">Apply Fixups Below (Autosquash)…</span></div>
     <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Undo Commit…</span></div>
 
     <div class="ctx-divider"></div>

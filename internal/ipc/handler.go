@@ -134,6 +134,35 @@ var mutatingCmds = map[string]bool{
 	"worktree.unlock":       true,
 	"worktree.move":         true,
 	"worktree.prune":        true,
+	"commit.fixup":          true,
+	"rebase.autosquash":     true,
+	"rerere.enable":         true,
+	"snapshot.save":         true,
+	"snapshot.restore":      true,
+	"snapshot.drop":         true,
+}
+
+// autoSnapshotCmds trigger a working-tree snapshot (refs/hydragit/snapshots)
+// right before they run — the safety net for operations that can eat
+// uncommitted work. Best-effort: a clean tree skips silently, and a snapshot
+// failure never blocks the operation itself. Runs inside the repo's exclusive
+// lock, so the captured state is exactly what the operation sees.
+var autoSnapshotCmds = map[string]bool{
+	"merge":              true,
+	"rebase":             true,
+	"rebase.interactive": true,
+	"rebase.autosquash":  true,
+	"rebase.drop":        true,
+	"commit.squash":      true,
+	"reset":              true,
+	"pull":               true,
+	"cherrypick":         true,
+	"revert":             true,
+	"undo.last":          true,
+	"checkout":           true,
+	"stash.pop":          true,
+	"stash.apply":        true,
+	"snapshot.restore":   true,
 }
 
 func Handle(repoPath string, req Request) Response {
@@ -159,6 +188,12 @@ func Handle(repoPath string, req Request) Response {
 	} else {
 		l.RLock()
 		defer l.RUnlock()
+	}
+
+	if autoSnapshotCmds[req.Cmd] {
+		if _, err := git.SnapshotCreate(repoPath, "before "+req.Cmd); err != nil {
+			logger.Error("snapshot", "auto-snapshot before "+req.Cmd+" failed: "+err.Error())
+		}
 	}
 
 	resp := handle(repoPath, req)
@@ -217,19 +252,21 @@ func handle(repoPath string, req Request) Response {
 
 	case "log":
 		var p struct {
-			Branch string `json:"branch"`
-			Limit  int    `json:"limit"`
-			Grep   string `json:"grep"`
-			Author string `json:"author"`
+			Branch  string `json:"branch"`
+			Limit   int    `json:"limit"`
+			Grep    string `json:"grep"`
+			Author  string `json:"author"`
+			Pickaxe string `json:"pickaxe"`
 		}
 		json.Unmarshal(req.Params, &p)
 		// p.Limit == 0 means "no limit" — load the full history. The webview
 		// virtualizes rendering (LogPane), so it can hold the whole log.
 		commits, err := git.LogWith(repoPath, git.LogOptions{
-			Branch: p.Branch,
-			Limit:  p.Limit,
-			Grep:   p.Grep,
-			Author: p.Author,
+			Branch:  p.Branch,
+			Limit:   p.Limit,
+			Grep:    p.Grep,
+			Author:  p.Author,
+			Pickaxe: p.Pickaxe,
 		})
 		if err != nil {
 			return fail(id, err)
@@ -593,6 +630,24 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "merge.preview":
+		var p struct {
+			Ours   string `json:"ours"`
+			Theirs string `json:"theirs"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if p.Ours == "" {
+			p.Ours = "HEAD"
+		}
+		if r := missingParam(id, "theirs", p.Theirs); r != nil {
+			return *r
+		}
+		preview, err := git.PreviewMerge(repoPath, p.Ours, p.Theirs)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, preview)
+
 	case "conflicts":
 		info, err := git.Conflicts(repoPath)
 		if err != nil {
@@ -861,6 +916,100 @@ func handle(repoPath string, req Request) Response {
 			return fail(id, err)
 		}
 		return ok(id, result)
+
+	case "commit.precheck":
+		var p struct {
+			Paths  []string `json:"paths"`
+			Checks []string `json:"checks"` // enabled checks, injected by the host from settings; empty = all
+		}
+		json.Unmarshal(req.Params, &p)
+		enabled := map[string]bool{}
+		for _, c := range p.Checks {
+			enabled[c] = true
+		}
+		return ok(id, git.CommitSafety(repoPath, p.Paths, enabled))
+
+	case "commit.fixup":
+		var p struct {
+			Commit string   `json:"commit"`
+			Paths  []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
+		result, err := git.FixupCommit(repoPath, p.Commit, p.Paths)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, result)
+
+	case "rebase.autosquash":
+		var p struct {
+			Base string `json:"base"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "base", p.Base); r != nil {
+			return *r
+		}
+		conflict, err := git.RebaseAutosquash(repoPath, p.Base)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"conflict": conflict})
+
+	case "rerere.enable":
+		if err := git.EnableRerere(repoPath); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "snapshot.list":
+		snaps, err := git.SnapshotList(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, snaps)
+
+	case "snapshot.save":
+		var p struct {
+			Label string `json:"label"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if p.Label == "" {
+			p.Label = "manual snapshot"
+		}
+		snap, err := git.SnapshotCreate(repoPath, p.Label)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, snap) // null when the tree was clean
+
+	case "snapshot.restore":
+		var p struct {
+			Hash string `json:"hash"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "hash", p.Hash); r != nil {
+			return *r
+		}
+		if err := git.SnapshotRestore(repoPath, p.Hash); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "snapshot.drop":
+		var p struct {
+			Ref string `json:"ref"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "ref", p.Ref); r != nil {
+			return *r
+		}
+		if err := git.SnapshotDrop(repoPath, p.Ref); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
 
 	case "commit.lastMessage":
 		msg, err := git.LastCommitMessage(repoPath)

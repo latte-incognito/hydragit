@@ -3,7 +3,7 @@
   import { on, send } from '$shared/messageBus';
   import { uiPrompt, uiConfirm, uiPick, uiNotify } from '$shared/dialogs';
   import { repoState, requestRepoState, openRepoPicker } from '$shared/repoStore';
-  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag, Worktree } from './types';
+  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Snapshot, Tag, Worktree } from './types';
   import { planSync } from './syncPlan';
 
   import Toolbar     from './components/Toolbar.svelte';
@@ -19,6 +19,7 @@
 
   // ── Core state ────────────────────────────────────────────────────────────
   let branches:    Branch[]   = $state([]);
+  let snapshots:   Snapshot[] = $state([]);
   let commits:     Commit[]   = [];
   let filtered:    Commit[]   = $state([]);
   let stashes:     Stash[]    = $state([]);
@@ -79,7 +80,7 @@
   let detailPaneEl: HTMLElement | null = $state(null);
 
   // ── Search state ──────────────────────────────────────────────────────────
-  type SearchMode = 'msg' | 'hash' | 'file' | 'author';
+  type SearchMode = 'msg' | 'hash' | 'file' | 'author' | 'code';
   let searchMode:  SearchMode = $state('msg');
   let searchQuery  = $state('');
   let allBranches  = $state(false);
@@ -116,13 +117,14 @@
   // ── Load everything ───────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [status, brs, rawStashes, rawTags, rawWorktrees, user] = await Promise.all([
+      const [status, brs, rawStashes, rawTags, rawWorktrees, user, rawSnapshots] = await Promise.all([
         send<GitStatus>('status'),
         send<Branch[]>('branches'),
         send<Stash[]>('stash'),
         send<Tag[]>('tags'),
         send<Worktree[]>('worktree.list'),
         send<{ name: string; email: string }>('user'),
+        send<Snapshot[]>('snapshot.list').catch(() => [] as Snapshot[]),
       ]);
       // Resolve the current branch before requesting its log, so the initial
       // graph shows HEAD's branch rather than the hardcoded default (and so
@@ -144,6 +146,7 @@
       stashes     = rawStashes;
       tags        = rawTags ?? [];
       worktrees   = rawWorktrees ?? [];
+      snapshots   = rawSnapshots ?? [];
       sbCounts    = `${commits.length} commits · ${branches.filter(b => !b.isRemote).length} branches`;
       // Surface a paused rebase (e.g. a Drop/Edit that hit a conflict) so the
       // Continue/Skip/Abort bar reappears across reloads.
@@ -232,6 +235,9 @@
     const params: Record<string, unknown> = { branch: allBranches ? '' : activeBranch, limit: 0 };
     if (searchMode === 'msg')    params.grep = q;
     if (searchMode === 'author') params.author = q;
+    // Pickaxe (`git log -S`): commits where the occurrence count of q changed —
+    // i.e. where the string was introduced or removed.
+    if (searchMode === 'code')   params.pickaxe = q;
     try {
       filtered = await send<Commit[]>('log', params);
       selCommitIdx = null; diffFiles = []; diffHunks = [];
@@ -242,7 +248,7 @@
 
   // Re-apply whatever filter is active (after a branch switch or log reload).
   function reapplySearch() {
-    if ((searchMode === 'msg' || searchMode === 'author') && searchQuery.trim()) {
+    if ((searchMode === 'msg' || searchMode === 'author' || searchMode === 'code') && searchQuery.trim()) {
       runServerFilter();
     } else {
       applyFilter();
@@ -716,6 +722,7 @@
     if (a === 'merge') {
       const target = await uiPrompt('Merge branch into current — branch name:');
       if (target) {
+        if (!(await confirmMerge(target))) return;
         flash(`Merging ${target}…`);
         try { await send('merge', { branch: target }); flash(`Merged ${target}`, '#4ec94e'); loadAll(); }
         catch (e: unknown) { flash('Merge failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
@@ -763,6 +770,23 @@
   }
 
   // ── Commit context menu (LogPane) ────────────────────────────────────────
+  // Dry-run the merge (`git merge-tree`, object-db only) and fold the verdict
+  // into the confirm dialog. Preview unavailable (git < 2.38) → plain confirm.
+  async function confirmMerge(target: string): Promise<boolean> {
+    let msg = `Merge ${target} into ${activeBranch}?`;
+    try {
+      const p = await send<{ clean: boolean; files: string[] }>('merge.preview', { theirs: target });
+      if (p.clean) {
+        msg += '\n\nPreview: merges cleanly — no conflicts.';
+      } else {
+        const list = p.files.slice(0, 8).join('\n');
+        const more = p.files.length > 8 ? `\n…and ${p.files.length - 8} more` : '';
+        msg += `\n\n⚠ Will conflict in ${p.files.length} file${p.files.length === 1 ? '' : 's'}:\n${list}${more}`;
+      }
+    } catch { /* merge-tree unavailable — degrade to a plain confirm */ }
+    return uiConfirm(msg);
+  }
+
   async function commitMenuAction(action: string, commit: Commit) {
     const hash = commit.hash;
     const acts: Record<string, () => Promise<void>> = {
@@ -783,6 +807,28 @@
       revert: async () => {
         await send('revert', { commit: hash });
         flash(`Reverted ${hash.slice(0, 7)}`, '#4ec94e');
+        loadAll();
+      },
+      fixup: async () => {
+        // Fixup: commit all current changes as `fixup! <target>` — a later
+        // autosquash rebase folds them into the target automatically.
+        const st = await send<{ files?: { path: string }[] }>('status');
+        const paths = (st.files ?? []).map((f) => f.path);
+        if (paths.length === 0) { flash('No changes to fix up', '#f07070'); return; }
+        if (!(await uiConfirm(`Commit ${paths.length} changed file${paths.length === 1 ? '' : 's'} as a fixup of ${hash.slice(0, 7)} "${commit.message}"?`))) return;
+        await send('commit.fixup', { commit: hash, paths });
+        flash(`fixup! ${hash.slice(0, 7)} created — autosquash when ready`, '#4ec94e');
+        loadAll();
+      },
+      autosquash: async () => {
+        if (!(await uiConfirm(`Autosquash: rebase onto ${hash.slice(0, 7)}^ folding every fixup! commit into its target?`))) return;
+        const res = await send<{ conflict: boolean }>('rebase.autosquash', { base: hash + '^' });
+        if (res?.conflict) {
+          rebaseInProgress = true;
+          flash('Autosquash paused on a conflict — resolve, then Continue', '#e0a030');
+        } else {
+          flash('Fixups squashed', '#4ec94e');
+        }
         loadAll();
       },
       'new-branch': async () => {
@@ -1112,11 +1158,34 @@
     };
   }
 
+  // ── Snapshots (working-tree time machine) ─────────────────────────────────
+  // Auto-captured by the Go side before risky ops; restore/drop here. Selecting
+  // one shows its diff via the regular commit-diff plumbing (it IS a commit).
+  async function snapshotAction(action: string, snap: Snapshot) {
+    try {
+      if (action === 'restore') {
+        const ok = await uiConfirm(
+          `Restore working tree from "${snap.label}"?\n\nCurrent changes to the snapshotted files are overwritten — a snapshot of the current state is taken first, so this is undoable.`
+        );
+        if (!ok) return;
+        await send('snapshot.restore', { hash: snap.hash });
+        flash('Working tree restored from snapshot', '#4ec94e');
+        loadAll();
+      } else if (action === 'drop') {
+        if (!(await uiConfirm(`Delete snapshot "${snap.label}"? This cannot be undone.`))) return;
+        await send('snapshot.drop', { ref: snap.ref });
+        loadAll();
+      }
+    } catch (e: unknown) {
+      flash('Snapshot action failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
   async function branchAction(a: string) {
     branchMenu = { ...branchMenu, visible: false };
     const acts: Record<string, () => Promise<void>> = {
       checkout:  async () => { await switchToBranch(ctxBranch); },
-      merge:     async () => { await send('merge',    { branch: ctxBranch });                flash(`Merged ${ctxBranch}`, '#4ec94e');     loadAll(); },
+      merge:     async () => { if (!(await confirmMerge(ctxBranch))) return; await send('merge', { branch: ctxBranch }); flash(`Merged ${ctxBranch}`, '#4ec94e'); loadAll(); },
       rebase:    async () => { await send('rebase',   { onto:   ctxBranch });                flash('Rebased', '#4ec94e');                 loadAll(); },
       push:      async () => { await doPush(ctxBranch); },
       delete:    async () => {
@@ -1395,6 +1464,7 @@
           await startCompare({ kind: 'ref', ref: name, title: `${name} ↔ working tree` });
           break;
         case 'merge':
+          if (!(await confirmMerge(name))) break;
           await send('merge', { branch: name });
           flash(`Merged ${name} into ${activeBranch}`, '#4ec94e');
           loadAll();
@@ -1518,6 +1588,9 @@
         onTagSelect={selectTagCommit}
         onSelectWorktree={selectWorktree}
         onWorktreeCtx={showWorktreeCtx}
+        {snapshots}
+        onSnapshotSelect={(s) => selectTagCommit(s.hash)}
+        onSnapshotAction={snapshotAction}
       />
     </div>
 

@@ -26,6 +26,15 @@
 
 Blockers — fix before first `vsce publish`:
 
+- [x] **Relicense MIT → GPL-3.0** — done 2026-06-10, before first publish (nothing was
+      ever released under MIT, so the switch is clean; sole-author repo, no sign-offs
+      needed). `LICENSE.md` = verbatim GPL-3.0 text, `package.json` =
+      `"GPL-3.0-only"`, README has the license section + the *"HydraGit name and logo
+      are not covered by this license"* notice (the GPL doesn't protect names — that's
+      trademark; the notice is the lightweight version, registration the strong one).
+      Rationale: forks must stay open source under GPL, which kills the
+      fork-and-paywall model — and matches the "No paywall" brand.
+
 - [ ] **Repo URL identity mismatch.** `package.json` points to
       `github.com/latte-incognito/hydragit`; this doc says
       `github.com/vkushnarenko/hydragit`. The Marketplace listing uses the

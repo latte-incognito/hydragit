@@ -44,6 +44,7 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 - [Hash prefix jump](documentation/features/search-filter.html#hash)
 - [File search](documentation/features/search-filter.html#file)
 - [Author filter](documentation/features/search-filter.html#author)
+- Pickaxe / code search — commits that added or removed a string (`git log -S`, the "Code" search mode) *(docs TBD)*
 - [Branch scope](documentation/features/search-filter.html#scope)
 
 ## Diff & Compare
@@ -58,6 +59,7 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 - [Stage & commit](documentation/features/commit.html#commit)
 - [Commit & push](documentation/features/commit.html#push)
 - [Amend last commit](documentation/features/commit.html#amend)
+- Pre-commit safety checks — warn (never block) on likely secrets, leftover conflict markers, files > 5 MB, and commits straight to main/master; toggles under `hydragit.safety.*` *(docs TBD)*
 
 ## History Rewriting
 
@@ -68,10 +70,13 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 - [Edit / reword message](documentation/features/interactive-rebase.html#reword)
 - [Create patch](documentation/features/interactive-rebase.html#patch)
 - [Push up to a commit](documentation/features/interactive-rebase.html#pushupto)
+- Fixup + autosquash — commit changes as `fixup!` of any commit, then fold all fixups in one autosquash rebase (commit context menu) *(docs TBD)*
 
 ## Integrate & Resolve
 
 - [Merge](documentation/features/merge-rebase-reset.html#merge)
+- Merge conflict preview — every merge confirm shows a dry-run verdict ("merges cleanly" / "will conflict in N files") via `git merge-tree`, working tree untouched; needs git ≥ 2.38, degrades to a plain confirm *(docs TBD)*
+- rerere — conflict resolutions recorded and silently reused on repeated rebases/merges (`hydragit.rerere.enabled`, default on) *(docs TBD)*
 - [Rebase](documentation/features/merge-rebase-reset.html#rebase)
 - [Reset](documentation/features/merge-rebase-reset.html#reset)
 - [Cherry-pick](documentation/features/cherrypick-revert.html#cherrypick)
@@ -91,6 +96,7 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 
 ## Undo & Safety
 
+- Working-tree snapshots — full tree (incl. untracked) auto-captured before merge/rebase/reset/pull/checkout/etc. under `refs/hydragit/snapshots`; browse/diff/restore/delete from the Snapshots section in the branch pane; capped at 20 *(docs TBD)*
 - [HEAD undo timeline (reflog)](documentation/features/reflog.html)
 - [Reset to any point](documentation/features/reflog.html#reset)
 - [Auto-stash safety net](documentation/features/reflog.html#autostash)

@@ -17,19 +17,39 @@ hard-block by default.
 
 ---
 
-## Build-next shortlist
+## 🧊 FEATURE FREEZE — declared 2026-06-10
 
-1. **Hunk / line-level staging** — closes the last credibility gap with IntelliJ/GitLens.
-2. **Pre-commit safety checks** — the viral "it stopped me committing my API key".
-3. **Guided bisect** — biggest "a panel makes a clunky-but-powerful git feature usable" payoff.
-4. **Pickaxe search** — low effort, high "I didn't know git could do that".
-5. **rerere + fixup/autosquash** — small additions that make the rebase story best-in-class.
+**The feature set is done for 1.0.** The panel covers the full IntelliJ git tool
+window plus things it doesn't have (conflict preview, working-tree snapshots,
+pickaxe search, fixup/autosquash, rerere). Everything below this section is
+**post-1.0 material — do not build any of it before the Marketplace release.**
+
+Current mode is **polish and ship**:
+1. `BUGS.MD` — real bugs (#1–6) and the UI review items (#7–21; #7–9 before the GIF)
+2. `docs/RELEASE.md` pre-publish checklist (repo URL identity, CHANGELOG.md,
+   linux-arm64 build, `vsce ls`, Windows/Linux smoke test)
+3. The demo GIF, then publish
+
+First candidates *after* 1.0 ships and real users weigh in: guided bisect,
+move-changes-to-another-branch, hunk staging.
+
+---
+
+## Build-next shortlist (historical)
+
+> ✅ **All five shipped 2026-06-10** (`pickaxe` log search mode · `merge.preview`
+> dry-run conflict prediction in merge confirms · `commit.precheck` safety warnings
+> with VS Code settings toggles · `commit.fixup`/`rebase.autosquash` + rerere
+> via `hydragit.rerere.enabled` · `snapshot.*` working-tree time machine with
+> auto-capture before risky ops). Settings went through VS Code's native
+> contributes.configuration instead of a custom panel — revisit a panel only if
+> the toggle count outgrows it.
 
 ---
 
 ## Power editing & staging
 
-**Hunk / line-level staging (partial commit)** — ★★★★★ · Effort: High · GitLens: ✓ · IntelliJ: ✓
+**Hunk / line-level staging (partial commit)** — ★★★★☆ · Effort: High · GitLens: ✓ · IntelliJ: ✓ · *post-1.0*
 The headline gap *within our own panel*. Today HydraGit staging is file-level
 only (`stagedPaths` is a set of paths). Add gutter selection in the diff pane →
 build a patch from the chosen hunks/lines and `git apply --cached -` (and
@@ -66,10 +86,8 @@ The viral one — "it stopped me committing my API key." Tunable + disablable.
 
 **Discard with a safety net** — ★★★☆☆ · Effort: Low · GitLens: ✗ · IntelliJ: ~
 "Discard changes" that stashes a recoverable backup first instead of nuking work.
-
-**Interactive `git clean`** — ★★☆☆☆ · Effort: Low · GitLens: ✗ · IntelliJ: ~
-Visually pick which untracked files to remove (`git clean` with a checklist),
-safety-net framed — "remove these N untracked files?".
+Subsumed by **working-tree snapshots** if that ships first — build whichever lands
+sooner, not both as separate mechanisms.
 
 ---
 
@@ -80,17 +98,14 @@ safety-net framed — "remove these N untracked files?".
 not messages. Drops into the existing search bar as a new mode. Powerful and
 rarely known.
 
-**Revision navigation** — ★★★☆☆ · Effort: Med · GitLens: ✓ · IntelliJ: ✓
+**Revision navigation** — ★★☆☆☆ · Effort: Med · GitLens: ✓ · IntelliJ: ✓ · *deferred*
 Step a file back/forward through its history in the editor (diff arrows).
-File/line history already exists; this is the in-editor stepping.
+File/line history panels already cover the need; in-editor stepping is polish —
+revisit on user demand.
 
-**Search & Compare view** — ★★★☆☆ · Effort: Med · GitLens: ✓ · IntelliJ: ✓
-Cross-repo commit search + jump-between-matches. Message/author/hash/file
-filters already cover the common cases; this is the dedicated, persistent view.
-
-**range-diff** — ★★☆☆☆ · Effort: Med · GitLens: ~ · IntelliJ: ✗
+**range-diff** — ★★☆☆☆ · Effort: Med · GitLens: ~ · IntelliJ: ✗ · *deferred*
 Compare a branch before vs. after a rebase ("did I drop anything?"). Rare, slick,
-reassuring.
+reassuring — natural companion to the interactive-rebase story, not before 1.0.
 
 ---
 
@@ -126,15 +141,9 @@ applies one back.
 Skip bulk-format/reformat commits so blame shows the real author
 (`--ignore-revs-file`). Blame already ships; this is a flag + setting.
 
-**Signature verification badges** — ★★☆☆☆ · Effort: Low · GitLens: ✓ · IntelliJ: ~
-Show verified / unverified commits via `%G?` in the log format. Cheap trust signal.
-
-**Richer blame hovers** — ★★☆☆☆ · Effort: Low-Med · GitLens: ✓ · IntelliJ: ~
-Full commit-detail card on blame hover (author, date, message, files). The blame
-data already exists; this is presentation.
-*Stale-check 2026-06-09:* `blameAnnotation.ts` already builds a markdown hover
-card and the history panel has blame cards — verify what's actually missing
-(changed-files list?) before treating this as unbuilt.
+**Signature verification badges** — ★★☆☆☆ · Effort: Low · GitLens: ✓ · IntelliJ: ~ · *deferred*
+Show verified / unverified commits via `%G?` in the log format. Cheap, but a trust
+signal almost no solo/small-team user reads — revisit on demand.
 
 ---
 
@@ -148,11 +157,11 @@ still binds to the first workspace folder (wrong for a file in a non-focused
 repo); per-group 3s polling rather than file watchers; no Playwright e2e yet
 (needs a multi-root fixture).
 
-**Submodules** — ★★☆☆☆ · Effort: Med-High · GitLens: ✓ · IntelliJ: ✓
+**Submodules** — ★★☆☆☆ · Effort: Med-High · GitLens: ✓ · IntelliJ: ✓ · *post-1.0, demand-driven*
 List + update/init/sync submodules, show their status, open a submodule's own
 history. A papercut for the orgs that use them (reads as "toy" without it), niche
-for everyone else. Existing standalone submodule extensions are weak, so there's
-room.
+for everyone else. Don't build until real users ask — Med-High effort on
+speculation is how solo projects stall.
 
 **Settings panel** — ★★★☆☆ · Effort: Med · GitLens: ✓ · IntelliJ: ✓
 Graduates from "nice" to "required" the moment tunable features land
@@ -200,19 +209,50 @@ operation. Expose as a checkbox on the existing rebase flow, and render stacks
 (branch-on-branch chains) as indented groups in the branch tree. Very low effort
 on top of existing rebase machinery; very current workflow.
 
-**Patch from commit — line-level history surgery** — ★★★☆☆ · Effort: High · GitLens: ✗ · IntelliJ: ✗
+**Patch from commit — line-level history surgery** — ★★★☆☆ · Effort: High · GitLens: ✗ · IntelliJ: ✗ · *deferred until hunk staging exists*
 *From lazygit's custom patch builder (its signature feature).* Select hunks/lines
 *inside an existing commit's diff* and pull them out — into the working tree, the
 index, or a new commit — via `format-patch`-style patch construction +
 `apply --reverse` against the commit, wrapped in the rebase machinery. Shares all
 patch-building plumbing with hunk-level staging; build it second, not first.
 
-**Smartlog — "just my work" graph view** — ★★★☆☆ · Effort: Med · GitLens: ✗ · IntelliJ: ✗
+**Smartlog — "just my work" graph view** — ★★☆☆☆ · Effort: Med · GitLens: ✗ · IntelliJ: ✗ · *deferred*
 *From Meta's Sapling (`sl smartlog`) / git-branchless.* A log mode that hides the
 noise: show only commits reachable from *my* local branches but not from
 upstream main, plus main's tip as an anchor — i.e. the tree of my unmerged work.
 One `rev-list` expression (`--branches --not --remotes=origin`) feeding the
 existing lane algorithm. Pure filter + reuse.
+
+---
+
+## Cut / closed (triage 2026-06-10)
+
+Verified against the thesis ("the git *panel*, done right" + safety net) and against
+what already ships. Revival condition noted per item — cut is not forever, it's
+"not without a reason".
+
+**Interactive `git clean`** — CUT. The explorer + built-in SCM discard already cover
+removing untracked files; a checklist UI for a rare, destructive op invites accidents
+for marginal value. *Revive if:* users ask after working-tree snapshots ship (the
+safety net would make it defensible).
+
+**Search & Compare view** — CUT. The log search already does message / hash / file /
+author + branch scope; a separate persistent view duplicates it for the rare
+cross-repo case. *Revive if:* multi-repo users specifically request cross-repo commit
+search.
+
+**Richer blame hovers** — CLOSED, essentially shipped. `blameAnnotation.ts`
+`buildHoverMarkdown` already renders summary, author + email, relative + absolute
+time, sha, plus command links; the history panel has full blame cards. The only
+missing piece (changed-files list *inside the hover*) is clutter the command links
+already answer. No work remains.
+
+**Guided bisect** — DEMOTED from the shortlist, kept in its section. High wow, low
+frequency — first candidate when the current shortlist drains.
+
+Also deferred in place (marked on the items): hunk staging (post-1.0), revision
+navigation, range-diff, signature badges, submodules (demand-driven), smartlog,
+patch-from-commit (needs hunk staging's plumbing first).
 
 ---
 

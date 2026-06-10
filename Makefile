@@ -27,6 +27,7 @@ build-all:
 	GOOS=darwin  GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o bin/hydragit-server-darwin-x64    ./cmd/hydragit
 	GOOS=darwin  GOARCH=arm64 go build -ldflags '$(LDFLAGS)' -o bin/hydragit-server-darwin-arm64  ./cmd/hydragit
 	GOOS=linux   GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o bin/hydragit-server-linux-x64     ./cmd/hydragit
+	GOOS=linux   GOARCH=arm64 go build -ldflags '$(LDFLAGS)' -o bin/hydragit-server-linux-arm64   ./cmd/hydragit
 	GOOS=windows GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o bin/hydragit-server-win32-x64.exe ./cmd/hydragit
 
 build-extension: gen-build-info

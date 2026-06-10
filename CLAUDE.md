@@ -26,17 +26,20 @@ cmd/hydragit/main.go          IPC loop — bufio.Scanner on stdin, fmt.Println t
 internal/git/repo.go          run()/runStdin() — the only place os/exec is called
 internal/git/status.go        Status (ahead/behind, modified count, file list)
 internal/git/branches.go      Branches, Checkout, Create, Delete(+Remote), Rename(+Remote/Folder), Containing, Merge, Rebase, Reset/ResetWithAutostash, Push, PushForce, PushCommit (push up to commit), Fetch, Pull, PullMode
-internal/git/log.go           Log, LogWith, LogFile, FileHistory, LineHistory
+internal/git/log.go           Log, LogWith (incl. pickaxe -S), LogFile, FileHistory, LineHistory
 internal/git/diff.go          DiffCommit (file list), DiffFile (hunks), DiffRangeFiles/DiffRefFiles (compare), FormatPatch
+internal/git/mergetree.go     PreviewMerge — dry-run merge via merge-tree --write-tree (git ≥ 2.38)
+internal/git/safety.go        CommitSafety — pre-commit warnings (secrets, conflict markers, large files, protected branch)
+internal/git/snapshot.go      SnapshotCreate/List/Restore/Drop — working-tree time machine (refs/hydragit/snapshots)
 internal/git/stash.go         StashList, StashPop, StashApply, StashDrop, StashClear, StashShow, StashFiles, StashSave
-internal/git/commit.go        CreateCommit, CommitAndPush (stage paths + commit), AmendCommit, LastCommitMessage
-internal/git/rebase.go        RunInteractiveRebase, DropCommit, RewordCommit, SquashWithParent, Rebase{Continue,Skip,Abort}, RebaseInProgress
+internal/git/commit.go        CreateCommit, CommitAndPush (stage paths + commit), AmendCommit, FixupCommit, LastCommitMessage
+internal/git/rebase.go        RunInteractiveRebase, DropCommit, RewordCommit, SquashWithParent, RebaseAutosquash, Rebase{Continue,Skip,Abort}, RebaseInProgress
 internal/git/conflict.go      Conflicts, KeepCurrent/KeepIncoming, MarkResolved, Continue/AbortConflict
 internal/git/reflog.go        Reflog — HEAD undo timeline
 internal/git/undo.go          UndoLast — abort in-progress op, else reset --hard ORIG_HEAD
 internal/git/tags.go          Tags, CreateTag, DeleteTag
 internal/git/blame.go         Blame — per-line, buffer-aware via runStdin
-internal/git/config.go        User (committer name/email), SetUser (global identity)
+internal/git/config.go        User (committer name/email), SetUser (global identity), EnableRerere
 internal/git/cherrypick.go    CherryPick, Revert
 internal/git/worktree.go      Worktrees (list), WorktreeAdd/AddNew, Remove, Lock/Unlock, Move, Prune
 internal/graph/lanes.go       Lane assignment algorithm — output sent to Webview as LaidOutCommit
@@ -96,11 +99,16 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 |---|---|
 | Status (branch, ahead/behind, modified count, files) | `status` |
 | Branch list local + remote, containing | `branches`, `branch.containing` |
-| Commit log with lane graph + search (msg/author) | `log`, `log.file` |
+| Commit log with lane graph + search (msg/author/pickaxe) | `log`, `log.file` |
 | Commit diff (file list + hunks) | `diff` |
 | Stash list + pop/apply/drop/show/files/save | `stash`, `stash.*` |
 | Checkout, create, delete, rename branch | `checkout`, `branch.*` |
 | Merge, rebase, reset | `merge`, `rebase`, `reset` |
+| Merge conflict preview (dry-run, git ≥ 2.38) | `merge.preview` |
+| Pre-commit safety checks (warn + proceed) | `commit.precheck` |
+| Fixup + autosquash | `commit.fixup`, `rebase.autosquash` |
+| rerere (reuse recorded conflict resolutions) | `rerere.enable` (setting-driven) |
+| Working-tree snapshots (auto before risky ops) | `snapshot.list`, `snapshot.save`, `snapshot.restore`, `snapshot.drop` |
 | Fetch, pull (+ mode), push | `fetch`, `pull`, `pull.mode`, `push` |
 | Cherry-pick, revert | `cherrypick`, `revert` |
 | Stage + commit / commit & push | `commit`, `commit.push` |

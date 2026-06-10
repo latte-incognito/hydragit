@@ -139,10 +139,10 @@ func TestRunInteractiveRebase_dropAndReorder(t *testing.T) {
 func TestSquashWithParent_foldsIntoParent(t *testing.T) {
 	dir := initRepo(t)
 	commitFile(t, dir, "base.txt", "base\n", "base")
-	commitFile(t, dir, "a.txt", "a\n", "A")        // parent
-	commitFile(t, dir, "b.txt", "b\n", "B")        // target → squash into A
+	commitFile(t, dir, "a.txt", "a\n", "A") // parent
+	commitFile(t, dir, "b.txt", "b\n", "B") // target → squash into A
 	target := headHash(t, dir)
-	commitFile(t, dir, "c.txt", "c\n", "C")         // a descendant, must survive
+	commitFile(t, dir, "c.txt", "c\n", "C") // a descendant, must survive
 
 	before := commitCount(t, dir)
 

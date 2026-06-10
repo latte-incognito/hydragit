@@ -177,6 +177,15 @@ export function activate(ctx: vscode.ExtensionContext): void {
       mainProvider.forceRefresh();
       sidebarProvider.forceRefresh();
       void statusService.refresh();
+      // rerere: record conflict resolutions and reuse them on repeated
+      // rebases/merges. Repo-local config, idempotent, best-effort.
+      if (vscode.workspace.getConfiguration('hydragit').get<boolean>('rerere.enabled', true)) {
+        for (const r of repos) {
+          goProcess!.send('rerere.enable', {}, r.rootPath).catch(() => {
+            /* non-fatal — e.g. a repo that vanished mid-flight */
+          });
+        }
+      }
     })
   );
 

@@ -49,6 +49,14 @@ function destructiveOpBlocked(cmd: string, params: unknown): boolean {
   return Date.now() - lastConfirmedAt > CONFIRM_WINDOW_MS;
 }
 
+// Pre-commit safety checks read their toggles from user settings — resolved
+// host-side so neither the webview nor Go needs config plumbing of its own.
+const SAFETY_CHECKS = ['secretFile', 'secretContent', 'conflictMarker', 'largeFile', 'protectedBranch'];
+function enabledSafetyChecks(): string[] {
+  const cfg = vscode.workspace.getConfiguration('hydragit.safety');
+  return SAFETY_CHECKS.filter((c) => cfg.get<boolean>(c, true));
+}
+
 // ── Shared diff helpers ───────────────────────────────────────────────────────
 
 // One of two host-side git calls outside the Go binary's run() chokepoint
@@ -569,6 +577,18 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({ id: msg.id, ok: true, data: state });
         return;
       }
+      // Native confirm — same seam as the main panel (used by the pre-commit
+      // safety checks). A Yes also arms the destructive-op gate.
+      if (msg.cmd === 'ui.confirm') {
+        const pick = await vscode.window.showWarningMessage(
+          msg.params?.message ?? 'Are you sure?',
+          { modal: true },
+          'Yes'
+        );
+        if (pick === 'Yes') recordConfirmation();
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data: pick === 'Yes' });
+        return;
+      }
 
       if (!this.goProcess) {
         webviewView.webview.postMessage({
@@ -589,6 +609,17 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
       if (msg.cmd === 'openMergeEditor') {
         await openMergeEditor(msg.params, msg.repo);
         return;
+      }
+
+      // Inject the enabled safety checks from settings. All checks disabled →
+      // answer "no warnings" directly (Go treats an empty set as "all").
+      if (msg.cmd === 'commit.precheck') {
+        const checks = enabledSafetyChecks();
+        if (checks.length === 0) {
+          webviewView.webview.postMessage({ id: msg.id, ok: true, data: [] });
+          return;
+        }
+        msg.params = { ...(msg.params ?? {}), checks };
       }
 
       try {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Branch, Stash, Worktree } from '../types';
+  import type { Branch, Snapshot, Stash, Worktree } from '../types';
 
 
   interface Props {
@@ -21,6 +21,9 @@
     onTagSelect?: (hash: string) => void;
     onSelectWorktree?: (path: string) => void;
     onWorktreeCtx?: (e: MouseEvent, wt: Worktree) => void;
+    snapshots?: Snapshot[];
+    onSnapshotSelect?: (s: Snapshot) => void;
+    onSnapshotAction?: (a: string, s: Snapshot) => void;
   }
 
   let {
@@ -41,8 +44,25 @@
     onTagCtx = () => {},
     onTagSelect = () => {},
     onSelectWorktree = () => {},
-    onWorktreeCtx = () => {}
+    onWorktreeCtx = () => {},
+    snapshots = [],
+    onSnapshotSelect = () => {},
+    onSnapshotAction = () => {}
   }: Props = $props();
+
+  let snapshotsOpen = $state(false);
+
+  // Short relative age for snapshot rows ("2h", "3d") — they're timestamps
+  // first, labels second.
+  function snapAge(iso: string): string {
+    const ms = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(ms / 60000);
+    if (m < 1) return 'now';
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    return `${Math.floor(h / 24)}d`;
+  }
 
   // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -515,11 +535,59 @@
       {/if}
     {/if}
 
+    <!-- ── SNAPSHOTS — working-tree time machine ─────────────────────────────── -->
+    <div class="tgroup-hdr" onclick={() => (snapshotsOpen = !snapshotsOpen)} role="button" tabindex="0">
+      <span class="tgroup-arrow" class:closed={!snapshotsOpen}>▾</span>
+      <span class="tgroup-label">Snapshots</span>
+      <span class="tgroup-count">{snapshots.length}</span>
+    </div>
+    {#if snapshotsOpen}
+      {#if snapshots.length === 0}
+        <div class="stash-empty">No snapshots — taken automatically before risky operations</div>
+      {:else}
+        {#each snapshots as snap (snap.ref)}
+          <div
+            class="titem snapshot"
+            onclick={() => onSnapshotSelect(snap)}
+            title={`${snap.label}\n${new Date(snap.date).toLocaleString()}\nClick: show diff · ↺: restore · ×: delete`}
+            role="option"
+            aria-selected="false"
+            tabindex="0"
+          >
+            <span class="titem-icon">◷</span>
+            <span class="titem-name">{snap.label}</span>
+            <span class="track">{snapAge(snap.date)}</span>
+            <span
+              class="snap-act" title="Restore working tree from this snapshot" role="button" tabindex="0"
+              onclick={(e) => { e.stopPropagation(); onSnapshotAction('restore', snap); }}
+            >↺</span>
+            <span
+              class="snap-act" title="Delete snapshot" role="button" tabindex="0"
+              onclick={(e) => { e.stopPropagation(); onSnapshotAction('drop', snap); }}
+            >×</span>
+          </div>
+        {/each}
+      {/if}
+    {/if}
+
   </div><!-- /tree-scroll -->
 
 </div>
 
 <style>
+  .snap-act {
+    display: none;
+    padding: 0 3px;
+    border-radius: 3px;
+    color: var(--vscode-descriptionForeground, #8c8c8c);
+    flex-shrink: 0;
+  }
+  .titem.snapshot:hover .snap-act { display: inline; }
+  .snap-act:hover {
+    color: var(--vscode-foreground, #ccc);
+    background: var(--vscode-toolbar-hoverBackground, #3a3a3a);
+  }
+
   .pane-branches {
     width: 200px;
     min-width: 120px;

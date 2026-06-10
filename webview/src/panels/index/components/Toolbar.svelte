@@ -7,7 +7,7 @@
     branches?: import('../types').Branch[];
     hasPending?: boolean;
     allBranches?: boolean;
-    searchMode?: 'msg' | 'hash' | 'file' | 'author';
+    searchMode?: 'msg' | 'hash' | 'file' | 'author' | 'code';
     searchQuery?: string;
     onAction?: (a: string) => void;
     onSearch?: (q: string) => void;
@@ -37,6 +37,7 @@
     { id: 'hash',   label: 'Hash',    hint: 'hash',   placeholder: 'Enter hash prefix (e.g. a0c103)…' },
     { id: 'file',   label: 'File',    hint: 'file',   placeholder: 'File name or path…'               },
     { id: 'author', label: 'Author',  hint: 'author', placeholder: 'Author name or email…'            },
+    { id: 'code',   label: 'Code',    hint: 'code',   placeholder: 'Find commits that added/removed this string…' },
   ];
 
   let currentMode = $derived(MODES.find(m => m.id === searchMode) ?? MODES[0]);
@@ -173,7 +174,7 @@
 
   <!-- Search bar -->
   <div class="search-wrap" class:mode-msg={searchMode==='msg'} class:mode-hash={searchMode==='hash'}
-       class:mode-file={searchMode==='file'} class:mode-author={searchMode==='author'}>
+       class:mode-file={searchMode==='file'} class:mode-author={searchMode==='author'} class:mode-code={searchMode==='code'}>
     <div class="mode-tabs">
       {#each MODES as m}
         <button
@@ -196,6 +197,10 @@
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M3 1.5h5l2.5 2.5V11.5a1 1 0 01-1 1H3a1 1 0 01-1-1v-9a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/>
               <path d="M8 1.5V4H10.5" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+          {:else if m.id === 'code'}
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M4.5 3.5 1.5 6.5l3 3M8.5 3.5l3 3-3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           {:else}
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
