@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"hydragit/internal/git"
@@ -19,13 +20,13 @@ type Request struct {
 }
 
 type Response struct {
-	ID    string      `json:"id"`
-	OK    bool        `json:"ok"`
-	Data  interface{} `json:"data,omitempty"`
-	Error string      `json:"error,omitempty"`
+	ID    string `json:"id"`
+	OK    bool   `json:"ok"`
+	Data  any    `json:"data,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
-func ok(id string, data interface{}) Response {
+func ok(id string, data any) Response {
 	return Response{ID: id, OK: true, Data: data}
 }
 
@@ -39,16 +40,108 @@ var logSilentCmds = map[string]bool{
 	"status": true,
 }
 
-// lastStatusHash tracks the last seen status payload to log only on change.
-var lastStatusHash string
+// lastStatusHash tracks the last seen status payload per repo, to log only on
+// change. Keyed by repo path — a multi-repo workspace polls several repos, and
+// a single global would ping-pong between their hashes and log forever.
+var (
+	statusLogMu    sync.Mutex
+	lastStatusHash = map[string]string{}
+)
+
+// Per-repo locking. Mutating commands take the repo's exclusive lock — git
+// must never run two state-changing operations on the same .git concurrently
+// (index/ref-lock corruption). Everything else shares a read lock, so reads
+// run concurrently and a hung network op can't freeze the status poll.
+// Distinct repos never block each other.
+var (
+	repoLocksMu sync.Mutex
+	repoLocks   = map[string]*sync.RWMutex{}
+)
+
+func lockFor(repoPath string) *sync.RWMutex {
+	repoLocksMu.Lock()
+	defer repoLocksMu.Unlock()
+	l, ok := repoLocks[repoPath]
+	if !ok {
+		l = &sync.RWMutex{}
+		repoLocks[repoPath] = l
+	}
+	return l
+}
+
+// mutatingCmds lists commands that modify the index, working tree, HEAD, local
+// refs or config — they serialize per repo. Commands not listed are treated as
+// shared: pure reads, plus remote-only ops (fetch, push, push.force, push.upto,
+// branch.*.remote) that touch refs/remotes at most and are safe alongside
+// reads — deliberately, so a 30s-hung fetch doesn't block the status poll.
+var mutatingCmds = map[string]bool{
+	"checkout":              true,
+	"branch.create":         true,
+	"branch.delete":         true,
+	"branch.rename":         true,
+	"branch.rename.folder":  true,
+	"merge":                 true,
+	"rebase":                true,
+	"rebase.drop":           true,
+	"rebase.interactive":    true,
+	"rebase.reword":         true,
+	"rebase.continue":       true,
+	"rebase.skip":           true,
+	"rebase.abort":          true,
+	"commit":                true,
+	"commit.push":           true,
+	"commit.amend":          true,
+	"commit.squash":         true,
+	"cherrypick":            true,
+	"revert":                true,
+	"reset":                 true,
+	"undo.last":             true,
+	"pull":                  true,
+	"pull.mode":             true,
+	"stash.pop":             true,
+	"stash.apply":           true,
+	"stash.drop":            true,
+	"stash.clear":           true,
+	"stash.save":            true,
+	"conflict.keepCurrent":  true,
+	"conflict.keepIncoming": true,
+	"conflict.resolve":      true,
+	"conflict.continue":     true,
+	"conflict.abort":        true,
+	"tag.create":            true,
+	"tag.delete":            true,
+	"user.set":              true,
+	"worktree.add":          true,
+	"worktree.remove":       true,
+	"worktree.lock":         true,
+	"worktree.unlock":       true,
+	"worktree.move":         true,
+	"worktree.prune":        true,
+}
 
 func Handle(repoPath string, req Request) Response {
+	// Per-request repo override: a multi-repo workspace sends the active repo
+	// root on each request; when absent, fall back to the spawn-time default
+	// (HYDRAGIT_REPO). Resolved here so locking targets the real repo.
+	if req.Repo != "" {
+		repoPath = req.Repo
+	}
+
 	id := req.ID
 	start := time.Now()
 	silent := logSilentCmds[req.Cmd]
 
 	if !silent {
 		logger.IPCRequest(id, req.Cmd)
+	}
+
+	l := lockFor(repoPath)
+	if mutatingCmds[req.Cmd] {
+		l.Lock()
+		defer l.Unlock()
+	} else {
+		l.RLock()
+		defer l.RUnlock()
 	}
 
 	resp := handle(repoPath, req)
@@ -70,16 +163,10 @@ func Handle(repoPath string, req Request) Response {
 }
 
 // handle contains the actual dispatch logic, kept separate so Handle() can
-// wrap it cleanly with timing and logging.
+// wrap it cleanly with timing, logging and per-repo locking. repoPath arrives
+// already resolved (per-request repo override applied in Handle).
 func handle(repoPath string, req Request) Response {
 	id := req.ID
-
-	// Per-request repo override: a multi-repo workspace sends the active repo
-	// root on each request. When absent, fall back to the spawn-time default
-	// (HYDRAGIT_REPO). Every git.* call below runs against this path.
-	if req.Repo != "" {
-		repoPath = req.Repo
-	}
 
 	switch req.Cmd {
 
@@ -91,14 +178,16 @@ func handle(repoPath string, req Request) Response {
 		if err != nil {
 			return fail(id, err)
 		}
-		// Only log when status actually changes
+		// Only log when this repo's status actually changes
 		b, _ := json.Marshal(s)
 		sum := sha256.Sum256(b)
 		h := hex.EncodeToString(sum[:8])
-		if h != lastStatusHash {
-			lastStatusHash = h
+		statusLogMu.Lock()
+		if h != lastStatusHash[repoPath] {
+			lastStatusHash[repoPath] = h
 			logger.Info("status", "status changed")
 		}
+		statusLogMu.Unlock()
 
 		return ok(id, s)
 

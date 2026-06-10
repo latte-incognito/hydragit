@@ -31,23 +31,23 @@ release — plus one reliability bug that borders on DoS (64KB stdin scanner lim
 
 ### Issues
 
-1. **The Go IPC loop is fully serial.** `main.go:47` calls `ipc.Handle` synchronously
-   inside the stdin scan loop. One slow command blocks everything behind it — a `fetch`
-   against a dead remote holds the line for the full 30s timeout, freezing the 3s status
-   poll, the sidebar, and every panel. Multi-repo makes it worse: repo B is blocked by
-   repo A's network op for no reason.
-   *Fix shape:* per-request goroutines with a per-repo-path mutex — git ops on one repo
-   should stay serialized (concurrent mutations on the same `.git` risk index/lock
-   corruption), but independent repos and read-only ops needn't queue behind a fetch.
+1. ✅ **FIXED 2026-06-09 — The Go IPC loop was fully serial.** Each request now runs in
+   its own goroutine (`main.go`, `sync.WaitGroup.Go` + a stdout write mutex; the TS side
+   matches responses by id, so out-of-order replies are fine). Per-repo `sync.RWMutex`
+   in `ipc.Handle`: commands in the `mutatingCmds` set (index/worktree/local-ref writers)
+   take the repo's exclusive lock; reads *and remote-only ops* (fetch/push/`*.remote`)
+   share it — so a 30s-hung fetch no longer blocks the status poll, and distinct repos
+   never block each other. A hung `pull` still blocks its own repo's panel (it mutates
+   the worktree, exclusivity is correct there). Covered by
+   `handler_concurrency_test.go` (race-detector-friendly; run with `go test -race`).
 
-2. **`lastStatusHash` is a single global** (`handler.go:43`). In a multi-repo workspace,
-   two repos' status payloads ping-pong the hash and re-log "status changed" forever.
-   Should be keyed by repo path.
+2. ✅ **FIXED 2026-06-09 — `lastStatusHash` single global.** Now a map keyed by repo
+   path, guarded by a mutex (required anyway once requests went concurrent).
 
-3. **Two stray git exec points in TypeScript** violate the spirit of the one-`run()` rule:
-   `fileExistsAtRef` (`panel.ts:30`) and `openCommitUrl` (`panel.ts:116`) call
-   `execFile('git', ...)` directly — no logging, no timeout. `openCommitUrl` reading
-   config is harmless, but it's the same hang class already fixed in Go (BUGS.md #5).
+3. ✅ **FIXED 2026-06-09 — stray TS git exec points.** Both `fileExistsAtRef` and
+   `openCommitUrl` are now bounded by a 5s timeout (`HOST_GIT_TIMEOUT_MS`). Logging
+   deliberately omitted: both are local-only reads where failure is an expected answer
+   ("file absent at ref" / "no remote configured"), not an error worth log noise.
 
 ---
 
@@ -141,14 +141,12 @@ git-shaped on the machine."
 `RepoService.getRepos()`. This single check also substantially mitigates the still-open
 command-allowlist item in SECURITY.md.
 
-### 2. `bufio.Scanner` 64KB token limit kills the IPC loop ⚠️ reliability + DoS
+### 2. ✅ FIXED 2026-06-09 — `bufio.Scanner` 64KB token limit kills the IPC loop
 
-`main.go:46` uses a default `bufio.Scanner` on stdin — max token 64KB. Buffer-aware blame
-sends the entire editor buffer in `params.contents`; blaming any file over ~64KB makes the
-scanner fail with "token too long", the loop exits, and the whole backend dies — taking
-every pending promise with it.
-
-*Fix (one line):* `scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)`.
+`main.go` used a default `bufio.Scanner` on stdin — max token 64KB. Buffer-aware blame
+sends the entire editor buffer in `params.contents`; blaming any file over ~64KB made the
+scanner fail with "token too long", killing the backend.
+Fixed alongside the concurrent-loop rework: `scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)`.
 
 ### 3. `worktree.open` accepts an arbitrary path
 

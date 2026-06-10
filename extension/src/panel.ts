@@ -20,6 +20,12 @@ function repoRoot(): string {
 
 // ── Shared diff helpers ───────────────────────────────────────────────────────
 
+// One of two host-side git calls outside the Go binary's run() chokepoint
+// (the other is openCommitUrl). Both are local-only reads, but they're still
+// bounded by a timeout so a pathological repo can't hang the host the way
+// unbounded network git once hung Go (BUGS.md #5).
+const HOST_GIT_TIMEOUT_MS = 5000;
+
 async function fileExistsAtRef(absPath: string, ref: string, root?: string): Promise<boolean> {
   try {
     const { execFile } = await import('child_process');
@@ -27,9 +33,13 @@ async function fileExistsAtRef(absPath: string, ref: string, root?: string): Pro
     const exec = promisify(execFile);
     const workspaceRoot = root ?? repoRoot();
     const relPath = path.relative(workspaceRoot, absPath);
-    await exec('git', ['cat-file', '-e', `${ref}:${relPath}`], { cwd: workspaceRoot });
+    await exec('git', ['cat-file', '-e', `${ref}:${relPath}`], {
+      cwd: workspaceRoot,
+      timeout: HOST_GIT_TIMEOUT_MS,
+    });
     return true;
   } catch {
+    // "Missing at this ref" is an expected answer here, not an error.
     return false;
   }
 }
@@ -115,6 +125,7 @@ async function openCommitUrl(params: { commit: string }, root?: string): Promise
     const exec = promisify(execFile);
     const { stdout } = await exec('git', ['config', '--get', 'remote.origin.url'], {
       cwd: workspaceRoot,
+      timeout: HOST_GIT_TIMEOUT_MS,
     });
     const web = remoteUrlToWeb(stdout);
     if (!web) {
