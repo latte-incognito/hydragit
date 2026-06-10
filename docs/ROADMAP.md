@@ -115,8 +115,13 @@ Real bugs:
    the branch name, clickable → push & set upstream.
 3. Amend with remote sync not amending; after amending, "magic sync" rebases
    back instead of force-with-lease offering. (Two related reports.)
-4. Colors must come from VS Code theme tokens — HydraGit status bar doesn't
-   follow theme changes.
+4. ~~HydraGit status bar doesn't follow theme changes~~ — fixed 2026-06-10:
+   `StatusBar.svelte` was a fully hardcoded blue palette; now
+   `statusBar.background/foreground/border` tokens (it matches the user's real
+   status bar), dim segments via `opacity` so they track any theme. **Verify
+   under F5 with a light theme.** Broader sweep still open: ~76 hardcoded
+   `color:`/`background:` declarations remain across other components — most
+   have token fallbacks already, but audit the ones without before 1.0.
 
 Main panel UI (7–9 = **fix before recording the GIF**):
 

@@ -44,17 +44,21 @@
 </div>
 
 <style>
+  /* Colored with the user's actual status-bar theme tokens (ROADMAP §4.4) —
+     the bar matches whatever their VS Code status bar looks like and follows
+     theme switches live. Dim segments use opacity, not separate colors, so
+     they track any theme automatically. Old palette kept as fallbacks. */
   .statusbar {
     min-height: 20px;
     max-height: 40px;
-    background: #0e4a6a;
+    background: var(--vscode-statusBar-background, #0e4a6a);
     display: flex;
     align-items: center;
     padding: 0 10px;
     font-size: var(--hg-font-xs);
-    color: #7abdd4;
+    color: var(--vscode-statusBar-foreground, #7abdd4);
     gap: 8px;
-    border-top: 0.5px solid #0a3a5a;
+    border-top: 0.5px solid var(--vscode-statusBar-border, var(--vscode-panel-border, #0a3a5a));
     flex-shrink: 0;
     overflow: hidden;
   }
@@ -65,7 +69,7 @@
   }
   .sb-logo {
     flex-shrink: 0;
-    color: #7abdd4;
+    color: inherit;
     margin-right: -4px;
   }
   .sb-repo {
@@ -74,24 +78,23 @@
     padding: 0;
     margin: 0;
     font: inherit;
-    color: #9ad4e8;
+    color: inherit;
     font-weight: 600;
     cursor: pointer;
   }
   .sb-repo:hover {
-    color: #c4ecf7;
     text-decoration: underline;
   }
   .sb-sep {
-    color: #4a7a8a;
+    opacity: 0.55;
     margin: 0 -2px;
   }
   .sb-branch {
-    color: #7abdd4;
+    color: inherit;
     font-weight: 500;
   }
   .sb-right {
     margin-left: auto;
-    color: #4a7a8a;
+    opacity: 0.55;
   }
 </style>
