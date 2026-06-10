@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +34,21 @@ func ok(id string, data any) Response {
 
 func fail(id string, err error) Response {
 	return Response{ID: id, OK: false, Error: err.Error()}
+}
+
+// missingParam validates required string params for mutating commands, given
+// as ("name", value) pairs; it returns a failure Response naming the first
+// empty one, or nil when all are present. Git would reject most of these
+// anyway, but failing fast keeps garbage out of the exec layer and the error
+// readable (SECURITY.md "empty-param rejection").
+func missingParam(id string, pairs ...string) *Response {
+	for i := 0; i+1 < len(pairs); i += 2 {
+		if strings.TrimSpace(pairs[i+1]) == "" {
+			r := fail(id, fmt.Errorf("missing required parameter: %s", pairs[i]))
+			return &r
+		}
+	}
+	return nil
 }
 
 // logSilentCmds suppresses IPC request/response logging for high-frequency
@@ -376,6 +393,9 @@ func handle(repoPath string, req Request) Response {
 			Index int `json:"index"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if p.Index < 0 {
+			return fail(id, fmt.Errorf("invalid stash index: %d", p.Index))
+		}
 		if err := git.StashPop(repoPath, p.Index); err != nil {
 			return fail(id, err)
 		}
@@ -386,6 +406,9 @@ func handle(repoPath string, req Request) Response {
 			Index int `json:"index"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if p.Index < 0 {
+			return fail(id, fmt.Errorf("invalid stash index: %d", p.Index))
+		}
 		if err := git.StashApply(repoPath, p.Index); err != nil {
 			return fail(id, err)
 		}
@@ -396,6 +419,9 @@ func handle(repoPath string, req Request) Response {
 			Index int `json:"index"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if p.Index < 0 {
+			return fail(id, fmt.Errorf("invalid stash index: %d", p.Index))
+		}
 		if err := git.StashDrop(repoPath, p.Index); err != nil {
 			return fail(id, err)
 		}
@@ -444,6 +470,9 @@ func handle(repoPath string, req Request) Response {
 			Branch string `json:"branch"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "branch", p.Branch); r != nil {
+			return *r
+		}
 		if err := git.Checkout(repoPath, p.Branch); err != nil {
 			return fail(id, err)
 		}
@@ -455,6 +484,9 @@ func handle(repoPath string, req Request) Response {
 			From string `json:"from"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "name", p.Name); r != nil {
+			return *r
+		}
 		if err := git.CreateBranch(repoPath, p.Name, p.From); err != nil {
 			return fail(id, err)
 		}
@@ -466,6 +498,9 @@ func handle(repoPath string, req Request) Response {
 			Force bool   `json:"force"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "name", p.Name); r != nil {
+			return *r
+		}
 		if err := git.DeleteBranch(repoPath, p.Name, p.Force); err != nil {
 			return fail(id, err)
 		}
@@ -477,6 +512,9 @@ func handle(repoPath string, req Request) Response {
 			Branch string `json:"branch"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "remote", p.Remote, "branch", p.Branch); r != nil {
+			return *r
+		}
 		if err := git.DeleteRemoteBranch(repoPath, p.Remote, p.Branch); err != nil {
 			return fail(id, err)
 		}
@@ -488,6 +526,9 @@ func handle(repoPath string, req Request) Response {
 			To   string `json:"to"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "from", p.From, "to", p.To); r != nil {
+			return *r
+		}
 		if err := git.RenameBranch(repoPath, p.From, p.To); err != nil {
 			return fail(id, err)
 		}
@@ -544,6 +585,9 @@ func handle(repoPath string, req Request) Response {
 			Branch string `json:"branch"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "branch", p.Branch); r != nil {
+			return *r
+		}
 		if err := git.Merge(repoPath, p.Branch); err != nil {
 			return fail(id, err)
 		}
@@ -602,6 +646,9 @@ func handle(repoPath string, req Request) Response {
 			Mode   string `json:"mode"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
 		stashed, err := git.ResetWithAutostash(repoPath, p.Commit, p.Mode)
 		if err != nil {
 			return fail(id, err)
@@ -627,6 +674,9 @@ func handle(repoPath string, req Request) Response {
 			Onto string `json:"onto"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "onto", p.Onto); r != nil {
+			return *r
+		}
 		if err := git.Rebase(repoPath, p.Onto); err != nil {
 			return fail(id, err)
 		}
@@ -637,6 +687,9 @@ func handle(repoPath string, req Request) Response {
 			Commit string `json:"commit"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
 		conflict, err := git.DropCommit(repoPath, p.Commit)
 		if err != nil {
 			return fail(id, err)
@@ -660,6 +713,9 @@ func handle(repoPath string, req Request) Response {
 			Commit string `json:"commit"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
 		conflict, err := git.SquashWithParent(repoPath, p.Commit)
 		if err != nil {
 			return fail(id, err)
@@ -672,6 +728,9 @@ func handle(repoPath string, req Request) Response {
 			Message string `json:"message"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit, "message", p.Message); r != nil {
+			return *r
+		}
 		conflict, err := git.RewordCommit(repoPath, p.Commit, p.Message)
 		if err != nil {
 			return fail(id, err)
@@ -759,6 +818,9 @@ func handle(repoPath string, req Request) Response {
 			Commit string `json:"commit"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
 		if err := git.CherryPick(repoPath, p.Commit); err != nil {
 			return fail(id, err)
 		}
@@ -812,6 +874,9 @@ func handle(repoPath string, req Request) Response {
 			Commit string `json:"commit"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
 		if err := git.Revert(repoPath, p.Commit); err != nil {
 			return fail(id, err)
 		}
@@ -831,6 +896,9 @@ func handle(repoPath string, req Request) Response {
 			Message string `json:"message"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "name", p.Name); r != nil {
+			return *r
+		}
 		if err := git.CreateTag(repoPath, p.Name, p.Commit, p.Message); err != nil {
 			return fail(id, err)
 		}
@@ -841,6 +909,9 @@ func handle(repoPath string, req Request) Response {
 			Name string `json:"name"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "name", p.Name); r != nil {
+			return *r
+		}
 		if err := git.DeleteTag(repoPath, p.Name); err != nil {
 			return fail(id, err)
 		}
@@ -861,6 +932,9 @@ func handle(repoPath string, req Request) Response {
 			Start     string `json:"start"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "path", p.Path); r != nil {
+			return *r
+		}
 		var werr error
 		if p.NewBranch != "" {
 			werr = git.WorktreeAddNew(repoPath, p.Path, p.NewBranch, p.Start)
@@ -878,6 +952,9 @@ func handle(repoPath string, req Request) Response {
 			Force bool   `json:"force"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "path", p.Path); r != nil {
+			return *r
+		}
 		if err := git.WorktreeRemove(repoPath, p.Path, p.Force); err != nil {
 			return fail(id, err)
 		}
@@ -910,6 +987,9 @@ func handle(repoPath string, req Request) Response {
 			To   string `json:"to"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "from", p.From, "to", p.To); r != nil {
+			return *r
+		}
 		if err := git.WorktreeMove(repoPath, p.From, p.To); err != nil {
 			return fail(id, err)
 		}

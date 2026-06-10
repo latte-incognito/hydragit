@@ -7,6 +7,7 @@ import {
   HydraSidebarProvider,
   HydraViewProvider,
   setActiveRepoRoot,
+  setKnownRepoRoots,
 } from './panel';
 import { HistoryPanelManager } from './historyPanel';
 import { HydraStatusService } from './HydraStatusService';
@@ -162,6 +163,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
     repoService.onDidChange(() => {
       const active = repoService.getActiveRoot();
       const repos = repoService.getRepos();
+      // Refresh the allowlist BEFORE the webviews learn the repo list, so the
+      // webview can never know a root the message gate doesn't.
+      setKnownRepoRoots(repos.map((r) => r.rootPath));
       updateRepoStatusItem();
       mainProvider.postRepoState(repos, active);
       sidebarProvider.postRepoState(repos, active);

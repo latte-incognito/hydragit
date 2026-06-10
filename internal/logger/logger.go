@@ -21,16 +21,16 @@ const (
 
 // Entry is a single JSON log line.
 type Entry struct {
-	Timestamp string `json:"ts"`
-	Level     Level  `json:"level"`
-	Source    string `json:"source"`          // "git" | "ipc" | "process"
-	Cmd       string `json:"cmd,omitempty"`   // git subcommand or ipc command
-	DurationMs int64 `json:"duration_ms,omitempty"`
-	ExitCode  *int   `json:"exit_code,omitempty"`
-	ReqID     string `json:"req_id,omitempty"`
-	OK        *bool  `json:"ok,omitempty"`
-	Error     string `json:"error,omitempty"`
-	Msg       string `json:"msg,omitempty"`
+	Timestamp  string `json:"ts"`
+	Level      Level  `json:"level"`
+	Source     string `json:"source"`        // "git" | "ipc" | "process"
+	Cmd        string `json:"cmd,omitempty"` // git subcommand or ipc command
+	DurationMs int64  `json:"duration_ms,omitempty"`
+	ExitCode   *int   `json:"exit_code,omitempty"`
+	ReqID      string `json:"req_id,omitempty"`
+	OK         *bool  `json:"ok,omitempty"`
+	Error      string `json:"error,omitempty"`
+	Msg        string `json:"msg,omitempty"`
 }
 
 // Logger writes JSON-lines to a daily rotating log file.
@@ -55,7 +55,9 @@ func Init(logDir string, retainDays int) error {
 	if retainDays <= 0 {
 		retainDays = 7
 	}
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
+	// 0o700 — logs contain repo metadata (branch names, file paths, git
+	// command details); keep them readable by the owning user only.
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
 		return fmt.Errorf("logger: create log dir: %w", err)
 	}
 
@@ -188,7 +190,7 @@ func (l *Logger) rotate() error {
 	day := today()
 	path := filepath.Join(l.dir, "hydragit-"+day+".log")
 
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("logger: open %s: %w", path, err)
 	}

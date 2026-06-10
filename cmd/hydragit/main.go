@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 
+	"hydragit/internal/git"
 	"hydragit/internal/ipc"
 	"hydragit/internal/logger"
 )
@@ -43,6 +44,16 @@ func main() {
 	defer logger.Close()
 
 	logger.Info("process", fmt.Sprintf("start version=%s commit=%s built=%s repo=%s", version, commit, buildTime, repoPath))
+
+	// Sanity-check the spawn-time default repo. Deliberately NOT fatal: in a
+	// multi-repo workspace every request can carry its own valid repo override,
+	// so a bad default only degrades the fallback path — exiting here would
+	// take working repos down with it. Log loudly on both channels instead.
+	if !git.IsRepo(repoPath) {
+		msg := fmt.Sprintf("HYDRAGIT_REPO=%q is not a git repository — requests without a repo override will fail", repoPath)
+		logger.Error("process", msg)
+		fmt.Fprintln(os.Stderr, "hydragit: "+msg)
+	}
 
 	scanner := bufio.NewScanner(os.Stdin)
 	// Blame requests carry whole editor buffers in params — the default 64KB

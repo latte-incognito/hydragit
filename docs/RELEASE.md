@@ -30,9 +30,9 @@ Blockers — fix before first `vsce publish`:
       `github.com/latte-incognito/hydragit`; this doc says
       `github.com/vkushnarenko/hydragit`. The Marketplace listing uses the
       `package.json` URL — pick one identity, make that repo public, and align both.
-- [ ] **Security fix from `FABLE.md` #1** — the `msg.repo` allowlist check in
-      `panel.ts`. Publishing widens exposure. (#2, the 64 KB stdin scanner buffer, was
-      fixed 2026-06-09 with the concurrent IPC rework.)
+- [x] **Security fixes from `FABLE.md`** — all landed: `msg.repo` allowlist +
+      `worktree.open` validation + CSP hardening (2026-06-10), 64 KB scanner buffer
+      (2026-06-09). See SECURITY.md's hardening-pass note for the full list.
 - [ ] **`CHANGELOG.md` doesn't exist.** The Marketplace shows a Changelog tab; create it
       from the starter below (current version is 0.2.3, not 0.1.0).
 - [ ] **linux-arm64 binary is never built.** `extension.ts` resolves

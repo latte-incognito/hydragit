@@ -28,6 +28,14 @@ var logSilentGitCmds = map[string]bool{
 	"status":    true,
 }
 
+// IsRepo reports whether path is inside a git repository. Used by main to
+// sanity-check the spawn-time default repo (SECURITY.md "HYDRAGIT_REPO not
+// validated") — still routed through the single exec point.
+func IsRepo(path string) bool {
+	_, err := run(path, "rev-parse", "--git-dir")
+	return err == nil
+}
+
 // run is the single entry point for all git CLI calls.
 // Successful executions of commands in logSilentGitCmds are not logged.
 // Errors are always logged.

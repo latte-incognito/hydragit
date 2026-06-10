@@ -125,7 +125,11 @@ fully supported in runes mode — optional to convert).
 `docs/SECURITY.md` is honest and its threat-model scoping is correct. These findings are
 ranked; **#1–#4 are not in SECURITY.md.**
 
-### 1. `msg.repo` is unvalidated — arbitrary-path git execution ⚠️ fix first
+### 1. ✅ FIXED 2026-06-10 — `msg.repo` unvalidated (arbitrary-path git execution)
+
+`repoAllowed()` gate at the top of both `onDidReceiveMessage` handlers in `panel.ts`,
+fed by `setKnownRepoRoots()` from `extension.ts` (refreshed *before* the webviews learn
+the repo list, so the webview can never know a root the gate doesn't). Original finding:
 
 `RepoService.setActive` validates against known repos, but the per-request stamp bypasses
 it entirely: the webview sends `msg.repo`, `panel.ts:345` (and the sidebar handler at
@@ -148,7 +152,10 @@ sends the entire editor buffer in `params.contents`; blaming any file over ~64KB
 scanner fail with "token too long", killing the backend.
 Fixed alongside the concurrent-loop rework: `scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)`.
 
-### 3. `worktree.open` accepts an arbitrary path
+### 3. ✅ FIXED 2026-06-10 — `worktree.open` accepted an arbitrary path
+
+Host now validates the path against `worktree.list` before `vscode.openFolder`.
+Original finding:
 
 `panel.ts:296` passes `msg.params.path` straight to `vscode.openFolder` with
 `forceNewWindow`. Opening an attacker-chosen folder is a workspace-trust escalation vector
@@ -156,7 +163,11 @@ Fixed alongside the concurrent-loop rework: `scanner.Buffer(make([]byte, 0, 64*1
 
 *Fix:* validate the path against the last `worktree.list` result before opening.
 
-### 4. `img-src https:` is a quiet exfiltration channel
+### 4. ✅ FIXED 2026-06-10 — `img-src https:` exfiltration channel
+
+Verified no remote images are loaded anywhere (the only `<img>` is the bundled icon),
+so `https:` was dropped outright and `connect-src 'none'` added — all three panels now
+have zero network egress. Original finding:
 
 With `default-src 'none'` blocking fetch, the blanket avatar allowance (`panel.ts:406`) is
 the only network egress left in the main panel: an injected
@@ -164,26 +175,31 @@ the only network egress left in the main panel: an injected
 
 *Fix:* scope `img-src` to the actual avatar hosts (Gravatar/GitHub) instead of all of `https:`.
 
-### 5. Already-documented open items — suggested priority order
+### 5. ✅ Previously-documented open items — all closed 2026-06-10
 
-1. **Sidebar CSP** — `HydraSidebarProvider.getHtml()` (`panel.ts:558`) injects no CSP at
-   all, while the main panel and `historyPanel.ts:147` both have one. One-liner.
-2. **`HYDRAGIT_REPO` validation at startup** (`main.go:21` defaults to `"."` with no
-   `rev-parse --git-dir` check).
-3. **`force`-from-webview confirmation gating** — matters most *after* #1 is fixed, since
-   `msg.repo` is currently the bigger hole in the same trust boundary. Note the
-   `ui.confirm` flow is advisory: the host shows the dialog but nothing binds the answer
-   to the destructive send that follows. Real enforcement = host gates `force`/destructive
-   cmds on its own recorded confirmation state.
-4. Empty-param rejection in `handler.go` (cosmetic — git errors anyway, just noisily).
+1. **Sidebar CSP** — done; same locked-down CSP as the main panel.
+2. **`HYDRAGIT_REPO` validation at startup** — done via `git.IsRepo()` (routed through
+   the single exec point). Deliberately warn-don't-exit: with multi-repo, requests carry
+   their own repo override, so a bad default must not kill working repos.
+3. **`force` confirmation gating** — done: `destructiveOpBlocked()` in `panel.ts` only
+   forwards `force: true` params, `push.force` and `stash.clear` if a native `ui.confirm`
+   was answered Yes within 30s. Known limitation (documented in SECURITY.md): the
+   confirmation proves *a* recent native Yes, it isn't bound to the specific op.
+4. **Empty-param rejection** — done: `missingParam()` guards every mutating command;
+   stash pop/apply/drop reject negative indexes.
+5. Bonus from the same pass: log dir/file permissions tightened to `0o700`/`0o600`.
+
+**Still open (tracked in SECURITY.md):** full message shape validation and an explicit
+host-side command allowlist; ref-name belt-and-suspenders validation. All are
+defense-in-depth behind the repo gate + Go's `default:` case, not exposed holes.
 
 ---
 
-## Suggested immediate fixes (small, no feature-behavior change)
+## Immediate-fixes table — all landed
 
-| # | Fix | Where | Size |
+| # | Fix | Where | Status |
 |---|---|---|---|
-| 1 | Allowlist `msg.repo` against `RepoService.getRepos()` | `panel.ts` both handlers | ~10 lines |
-| 2 | Raise scanner buffer to 16MB | `main.go` | 1 line |
-| 3 | Validate `worktree.open` path against `worktree.list` | `panel.ts` | ~10 lines |
-| 4 | Add CSP meta to sidebar HTML | `panel.ts` `HydraSidebarProvider.getHtml()` | ~10 lines |
+| 1 | Allowlist `msg.repo` against known repo roots | `panel.ts` both handlers | ✅ 2026-06-10 |
+| 2 | Raise scanner buffer to 16MB | `main.go` | ✅ 2026-06-09 |
+| 3 | Validate `worktree.open` path against `worktree.list` | `panel.ts` | ✅ 2026-06-10 |
+| 4 | Add CSP meta to sidebar HTML | `panel.ts` `HydraSidebarProvider.getHtml()` | ✅ 2026-06-10 |
