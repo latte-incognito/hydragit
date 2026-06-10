@@ -5,26 +5,26 @@
   import SideBySideDiff from './SideBySideDiff.svelte';
   import type { Commit, HistoryInit, Hunk, LineCommit } from './types';
 
-  let mode: 'file' | 'selection' = 'file';
-  let file = '';
+  let mode: 'file' | 'selection' = $state('file');
+  let file = $state('');
   let start = 0;
   let end = 0;
 
   // File mode → Commit[]; selection mode → LineCommit[] (each carries its
   // line-range hunks). Stored together; selection rows are cast when needed.
-  let commits: Commit[] = [];
-  let selectedIdx: number | null = null;
-  let loading = false;
-  let error = '';
+  let commits: Commit[] = $state([]);
+  let selectedIdx: number | null = $state(null);
+  let loading = $state(false);
+  let error = $state('');
 
   // Selection-mode diff state.
-  let diffHunks: Hunk[] = [];
-  let diffCount = 0;
-  let olderRef = '';
-  let newerRef = '';
+  let diffHunks: Hunk[] = $state([]);
+  let diffCount = $state(0);
+  let olderRef = $state('');
+  let newerRef = $state('');
 
-  $: fileName = file.split('/').pop() ?? file;
-  $: selected = selectedIdx !== null ? commits[selectedIdx] : null;
+  let fileName = $derived(file.split('/').pop() ?? file);
+  let selected = $derived(selectedIdx !== null ? commits[selectedIdx] : null);
 
   async function load() {
     loading = true;
@@ -161,7 +161,7 @@
               role="option"
               aria-selected={selectedIdx === i}
               tabindex="0"
-              on:click={() => selectRow(i)}
+              onclick={() => selectRow(i)}
             >
               <span class="c-ver mono">{short(c.hash)}</span>
               <span class="c-date">{fmtDate(c.date)}</span>
@@ -206,7 +206,7 @@
             role="option"
             aria-selected={selectedIdx === i}
             tabindex="0"
-            on:click={() => selectRow(i)}
+            onclick={() => selectRow(i)}
           >
             <span class="r-refs">
               {#each c.refs ?? [] as r}

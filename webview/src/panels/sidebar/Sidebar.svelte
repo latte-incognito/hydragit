@@ -10,7 +10,7 @@
   // committing in a group is scoped to that repo (RepoGroup); focusing a group
   // sets the active repo, which the main panel (log/branches) then follows.
 
-  let ready = false;
+  let ready = $state(false);
 
   onMount(() => {
     requestRepoState().then(() => (ready = true));
@@ -18,7 +18,9 @@
   });
 
   // A non-empty push also means we're ready (covers repo.list being unavailable).
-  $: if ($repoState.repos.length > 0) ready = true;
+  $effect(() => {
+    if ($repoState.repos.length > 0) ready = true;
+  });
 
   // Focusing a group makes it the active repo → main panel follows it.
   const handleFocus = (rootPath: string) => selectRepo(rootPath);

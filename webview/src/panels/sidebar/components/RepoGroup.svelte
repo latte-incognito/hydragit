@@ -8,26 +8,40 @@
   import CommitArea from './CommitArea.svelte';
   import ConflictBanner from './ConflictBanner.svelte';
 
-  // ── Props ────────────────────────────────────────────────────────────────
-  export let repo: RepoInfo;
-  export let focused = false;
-  /** Focus this repo → the main panel (log/branches/diff) follows it. */
-  export let onFocus: (rootPath: string) => void = () => {};
-  /** Collapse the whole group (header still visible). */
-  export let expanded = true;
-  /** Show the repo header. Hidden for a solo repo so the view stays flat. */
-  export let showHeader = true;
+  
+  
+  
+  
+  interface Props {
+    // ── Props ────────────────────────────────────────────────────────────────
+    repo: RepoInfo;
+    focused?: boolean;
+    /** Focus this repo → the main panel (log/branches/diff) follows it. */
+    onFocus?: (rootPath: string) => void;
+    /** Collapse the whole group (header still visible). */
+    expanded?: boolean;
+    /** Show the repo header. Hidden for a solo repo so the view stays flat. */
+    showHeader?: boolean;
+  }
+
+  let {
+    repo,
+    focused = false,
+    onFocus = () => {},
+    expanded = $bindable(true),
+    showHeader = true
+  }: Props = $props();
 
   // ── State (per repo) ────────────────────────────────────────────────────────
-  let files: GitFile[] = [];
-  let branch = '';
-  let hasUpstream = false;
-  let loading = true;
-  let conflicts: { operation: string; files: string[] } = { operation: '', files: [] };
-  let stagedPaths: Set<string> = new Set();
-  let collapsed: Set<string> = new Set();
-  let commitError = '';
-  let commitAreaRef: CommitArea;
+  let files: GitFile[] = $state([]);
+  let branch = $state('');
+  let hasUpstream = $state(false);
+  let loading = $state(true);
+  let conflicts: { operation: string; files: string[] } = $state({ operation: '', files: [] });
+  let stagedPaths: Set<string> = $state(new Set());
+  let collapsed: Set<string> = $state(new Set());
+  let commitError = $state('');
+  let commitAreaRef: CommitArea = $state();
   let loaded = false; // first successful load done — gates the loading spinner
 
   // Every git call is scoped to THIS repo's root, so reading/committing here
@@ -179,12 +193,12 @@
     onFocus(repo.rootPath);
   }
 
-  $: stagedCount = stagedPaths.size;
+  let stagedCount = $derived(stagedPaths.size);
 </script>
 
 <section class="repo-group" class:focused={focused && showHeader}>
   {#if showHeader}
-    <header class="repo-header" on:click={handleHeaderClick}>
+    <header class="repo-header" onclick={handleHeaderClick}>
       <span class="chevron" class:open={expanded} aria-hidden="true">▸</span>
       <span class="repo-name" title={repo.rootPath}>{repo.name}</span>
       {#if branch}<span class="repo-branch">{branch}</span>{/if}

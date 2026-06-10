@@ -1,14 +1,18 @@
 <script lang="ts">
   // Interactive-rebase editor (GitLens/IntelliJ style): drag to reorder, pick an
   // action per commit, then Start. Commits arrive oldest-first (git todo order).
-  export let commits: { sha: string; subject: string }[] = [];
-  export let onStart: (items: { sha: string; action: string }[]) => void = () => {};
-  export let onCancel: () => void = () => {};
+  interface Props {
+    commits?: { sha: string; subject: string }[];
+    onStart?: (items: { sha: string; action: string }[]) => void;
+    onCancel?: () => void;
+  }
+
+  let { commits = [], onStart = () => {}, onCancel = () => {} }: Props = $props();
 
   const ACTIONS = ['pick', 'squash', 'fixup', 'drop'] as const;
 
   // Working copy the user edits — never mutate the incoming prop.
-  let rows = commits.map((c) => ({ ...c, action: 'pick' as string }));
+  let rows = $state(commits.map((c) => ({ ...c, action: 'pick' as string })));
 
   let dragIndex: number | null = null;
 
@@ -37,8 +41,8 @@
 
   // The first kept (non-drop) commit must be a pick — squash/fixup need a commit
   // above them to fold into.
-  $: firstKept = rows.find((r) => r.action !== 'drop');
-  $: invalid = firstKept ? firstKept.action !== 'pick' : true;
+  let firstKept = $derived(rows.find((r) => r.action !== 'drop'));
+  let invalid = $derived(firstKept ? firstKept.action !== 'pick' : true);
 
   function start() {
     if (invalid) return;
@@ -46,9 +50,9 @@
   }
 </script>
 
-<!-- svelte-ignore a11y-click-events-have-key-events -->
-<!-- svelte-ignore a11y-no-static-element-interactions -->
-<div class="ir-overlay" on:click={onCancel}></div>
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="ir-overlay" onclick={onCancel}></div>
 <div class="ir-modal" role="dialog" aria-label="Interactive rebase">
   <div class="ir-head">
     <span class="ir-title">Interactive Rebase</span>
@@ -61,9 +65,9 @@
         class="ir-row"
         class:dropping={row.action === 'drop'}
         draggable={true}
-        on:dragstart={() => onDragStart(i)}
-        on:dragover|preventDefault
-        on:drop|preventDefault={() => onDrop(i)}
+        ondragstart={() => onDragStart(i)}
+        ondragover={(e) => e.preventDefault()}
+        ondrop={(e) => { e.preventDefault(); onDrop(i); }}
       >
         <span class="ir-grip" title="Drag to reorder">⋮⋮</span>
         <select class="ir-action" bind:value={row.action} aria-label="Action for {row.sha.slice(0, 7)}">
@@ -74,8 +78,8 @@
         <span class="ir-sha">{row.sha.slice(0, 7)}</span>
         <span class="ir-subject" title={row.subject}>{row.subject}</span>
         <span class="ir-moves">
-          <button class="ir-move" disabled={i === 0} on:click={() => move(i, -1)} aria-label="Move up">↑</button>
-          <button class="ir-move" disabled={i === rows.length - 1} on:click={() => move(i, 1)} aria-label="Move down">↓</button>
+          <button class="ir-move" disabled={i === 0} onclick={() => move(i, -1)} aria-label="Move up">↑</button>
+          <button class="ir-move" disabled={i === rows.length - 1} onclick={() => move(i, 1)} aria-label="Move down">↓</button>
         </span>
       </div>
     {/each}
@@ -86,8 +90,8 @@
   {/if}
 
   <div class="ir-actions">
-    <button class="ir-btn" on:click={onCancel}>Cancel</button>
-    <button class="ir-btn ir-btn--primary" disabled={invalid} on:click={start}>Start Rebasing</button>
+    <button class="ir-btn" onclick={onCancel}>Cancel</button>
+    <button class="ir-btn ir-btn--primary" disabled={invalid} onclick={start}>Start Rebasing</button>
   </div>
 </div>
 

@@ -2,16 +2,30 @@
   import { send } from '$shared/messageBus';
   import type { GitFile } from '../types';
 
-  export let files: GitFile[] = [];
-  export let stagedPaths: Set<string> = new Set();
-  export let loading: boolean = false;
-  export let noRepo: boolean = false;
-  export let collapsed: Set<string> = new Set();   // persisted by parent
 
-  export let onToggleStage:     (path: string) => void          = () => {};
-  export let onToggleFolder:    (key: string) => void            = () => {};
-  export let onStageFolder:     (paths: string[], stage: boolean) => void = () => {};
-  export let onOpenDiff:        (path: string) => void           = () => {};
+  interface Props {
+    files?: GitFile[];
+    stagedPaths?: Set<string>;
+    loading?: boolean;
+    noRepo?: boolean;
+    collapsed?: Set<string>; // persisted by parent
+    onToggleStage?: (path: string) => void;
+    onToggleFolder?: (key: string) => void;
+    onStageFolder?: (paths: string[], stage: boolean) => void;
+    onOpenDiff?: (path: string) => void;
+  }
+
+  let {
+    files = [],
+    stagedPaths = new Set(),
+    loading = false,
+    noRepo = false,
+    collapsed = new Set(),
+    onToggleStage = () => {},
+    onToggleFolder = () => {},
+    onStageFolder = () => {},
+    onOpenDiff = () => {}
+  }: Props = $props();
 
   // ── Types ─────────────────────────────────────────────────────────────────
   interface TreeFolder {
@@ -100,10 +114,10 @@
 
   // Two sections: staged files (in stagedPaths) and the rest. Each gets its own
   // folder tree; clicking a file's checkbox moves it between sections.
-  $: stagedFiles  = files.filter((f) => stagedPaths.has(f.path));
-  $: changesFiles = files.filter((f) => !stagedPaths.has(f.path));
-  $: stagedTree   = buildTree(stagedFiles);
-  $: changesTree  = buildTree(changesFiles);
+  let stagedFiles  = $derived(files.filter((f) => stagedPaths.has(f.path)));
+  let changesFiles = $derived(files.filter((f) => !stagedPaths.has(f.path)));
+  let stagedTree   = $derived(buildTree(stagedFiles));
+  let changesTree  = $derived(buildTree(changesFiles));
 
   // ── Folder helpers ────────────────────────────────────────────────────────
   function allFilesInFolder(node: TreeFolder): string[] {
@@ -179,8 +193,8 @@
   {#if noRepo}
     <div class="welcome-view">
       <p class="welcome-text">In order to use Git features, you can open a folder containing a Git repository or clone from a URL.</p>
-      <button class="welcome-btn" on:click={() => send('vscode.openFolder')}>Open Folder</button>
-      <button class="welcome-btn" on:click={() => send('vscode.cloneRepo')}>Clone Repository</button>
+      <button class="welcome-btn" onclick={() => send('vscode.openFolder')}>Open Folder</button>
+      <button class="welcome-btn" onclick={() => send('vscode.cloneRepo')}>Clone Repository</button>
     </div>
   {:else if loading}
     <div class="welcome-view">
@@ -199,12 +213,12 @@
         {@const isChecked = state === 'all'}
         {@const folderPaths = allFilesInFolder(node)}
 
-        <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="folder-row"
           style="padding-left:{8 + depth * 14}px"
-          on:click={() => onToggleFolder(node.fullPath)}
+          onclick={() => onToggleFolder(node.fullPath)}
         >
           <svg class="chevron" class:open={!collapsed.has(node.fullPath)}
                width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -224,9 +238,11 @@
             checked={isChecked}
             use:indeterminateAction={isIndeterminate}
             aria-label="Stage all in {node.label}"
-            on:change|stopPropagation={(e) =>
-              onStageFolder(folderPaths, (e.target as HTMLInputElement).checked)}
-            on:click|stopPropagation
+            onchange={(e) => {
+              e.stopPropagation();
+              onStageFolder(folderPaths, (e.target as HTMLInputElement).checked);
+            }}
+            onclick={(e) => e.stopPropagation()}
           />
         </div>
       {/if}
@@ -244,13 +260,13 @@
             {@const staged = stagedPaths.has(f.path)}
             {@const indent = 8 + (node.fullPath === '__root__' ? 0 : depth + 1) * 14}
 
-            <!-- svelte-ignore a11y-click-events-have-key-events -->
-            <!-- svelte-ignore a11y-no-static-element-interactions -->
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="file-row"
               class:staged
               style="padding-left:{indent}px"
-              on:click={() => onOpenDiff(f.path)}
+              onclick={() => onOpenDiff(f.path)}
               role="option"
               aria-selected={staged}
               data-status={f.status}
@@ -274,8 +290,8 @@
                 class="hg-checkbox"
                 checked={staged}
                 aria-label="Stage {fname}"
-                on:change|stopPropagation={() => onToggleStage(f.path)}
-                on:click|stopPropagation
+                onchange={(e) => { e.stopPropagation(); onToggleStage(f.path); }}
+                onclick={(e) => e.stopPropagation()}
               />
             </div>
           {/if}
@@ -290,7 +306,7 @@
         <button
           class="group-action"
           title="Unstage all"
-          on:click={() => onStageFolder(stagedFiles.map((f) => f.path), false)}
+          onclick={() => onStageFolder(stagedFiles.map((f) => f.path), false)}
         >
           <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
             <path d="M2.2 6h7.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -307,7 +323,7 @@
         <button
           class="group-action"
           title="Stage all"
-          on:click={() => onStageFolder(changesFiles.map((f) => f.path), true)}
+          onclick={() => onStageFolder(changesFiles.map((f) => f.path), true)}
         >
           <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
             <path d="M6 2.2v7.6M2.2 6h7.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>

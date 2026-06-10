@@ -3,14 +3,9 @@
   import BlameCard from './BlameCard.svelte';
   import type { Hunk, BlameLine } from './types';
 
-  export let hunks: Hunk[] = [];
-  export let loading = false;
 
   // Blame context: which file and which revision each side is attributed to.
-  // Right side = the selected (newer) commit, left side = the previous (older).
-  export let file = '';
-  export let newerRef = '';
-  export let olderRef = '';
+  
 
   // Per-ref blame, lazily loaded and indexed by line number.
   let blameByRef: Record<string, Map<number, BlameLine>> = {};
@@ -34,11 +29,8 @@
     }
   }
 
-  // Prefetch blame for both visible revisions when they change.
-  $: if (file && newerRef) ensureBlame(newerRef);
-  $: if (file && olderRef) ensureBlame(olderRef);
 
-  let hover: { blame: BlameLine; x: number; y: number } | null = null;
+  let hover: { blame: BlameLine; x: number; y: number } | null = $state(null);
 
   function showBlame(e: MouseEvent, ref: string, lineNo?: number) {
     const b = lineNo ? blameByRef[ref]?.get(lineNo) : undefined;
@@ -164,10 +156,37 @@
     return segs;
   }
 
-  $: built = buildRows(hunks ?? []);
-  $: rows = built.rows;
-  export let diffCount = 0;
-  $: diffCount = built.diffs;
+  interface Props {
+    hunks?: Hunk[];
+    loading?: boolean;
+    // Right side = the selected (newer) commit, left side = the previous (older).
+    file?: string;
+    newerRef?: string;
+    olderRef?: string;
+    diffCount?: number;
+  }
+
+  let {
+    hunks = [],
+    loading = false,
+    file = '',
+    newerRef = '',
+    olderRef = '',
+    diffCount = $bindable(0)
+  }: Props = $props();
+  // Prefetch blame for both visible revisions when they change.
+  $effect(() => {
+    if (file && newerRef) ensureBlame(newerRef);
+  });
+  $effect(() => {
+    if (file && olderRef) ensureBlame(olderRef);
+  });
+  let built = $derived(buildRows(hunks ?? []));
+  let rows = $derived(built.rows);
+  // diffCount is a $bindable pushed up to the parent — must stay an effect.
+  $effect(() => {
+    diffCount = built.diffs;
+  });
 </script>
 
 <div class="sbs">
@@ -184,9 +203,9 @@
           <span
             class="side side-left"
             class:filler={r.leftText === undefined}
-            on:mouseenter={(e) => showBlame(e, olderRef, r.leftNo)}
-            on:mousemove={moveBlame}
-            on:mouseleave={hideBlame}
+            onmouseenter={(e) => showBlame(e, olderRef, r.leftNo)}
+            onmousemove={moveBlame}
+            onmouseleave={hideBlame}
           >
             {#if r.leftText !== undefined}
               {#each segsFor(r.leftText, r.leftHi) as s}<span class:hi={s.hi}>{s.text}</span>{/each}
@@ -197,9 +216,9 @@
           <span
             class="side side-right"
             class:filler={r.rightText === undefined}
-            on:mouseenter={(e) => showBlame(e, newerRef, r.rightNo)}
-            on:mousemove={moveBlame}
-            on:mouseleave={hideBlame}
+            onmouseenter={(e) => showBlame(e, newerRef, r.rightNo)}
+            onmousemove={moveBlame}
+            onmouseleave={hideBlame}
           >
             {#if r.rightText !== undefined}
               {#each segsFor(r.rightText, r.rightHi) as s}<span class:hi={s.hi}>{s.text}</span

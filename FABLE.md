@@ -74,6 +74,18 @@ release — plus one reliability bug that borders on DoS (64KB stdin scanner lim
 
 ## Svelte 5 migration plan
 
+**✅ DONE 2026-06-09.** All 20 components migrated to runes via `svelte/compiler`
+`migrate()` + a manual pass that eliminated every `svelte/legacy` crutch the codemod
+left (8 files had `run()`/`createBubbler`/`stopPropagation`/`preventDefault` shims).
+Notable manual decisions: BranchPane's open-state caches reverted to plain lets (the
+codemod made them `$state`, creating a read+write self-retrigger risk inside the tree
+effects, now `$effect.pre` to compute before paint); `App.repoName` became `$derived`;
+`SideBySideDiff.diffCount` stayed an effect (it's a `$bindable` pushed to the parent);
+dead `bubble()` forwarders removed (no parent listened). All 20 compile clean in runes
+mode. Verification (user runs): `make webview-check`, `npm run test`, Playwright e2e.
+
+Original plan, for reference:
+
 **Status (verified 2026-06-09):** the compiler is already Svelte 5 (`5.55.0` installed,
 Vite toolchain builds with it). All 17 `.svelte` components are written in legacy v4
 syntax and run under Svelte 5's compatibility mode. Zero uses of

@@ -1,12 +1,17 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
 
-  // Pass the element refs via bind: in the parent
-  export let leftEl: HTMLElement | null = null;
-  export let rightEl: HTMLElement | null = null;
-  export let isRight: boolean = false; // true = resize right pane, false = resize left
+  
+  interface Props {
+    // Pass the element refs via bind: in the parent
+    leftEl?: HTMLElement | null;
+    rightEl?: HTMLElement | null;
+    isRight?: boolean; // true = resize right pane, false = resize left
+  }
 
-  let divEl: HTMLElement;
+  let { leftEl = null, rightEl = null, isRight = false }: Props = $props();
+
+  let divEl: HTMLElement = $state();
   let dragging = false;
   let startX = 0;
   let startW = 0;
@@ -54,7 +59,7 @@
   });
 </script>
 
-<div class="divider" bind:this={divEl} on:mousedown={onMouseDown}></div>
+<div class="divider" bind:this={divEl} onmousedown={onMouseDown}></div>
 
 <style>
   .divider {
