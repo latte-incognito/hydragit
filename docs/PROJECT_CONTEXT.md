@@ -370,8 +370,10 @@ Authoritative list = the `case` strings in `internal/ipc/handler.go`.
 
 ## Security model
 
-Threat model + audit history live in [`SECURITY.md`](SECURITY.md). The
-load-bearing mitigations, all enforced in code as of 2026-06-10:
+Not a web app: no server, no auth tokens, no cloud, no telemetry — the attack
+surface is the webview boundary, the git CLI layer, and the filesystem.
+Open hardening TODOs live in [`ROADMAP.md`](ROADMAP.md) §6. The load-bearing
+mitigations, all enforced in code as of 2026-06-10:
 
 - **Webview boundary** (`panel.ts`): per-request `repo` allowlisted against
   RepoService's discovered roots; `worktree.open` paths validated against
@@ -384,6 +386,12 @@ load-bearing mitigations, all enforced in code as of 2026-06-10:
   `missingParam()` rejects empty required params on mutating cmds;
   `HYDRAGIT_REPO` sanity-checked at startup (warn, not exit — multi-repo
   overrides may still be valid); logs `0o700`/`0o600`.
+
+Deliberately out of scope: IPC encryption (postMessage/stdio are same-machine
+channels, not network), sandboxing the Go binary (it needs repo filesystem
+access by design), and defending against other malicious extensions (they
+already have Node access). Git's own ref validation is the authority on valid
+ref names; ours is belt-and-suspenders only.
 
 ---
 

@@ -146,8 +146,8 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 
 ---
 
-> Backlog / not-yet-built features live in [`docs/ideas.md`](docs/ideas.md) — the
-> single source of truth for what's planned.
+> Backlog / not-yet-built features live in [`docs/ROADMAP.md`](docs/ROADMAP.md) §5 —
+> the single source of truth for what's planned (frozen until after 1.0).
 
 ## Testing
 

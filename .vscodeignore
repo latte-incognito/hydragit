@@ -7,8 +7,6 @@
 
 # Docs / notes
 CLAUDE.md
-FABLE.md
-SECURITY.md
 docs/
 
 # Go source
@@ -56,8 +54,6 @@ vitest-setup.ts
 bin/hydragit-server
 
 # ── Dev docs / notes (not used at runtime) ─────────────────────────
-BUGS.MD
-BUGS.md
 IMPLEMENTED_FEATURES.md
 documentation/
 .vscode/
