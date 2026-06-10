@@ -104,7 +104,13 @@ every mutation) lives in `CLAUDE.md` → Testing approach.
 ## 4 · Bugs & polish queue
 
 Real bugs:
-1. Scrollbars (activity rail + branch pane) widen on hover — they shouldn't.
+1. ~~Scrollbars (activity rail + branch pane) widen on hover~~ — fixed
+   2026-06-10: VS Code's injected webview stylesheet (bare
+   `::-webkit-scrollbar`, 10px) could win the cascade over our bare 2px rules
+   depending on injection order. Now `:root *`-prefixed for deterministic
+   specificity; the action rail hides its scrollbar entirely. **Verify
+   visually under F5** — if it still widens, the fallback is standard
+   `scrollbar-width: thin` + `scrollbar-color` (non-expanding, but ~8px).
 2. Main-panel status bar: show "no upstream / unpublished branch" state after
    the branch name, clickable → push & set upstream.
 3. Amend with remote sync not amending; after amending, "magic sync" rebases
