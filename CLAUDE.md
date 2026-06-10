@@ -8,7 +8,7 @@ Positioning: "The git panel IntelliJ has, inside VS Code. No paywall."
 ## Stack
 
 ```
-TypeScript shell   VS Code extension host, Svelte 4 webview (compiled via Vite)
+TypeScript shell   VS Code extension host, Svelte 5 webview in legacy v4 syntax (compiled via Vite)
 Go binary          stdin/stdout JSON IPC, wraps system git via os/exec
 Webview            Two panels: sidebar (staging/commit) + main panel (log/branches/diff)
 ```

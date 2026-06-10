@@ -2,6 +2,68 @@
 
 ---
 
+## Binary distribution — decision
+
+**Bundle the binaries in the `.vsix`. Do not download them at runtime.**
+
+- Current state: `make build-all` produces 4 platform binaries at ~4 MB each (~16 MB
+  total) and `vsce package` bundles them all into one `.vsix`. That size is fine —
+  ship it this way for 0.x.
+- **Why not runtime download** (fetching from GitHub Releases on first activation):
+  breaks offline and corporate-proxy installs, requires a checksum/signature
+  verification story you'd have to build and maintain, slows first activation, and
+  every failure mode becomes a 1-star review. For a tool whose pitch includes a
+  zero-dependency supply chain, downloading executables at runtime is also the wrong
+  optics.
+- **Later, when it pays for itself:** platform-specific packages via
+  `vsce publish --target darwin-arm64` (one per platform). The Marketplace then serves
+  each user only their ~5 MB package automatically. Purely a size optimization — not
+  needed for launch.
+
+---
+
+## Pre-publish checklist (review findings, 2026-06-09)
+
+Blockers — fix before first `vsce publish`:
+
+- [ ] **Repo URL identity mismatch.** `package.json` points to
+      `github.com/latte-incognito/hydragit`; this doc says
+      `github.com/vkushnarenko/hydragit`. The Marketplace listing uses the
+      `package.json` URL — pick one identity, make that repo public, and align both.
+- [ ] **Security fixes from `FABLE.md` #1 and #2** — the `msg.repo` allowlist check in
+      `panel.ts` and the 64 KB stdin scanner buffer in `main.go`. Publishing widens
+      exposure, and the scanner bug (blame on any file > 64 KB kills the backend) will
+      generate crash reviews on day one.
+- [ ] **`CHANGELOG.md` doesn't exist.** The Marketplace shows a Changelog tab; create it
+      from the starter below (current version is 0.2.3, not 0.1.0).
+- [ ] **linux-arm64 binary is never built.** `extension.ts` resolves
+      `hydragit-server-linux-${arch}` but `build-all` has no `GOARCH=arm64` linux target
+      — the extension crashes on spawn in arm64 devcontainers (Docker on Apple Silicon)
+      and ARM remote-SSH hosts. Add
+      `GOOS=linux GOARCH=arm64 → bin/hydragit-server-linux-arm64` to `build-all`.
+
+Should-fix — cheap, do in the same pass:
+
+- [ ] `.vscodeignore`: add `FABLE.md` (don't ship a findings doc listing unpatched
+      issues inside the package) and fix the dev-binary pattern — `hydragit-server`
+      only matches at the repo root, so a stale `make build-go` output at
+      `bin/hydragit-server` would ship; use `bin/hydragit-server` (exact path, no
+      wildcard — a trailing `*` would exclude the platform binaries too).
+- [ ] `package.json`: remove the duplicated `"onStartupFinished"` activation event.
+- [ ] Run `vsce ls` before publishing and eyeball the file list — verify the 4 platform
+      binaries are in, and no `src/`, tests, or notes leaked.
+- [ ] Test the installed `.vsix` on at least one Windows and one Linux machine — the
+      binary-spawn path is per-platform and F5 on macOS exercises only one of them.
+
+Not blockers:
+
+- macOS signing/notarization: binaries extracted from a `.vsix` by VS Code don't carry
+  the quarantine attribute, so Gatekeeper doesn't intercept them in practice. Keep
+  notarization as a post-1.0 nice-to-have.
+- Svelte 5 syntax migration: explicitly post-release (see `FABLE.md`).
+
+---
+
 ## Publisher setup (one-time, ~10 minutes)
 
 **Step 1 — Microsoft account**
