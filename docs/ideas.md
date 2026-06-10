@@ -1,4 +1,4 @@
-B# HydraGit — Ideas
+# HydraGit — Ideas
 
 The backlog, framed against the PyCharm/IntelliJ git panel ("IntelliJ panel, no
 paywall"). Everything here is doable under the `os/exec + git CLI only`
@@ -132,6 +132,9 @@ Show verified / unverified commits via `%G?` in the log format. Cheap trust sign
 **Richer blame hovers** — ★★☆☆☆ · Effort: Low-Med · GitLens: ✓ · IntelliJ: ~
 Full commit-detail card on blame hover (author, date, message, files). The blame
 data already exists; this is presentation.
+*Stale-check 2026-06-09:* `blameAnnotation.ts` already builds a markdown hover
+card and the history panel has blame cards — verify what's actually missing
+(changed-files list?) before treating this as unbuilt.
 
 ---
 
@@ -156,6 +159,60 @@ Graduates from "nice" to "required" the moment tunable features land
 (pre-commit safety toggles, default pull mode, worktree default path, blame
 ignore-revs file, rerere on/off). Build it alongside the first tunable feature,
 not before.
+
+---
+
+## Borrowed from other clients (proposed 2026-06-09)
+
+Ideas lifted from git clients outside the GitLens/IntelliJ frame of reference.
+All implementable under `os/exec + git CLI only`. Items marked *git ≥ 2.38* need
+a version check (`git version`) with graceful hiding on older installs.
+
+**Working-tree snapshots ("local history for git")** — ★★★★★ · Effort: Med · GitLens: ✗ · IntelliJ: ~ (IDE Local History, not git)
+*From GitButler's oplog / IntelliJ Local History.* `git stash create` builds a
+stash commit **without touching the working tree**; store the resulting sha under
+`refs/hydragit/snapshots/<timestamp>` via `update-ref`. Snapshot automatically
+before every risky op (rebase, reset, merge, checkout with dirty tree) and
+optionally on a timer. Browse/diff/restore from the existing undo timeline.
+Invisible in `git stash list`, ordinary objects, GC-safe while referenced. The
+maximal expression of the safety-net thesis: *uncommitted* work becomes
+recoverable, always. Nothing in the VS Code ecosystem does this with plain git.
+
+**Merge conflict preview** — ★★★★☆ · Effort: Low-Med · GitLens: ✗ · IntelliJ: ✗ · *git ≥ 2.38*
+*From the jj/merge-tree school.* `git merge-tree --write-tree <ours> <theirs>`
+dry-runs a merge entirely in the object DB — working tree untouched — and reports
+conflicted paths. Surface as a badge before merge/rebase ("will conflict: 3
+files") and optionally in the branch context menu. Answers the question every
+developer asks before merging, and no GUI client in this space does it.
+
+**Absorb — auto-route staged changes into the commits they belong to** — ★★★★☆ · Effort: Med · GitLens: ✗ · IntelliJ: ✗
+*From `git-absorb` / Mercurial's `hg absorb`.* For each staged hunk, blame the
+touched lines to find the commit that introduced them, create
+`commit --fixup=<sha>` per target, then offer the autosquash rebase. One button:
+"absorb staged changes". Pairs with (and should ship after) the planned
+fixup/autosquash item. Spiritual sibling of the pickaxe — "I didn't know git
+could do that".
+
+**Stacked branches / restack** — ★★★★☆ · Effort: Low · GitLens: ✗ · IntelliJ: ✗ · *git ≥ 2.38*
+*From Graphite / stacked-PR workflows.* `git rebase --update-refs` moves every
+branch ref in the rebased range along with it — the entire stack restacks in one
+operation. Expose as a checkbox on the existing rebase flow, and render stacks
+(branch-on-branch chains) as indented groups in the branch tree. Very low effort
+on top of existing rebase machinery; very current workflow.
+
+**Patch from commit — line-level history surgery** — ★★★☆☆ · Effort: High · GitLens: ✗ · IntelliJ: ✗
+*From lazygit's custom patch builder (its signature feature).* Select hunks/lines
+*inside an existing commit's diff* and pull them out — into the working tree, the
+index, or a new commit — via `format-patch`-style patch construction +
+`apply --reverse` against the commit, wrapped in the rebase machinery. Shares all
+patch-building plumbing with hunk-level staging; build it second, not first.
+
+**Smartlog — "just my work" graph view** — ★★★☆☆ · Effort: Med · GitLens: ✗ · IntelliJ: ✗
+*From Meta's Sapling (`sl smartlog`) / git-branchless.* A log mode that hides the
+noise: show only commits reachable from *my* local branches but not from
+upstream main, plus main's tip as an anchor — i.e. the tree of my unmerged work.
+One `rev-list` expression (`--branches --not --remotes=origin`) feeding the
+existing lane algorithm. Pure filter + reuse.
 
 ---
 

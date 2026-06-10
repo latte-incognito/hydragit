@@ -1,4 +1,4 @@
-<script lang="ts" context="module">
+<script lang="ts" module>
   // Coarse relative time, mirrors the editor hover's formatRelative. Exported so
   // it can be unit-tested without mounting the component.
   export function relativeTime(epochSec: number, nowMs: number = Date.now()): string {
@@ -28,12 +28,16 @@
 <script lang="ts">
   import type { BlameLine } from './types';
 
-  export let blame: BlameLine;
-  export let x = 0;
-  export let y = 0;
+  interface Props {
+    blame: BlameLine;
+    x?: number;
+    y?: number;
+  }
 
-  $: shortSha = blame.commit.slice(0, 8);
-  $: absolute = new Date(blame.authorTime * 1000).toLocaleString();
+  let { blame, x = 0, y = 0 }: Props = $props();
+
+  let shortSha = $derived(blame.commit.slice(0, 8));
+  let absolute = $derived(new Date(blame.authorTime * 1000).toLocaleString());
 </script>
 
 <div class="blame-card" style="left:{x}px; top:{y}px;">

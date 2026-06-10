@@ -1,51 +1,68 @@
 <script lang="ts">
   import type { Worktree } from '../types';
 
-  // Branch context menu
-  export let branchMenu: {
+  
+  
+
+  
+
+  
+
+  interface Props {
+    // Branch context menu
+    branchMenu?: {
     visible: boolean;
     x: number;
     y: number;
     branch: string;
     isCurrent: boolean;
     current: string;
-  } = {
+  };
+    // Stash context menu
+    stashMenu?: { visible: boolean; x: number; y: number; label: string };
+    // Tag context menu
+    tagMenu?: { visible: boolean; x: number; y: number; name: string; current: string };
+    // Worktree context menu
+    worktreeMenu?: { visible: boolean; x: number; y: number; wt: Worktree | null };
+    onBranchAction?: (a: string) => void;
+    onStashAction?: (a: string) => void;
+    onTagAction?: (a: string) => void;
+    onWorktreeAction?: (a: string) => void;
+  }
+
+  let {
+    branchMenu = {
     visible: false,
     x: 0,
     y: 0,
     branch: '',
     isCurrent: false,
     current: '',
-  };
-  // Stash context menu
-  export let stashMenu: { visible: boolean; x: number; y: number; label: string } = {
+  },
+    stashMenu = {
     visible: false,
     x: 0,
     y: 0,
     label: '',
-  };
-
-  // Tag context menu
-  export let tagMenu: { visible: boolean; x: number; y: number; name: string; current: string } = {
+  },
+    tagMenu = {
     visible: false,
     x: 0,
     y: 0,
     name: '',
     current: '',
-  };
-
-  // Worktree context menu
-  export let worktreeMenu: { visible: boolean; x: number; y: number; wt: Worktree | null } = {
+  },
+    worktreeMenu = {
     visible: false,
     x: 0,
     y: 0,
     wt: null,
-  };
-
-  export let onBranchAction: (a: string) => void = () => {};
-  export let onStashAction: (a: string) => void = () => {};
-  export let onTagAction: (a: string) => void = () => {};
-  export let onWorktreeAction: (a: string) => void = () => {};
+  },
+    onBranchAction = () => {},
+    onStashAction = () => {},
+    onTagAction = () => {},
+    onWorktreeAction = () => {}
+  }: Props = $props();
 
   function fitMenu(node: HTMLElement) {
     requestAnimationFrame(() => {
@@ -67,42 +84,42 @@
 <!-- Branch context menu -->
 {#if branchMenu.visible}
   <div class="ctx show" style="left:{branchMenu.x}px;top:{branchMenu.y}px" use:fitMenu>
-    <div class="ci" class:disabled={branchMenu.isCurrent} on:click={() => onBranchAction('checkout')}>Switch to Branch</div>
-    <div class="ci" on:click={() => onBranchAction('new-from')}>
+    <div class="ci" class:disabled={branchMenu.isCurrent} onclick={() => onBranchAction('checkout')}>Switch to Branch</div>
+    <div class="ci" onclick={() => onBranchAction('new-from')}>
       New Branch from '{branchMenu.branch}'…
     </div>
-    <div class="ci" on:click={() => onBranchAction('rename')}>
+    <div class="ci" onclick={() => onBranchAction('rename')}>
       Rename…
     </div>
-    <div class="ci" class:disabled={branchMenu.isCurrent} on:click={() => onBranchAction('checkout-rebase')}>
+    <div class="ci" class:disabled={branchMenu.isCurrent} onclick={() => onBranchAction('checkout-rebase')}>
       Checkout and Rebase onto '{branchMenu.current}'
     </div>
     <div class="ctx-sep"></div>
-    <div class="ci" on:click={() => onBranchAction('compare')}>
+    <div class="ci" onclick={() => onBranchAction('compare')}>
       Compare with '{branchMenu.current}'
     </div>
-    <div class="ci" on:click={() => onBranchAction('diff-working')}>
+    <div class="ci" onclick={() => onBranchAction('diff-working')}>
       Show Diff with Working Tree
     </div>
     <div class="ctx-sep"></div>
-    <div class="ci" class:disabled={branchMenu.isCurrent} on:click={() => onBranchAction('rebase')}>
+    <div class="ci" class:disabled={branchMenu.isCurrent} onclick={() => onBranchAction('rebase')}>
       Rebase '{branchMenu.current}' onto '{branchMenu.branch}'
     </div>
-    <div class="ci" class:disabled={branchMenu.isCurrent} on:click={() => onBranchAction('merge')}>
+    <div class="ci" class:disabled={branchMenu.isCurrent} onclick={() => onBranchAction('merge')}>
       Merge '{branchMenu.branch}' into '{branchMenu.current}'
     </div>
     <div class="ctx-sep"></div>
-    <div class="ci" on:click={() => onBranchAction('pull-rebase')}>
+    <div class="ci" onclick={() => onBranchAction('pull-rebase')}>
       Pull into '{branchMenu.current}' Using Rebase
     </div>
-    <div class="ci" on:click={() => onBranchAction('pull-merge')}>
+    <div class="ci" onclick={() => onBranchAction('pull-merge')}>
       Pull into '{branchMenu.current}' Using Merge
     </div>
     <div class="ctx-sep"></div>
     <div
       class="ci danger"
       class:disabled={branchMenu.isCurrent}
-      on:click={() => onBranchAction('delete')}
+      onclick={() => onBranchAction('delete')}
     >
       Delete
     </div>
@@ -112,31 +129,31 @@
 <!-- Stash context menu -->
 {#if stashMenu.visible}
   <div class="ctx show" style="left:{stashMenu.x}px;top:{stashMenu.y}px" use:fitMenu>
-    <div class="ci" on:click={() => onStashAction('pop')}>Pop</div>
-    <div class="ci" on:click={() => onStashAction('apply')}>Apply</div>
-    <div class="ci" on:click={() => onStashAction('unstash')}>Unstash…</div>
-    <div class="ci danger" on:click={() => onStashAction('drop')}>Drop</div>
-    <div class="ci danger" on:click={() => onStashAction('clear')}>Clear</div>
+    <div class="ci" onclick={() => onStashAction('pop')}>Pop</div>
+    <div class="ci" onclick={() => onStashAction('apply')}>Apply</div>
+    <div class="ci" onclick={() => onStashAction('unstash')}>Unstash…</div>
+    <div class="ci danger" onclick={() => onStashAction('drop')}>Drop</div>
+    <div class="ci danger" onclick={() => onStashAction('clear')}>Clear</div>
     <div class="ctx-sep"></div>
-    <div class="ci" on:click={() => onStashAction('show-diff')}>Show Diff</div>
-    <div class="ci" on:click={() => onStashAction('show-diff-tab')}>Show Diff in a New Tab</div>
+    <div class="ci" onclick={() => onStashAction('show-diff')}>Show Diff</div>
+    <div class="ci" onclick={() => onStashAction('show-diff-tab')}>Show Diff in a New Tab</div>
   </div>
 {/if}
 
 <!-- Tag context menu -->
 {#if tagMenu.visible}
   <div class="ctx show" style="left:{tagMenu.x}px;top:{tagMenu.y}px">
-    <div class="ci" on:click={() => onTagAction('checkout')}>Checkout</div>
+    <div class="ci" onclick={() => onTagAction('checkout')}>Checkout</div>
     <div class="ctx-sep"></div>
-    <div class="ci" on:click={() => onTagAction('diff-working')}>Show Diff with Working Tree</div>
+    <div class="ci" onclick={() => onTagAction('diff-working')}>Show Diff with Working Tree</div>
     <div class="ctx-sep"></div>
-    <div class="ci" on:click={() => onTagAction('merge')}>
+    <div class="ci" onclick={() => onTagAction('merge')}>
       Merge '{tagMenu.name}' into '{tagMenu.current}'
     </div>
     <div class="ctx-sep"></div>
-    <div class="ci" on:click={() => onTagAction('push')}>Push to origin</div>
+    <div class="ci" onclick={() => onTagAction('push')}>Push to origin</div>
     <div class="ctx-sep"></div>
-    <div class="ci danger" on:click={() => onTagAction('delete')}>Delete</div>
+    <div class="ci danger" onclick={() => onTagAction('delete')}>Delete</div>
   </div>
 {/if}
 
@@ -144,20 +161,20 @@
 {#if worktreeMenu.visible && worktreeMenu.wt}
   {@const wt = worktreeMenu.wt}
   <div class="ctx show" style="left:{worktreeMenu.x}px;top:{worktreeMenu.y}px" use:fitMenu>
-    <div class="ci" class:disabled={wt.isMain} on:click={() => onWorktreeAction('open')}>
+    <div class="ci" class:disabled={wt.isMain} onclick={() => onWorktreeAction('open')}>
       Open in New Window
     </div>
     <div class="ctx-sep"></div>
     {#if wt.locked}
-      <div class="ci" on:click={() => onWorktreeAction('unlock')}>Unlock</div>
+      <div class="ci" onclick={() => onWorktreeAction('unlock')}>Unlock</div>
     {:else}
-      <div class="ci" class:disabled={wt.isMain} on:click={() => onWorktreeAction('lock')}>Lock</div>
+      <div class="ci" class:disabled={wt.isMain} onclick={() => onWorktreeAction('lock')}>Lock</div>
     {/if}
-    <div class="ci" class:disabled={wt.isMain} on:click={() => onWorktreeAction('move')}>Move…</div>
+    <div class="ci" class:disabled={wt.isMain} onclick={() => onWorktreeAction('move')}>Move…</div>
     <div class="ctx-sep"></div>
-    <div class="ci" on:click={() => onWorktreeAction('prune')}>Prune Stale Worktrees</div>
+    <div class="ci" onclick={() => onWorktreeAction('prune')}>Prune Stale Worktrees</div>
     <div class="ctx-sep"></div>
-    <div class="ci danger" class:disabled={wt.isMain} on:click={() => onWorktreeAction('remove')}>
+    <div class="ci danger" class:disabled={wt.isMain} onclick={() => onWorktreeAction('remove')}>
       Remove
     </div>
   </div>

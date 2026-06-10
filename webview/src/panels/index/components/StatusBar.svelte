@@ -1,13 +1,26 @@
 <script lang="ts">
-  export let branch: string = 'master';
-  export let info: string = '';
-  export let infoTitle: string = ''; // tooltip with the raw ↑/↓ symbols
-  export let countsText: string = '';
-  export let iconUri: string = '';
   // Multi-repo: the active repo name + a click handler that opens the picker.
-  // When repo is empty (single-repo workspace) the segment is hidden.
-  export let repo: string = '';
-  export let onRepoClick: () => void = () => {};
+  
+  interface Props {
+    branch?: string;
+    info?: string;
+    infoTitle?: string; // tooltip with the raw ↑/↓ symbols
+    countsText?: string;
+    iconUri?: string;
+    // When repo is empty (single-repo workspace) the segment is hidden.
+    repo?: string;
+    onRepoClick?: () => void;
+  }
+
+  let {
+    branch = 'master',
+    info = '',
+    infoTitle = '',
+    countsText = '',
+    iconUri = '',
+    repo = '',
+    onRepoClick = () => {}
+  }: Props = $props();
 </script>
 
 <div class="statusbar" id="statusbar">
@@ -20,7 +33,7 @@
           stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
   </svg>
   {#if repo}
-    <button class="sb-repo" title="Active repository — click to switch" on:click={onRepoClick}>
+    <button class="sb-repo" title="Active repository — click to switch" onclick={onRepoClick}>
       {repo}
     </button>
     <span class="sb-sep" aria-hidden="true">▸</span>

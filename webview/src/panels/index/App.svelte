@@ -18,53 +18,46 @@
   import StatusBar   from './components/StatusBar.svelte';
 
   // ── Core state ────────────────────────────────────────────────────────────
-  let branches:    Branch[]   = [];
+  let branches:    Branch[]   = $state([]);
   let commits:     Commit[]   = [];
-  let filtered:    Commit[]   = [];
-  let stashes:     Stash[]    = [];
-  let tags:        Tag[]      = [];
-  let worktrees:   Worktree[] = [];
-  let activeBranch = 'master';
-  let selCommitIdx: number | null = null;
-  let selStashIdx:  number | null = null;
-  let selFile:      string | null = null;
-  let diffFiles:    DiffFile[]    = [];
-  let diffHunks:    DiffHunk[]    = [];
+  let filtered:    Commit[]   = $state([]);
+  let stashes:     Stash[]    = $state([]);
+  let tags:        Tag[]      = $state([]);
+  let worktrees:   Worktree[] = $state([]);
+  let activeBranch = $state('master');
+  let selCommitIdx: number | null = $state(null);
+  let selStashIdx:  number | null = $state(null);
+  let selFile:      string | null = $state(null);
+  let diffFiles:    DiffFile[]    = $state([]);
+  let diffHunks:    DiffHunk[]    = $state([]);
   // Active ref/range comparison shown in the detail pane (branch/tag/commit
   // "Compare…" / "Show Diff with Working Tree"); null when viewing a commit/stash.
   type Compare =
     | { kind: 'ref'; ref: string; title: string }
     | { kind: 'range'; base: string; head: string; title: string };
-  let compare: Compare | null = null;
+  let compare: Compare | null = $state(null);
   // True while the repo is paused mid-rebase (conflict) — drives the
   // Continue/Skip/Abort bar. See commitMenuAction 'drop'.
-  let rebaseInProgress = false;
+  let rebaseInProgress = $state(false);
   // HEAD is detached (not on a branch) — drives the calm "create a branch" banner.
-  let detached = false;
+  let detached = $state(false);
   // No user.name / user.email configured — drives the "set up git identity" banner.
-  let identityMissing = false;
+  let identityMissing = $state(false);
   // "HEAD" undo timeline: when on, the commit graph is replaced by the reflog
   // view and the detail pane is hidden for room. Entered from the HEAD row.
   type ReflogEntry = { hash: string; selector: string; subject: string; date: string };
-  let headMode = false;
-  let reflog: ReflogEntry[] = [];
+  let headMode = $state(false);
+  let reflog: ReflogEntry[] = $state([]);
   // Open interactive-rebase editor (commits oldest-first + the base to rebase
   // onto); null when closed.
-  let rebaseEditor: { base: string; commits: { sha: string; subject: string }[] } | null = null;
-  let detailLoading = false;
-  let hasPending    = false;   // ahead > 0 → pull button lit
+  let rebaseEditor: { base: string; commits: { sha: string; subject: string }[] } | null = $state(null);
+  let detailLoading = $state(false);
+  let hasPending    = $state(false);   // ahead > 0 → pull button lit
 
-  let sbBranch = 'master';
-  let sbInfo   = '';
-  let sbInfoTitle = ''; // raw ↑/↓ symbols, shown as a tooltip for git pros
-  let sbCounts = '';
-
-  // Multi-repo breadcrumb: the active repo's name, shown before the branch in
-  // the status bar (repo ▸ branch). Empty in single-repo workspaces → hidden.
-  $: repoName =
-    $repoState.repos.length > 1
-      ? $repoState.repos.find((r) => r.rootPath === $repoState.active)?.name ?? ''
-      : '';
+  let sbBranch = $state('master');
+  let sbInfo   = $state('');
+  let sbInfoTitle = $state(''); // raw ↑/↓ symbols, shown as a tooltip for git pros
+  let sbCounts = $state('');
 
   // Plain-language ahead/behind (ideas.md): "↑2 ↓1" → "2 to push, 1 to pull".
   function aheadBehindText(ahead: number, behind: number): string {
@@ -74,31 +67,37 @@
     return parts.length ? ' · ' + parts.join(', ') : '';
   }
   let iconUri  = document.body.dataset.iconUri ?? '';
-  let repoName = 'HydraGit';
+  // Multi-repo breadcrumb: the active repo's name, shown before the branch in
+  // the status bar (repo ▸ branch). Empty in single-repo workspaces → hidden.
+  let repoName = $derived(
+    $repoState.repos.length > 1
+      ? ($repoState.repos.find((r) => r.rootPath === $repoState.active)?.name ?? '')
+      : ''
+  );
 
-  let branchPaneEl: HTMLElement | null = null;
-  let detailPaneEl: HTMLElement | null = null;
+  let branchPaneEl: HTMLElement | null = $state(null);
+  let detailPaneEl: HTMLElement | null = $state(null);
 
   // ── Search state ──────────────────────────────────────────────────────────
   type SearchMode = 'msg' | 'hash' | 'file' | 'author';
-  let searchMode:  SearchMode = 'msg';
-  let searchQuery  = '';
-  let allBranches  = false;
+  let searchMode:  SearchMode = $state('msg');
+  let searchQuery  = $state('');
+  let allBranches  = $state(false);
   // When in file mode and a result is returned from Go
-  let fileSearchActive = false;
-  let fileSearchPath   = '';
+  let fileSearchActive = $state(false);
+  let fileSearchPath   = $state('');
 
   // ── Context menus ─────────────────────────────────────────────────────────
-  let branchMenu  = { visible: false, x: 0, y: 0, branch: '', isCurrent: false, current: '' };
-  let stashMenu   = { visible: false, x: 0, y: 0, label: '' };
-  let tagMenu     = { visible: false, x: 0, y: 0, name: '', current: '' };
-  let worktreeMenu = { visible: false, x: 0, y: 0, wt: null as Worktree | null };
+  let branchMenu  = $state({ visible: false, x: 0, y: 0, branch: '', isCurrent: false, current: '' });
+  let stashMenu   = $state({ visible: false, x: 0, y: 0, label: '' });
+  let tagMenu     = $state({ visible: false, x: 0, y: 0, name: '', current: '' });
+  let worktreeMenu = $state({ visible: false, x: 0, y: 0, wt: null as Worktree | null });
   let ctxBranch   = '';
   let ctxStashIdx: number | null = null;
   let ctxWorktree: Worktree | null = null;
 
   // ── Flash bar ────────────────────────────────────────────────────────────
-  let flashMsg   = '';
+  let flashMsg   = $state('');
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
   function flash(msg: string, _color = '#febc2e') {
     flashMsg = msg;
@@ -1435,8 +1434,8 @@
 </script>
 
 <svelte:window
-  on:click={closeMenus}
-  on:keydown={(e) => {
+  onclick={closeMenus}
+  onkeydown={(e) => {
     if (e.key === 'Escape') closeMenus();
     if (e.key === 'Enter') handleSearchKey(e);
   }}
@@ -1471,7 +1470,7 @@
     <div class="info-bar">
       <span class="info-bar-msg">Git doesn't know who you are yet — set a name &amp; email so your commits are attributed.</span>
       <div class="rebase-bar-actions">
-        <button class="rebase-btn" on:click={setupIdentity}>Set up identity</button>
+        <button class="rebase-btn" onclick={setupIdentity}>Set up identity</button>
       </div>
     </div>
   {/if}
@@ -1480,7 +1479,7 @@
     <div class="info-bar">
       <span class="info-bar-msg">You're not on a branch (detached HEAD). Create one here to keep your work.</span>
       <div class="rebase-bar-actions">
-        <button class="rebase-btn" on:click={createBranchHere}>Create branch here</button>
+        <button class="rebase-btn" onclick={createBranchHere}>Create branch here</button>
       </div>
     </div>
   {/if}
@@ -1489,9 +1488,9 @@
     <div class="rebase-bar">
       <span class="rebase-bar-msg">⚠ Rebase in progress — resolve conflicts, then continue.</span>
       <div class="rebase-bar-actions">
-        <button class="rebase-btn" on:click={() => rebaseControl('continue')}>Continue</button>
-        <button class="rebase-btn" on:click={() => rebaseControl('skip')}>Skip</button>
-        <button class="rebase-btn rebase-btn--danger" on:click={() => rebaseControl('abort')}>Abort</button>
+        <button class="rebase-btn" onclick={() => rebaseControl('continue')}>Continue</button>
+        <button class="rebase-btn" onclick={() => rebaseControl('skip')}>Skip</button>
+        <button class="rebase-btn rebase-btn--danger" onclick={() => rebaseControl('abort')}>Abort</button>
       </div>
     </div>
   {/if}

@@ -1,27 +1,40 @@
 <script lang="ts">
   import { send } from '$shared/messageBus';
 
-  export let hasFiles: boolean = false;
-  export let stagedCount: number = 0;
-  export let hasUpstream: boolean = false;
-  export let branch: string = '';
-  export let error: string = '';
 
-  export let onCommit: (msg: string) => void = () => {};
-  export let onCommitPush: (msg: string) => void = () => {};
-  export let onAmend: (msg: string) => void = () => {};
+  interface Props {
+    hasFiles?: boolean;
+    stagedCount?: number;
+    hasUpstream?: boolean;
+    branch?: string;
+    error?: string;
+    onCommit?: (msg: string) => void;
+    onCommitPush?: (msg: string) => void;
+    onAmend?: (msg: string) => void;
+  }
 
-  let message = '';
+  let {
+    hasFiles = false,
+    stagedCount = 0,
+    hasUpstream = false,
+    branch = '',
+    error = '',
+    onCommit = () => {},
+    onCommitPush = () => {},
+    onAmend = () => {}
+  }: Props = $props();
+
+  let message = $state('');
   // Amend mode rewrites HEAD: edit its message and/or fold staged changes in.
-  let amend = false;
+  let amend = $state(false);
 
   // In amend mode you can commit with just a message (staging is optional).
-  $: canCommit = message.trim().length > 0 && (amend || stagedCount > 0);
-  $: reason = !hasFiles
+  let canCommit = $derived(message.trim().length > 0 && (amend || stagedCount > 0));
+  let reason = $derived(!hasFiles
     ? 'No changes'
     : stagedCount === 0
       ? 'Stage files to commit'
-      : `${stagedCount} file${stagedCount === 1 ? '' : 's'} staged`;
+      : `${stagedCount} file${stagedCount === 1 ? '' : 's'} staged`);
 
   async function toggleAmend() {
     amend = !amend;
@@ -63,7 +76,7 @@
   ></textarea>
 
   <label class="amend-toggle" title="Rewrite the last commit (edit its message and/or fold in staged changes) instead of creating a new one">
-    <input type="checkbox" checked={amend} on:change={toggleAmend} />
+    <input type="checkbox" checked={amend} onchange={toggleAmend} />
     <span>Amend last commit</span>
   </label>
 
@@ -81,14 +94,14 @@
   </div>
 
   <div class="btn-row">
-    <button class="btn btn-primary" disabled={!canCommit} on:click={handleCommit}>
+    <button class="btn btn-primary" disabled={!canCommit} onclick={handleCommit}>
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
         <path d="M2.5 7.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span>{amend ? 'Amend' : `Commit${stagedCount > 0 ? ` ${stagedCount}` : ''}`}</span>
     </button>
     {#if hasUpstream && !amend}
-      <button class="btn btn-secondary" disabled={!canCommit} on:click={handleCommitPush} title="Commit &amp; Push">
+      <button class="btn btn-secondary" disabled={!canCommit} onclick={handleCommitPush} title="Commit &amp; Push">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M7 11V3.5M7 3.5L4 6.5M7 3.5l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>

@@ -1,18 +1,31 @@
 <script lang="ts">
-  export let title: string;
-  export let count: number | null = null;
-  export let open: boolean = true;
+  interface Props {
+    title: string;
+    count?: number | null;
+    open?: boolean;
+    allStaged?: boolean;
+    someStaged?: boolean;
+    onToggle?: () => void;
+    onRefresh?: (e: MouseEvent) => void;
+    onToggleAll?: (stage: boolean) => void;
+    onExpandAll?: () => void;
+    onCollapseAll?: () => void;
+  }
 
-  export let allStaged: boolean = false;
-  export let someStaged: boolean = false;
+  let {
+    title,
+    count = null,
+    open = true,
+    allStaged = false,
+    someStaged = false,
+    onToggle = () => {},
+    onRefresh = () => {},
+    onToggleAll = () => {},
+    onExpandAll = () => {},
+    onCollapseAll = () => {}
+  }: Props = $props();
 
-  export let onToggle:      () => void                      = () => {};
-  export let onRefresh:     (e: MouseEvent) => void         = () => {};
-  export let onToggleAll:   (stage: boolean) => void        = () => {};
-  export let onExpandAll:   () => void                      = () => {};
-  export let onCollapseAll: () => void                      = () => {};
-
-  $: indeterminate = someStaged && !allStaged;
+  let indeterminate = $derived(someStaged && !allStaged);
 
   function handleCheckbox(e: Event) {
     e.stopPropagation();
@@ -28,10 +41,10 @@
 
 <div
   class="section-header"
-  on:click={onToggle}
+  onclick={onToggle}
   role="button"
   tabindex="0"
-  on:keydown={(e) => e.key === 'Enter' && onToggle()}
+  onkeydown={(e) => e.key === 'Enter' && onToggle()}
 >
   <span class="arrow" class:collapsed={!open}>▾</span>
   <span class="title">{title}</span>
@@ -47,8 +60,8 @@
       title="Expand all"
       role="button"
       tabindex="0"
-      on:click|stopPropagation={onExpandAll}
-      on:keydown|stopPropagation={(e) => e.key === 'Enter' && onExpandAll()}
+      onclick={(e) => { e.stopPropagation(); onExpandAll(); }}
+      onkeydown={(e) => { e.stopPropagation(); if (e.key === 'Enter') onExpandAll(); }}
     >
       <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
         <path d="M2 3h8M2 6h8M2 9h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
@@ -59,8 +72,8 @@
       title="Collapse all"
       role="button"
       tabindex="0"
-      on:click|stopPropagation={onCollapseAll}
-      on:keydown|stopPropagation={(e) => e.key === 'Enter' && onCollapseAll()}
+      onclick={(e) => { e.stopPropagation(); onCollapseAll(); }}
+      onkeydown={(e) => { e.stopPropagation(); if (e.key === 'Enter') onCollapseAll(); }}
     >
       <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
         <path d="M2 6h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
@@ -76,18 +89,18 @@
       checked={allStaged}
       use:indeterminateAction={indeterminate}
       aria-label="Stage all files"
-      on:change={handleCheckbox}
-      on:click|stopPropagation
+      onchange={handleCheckbox}
+      onclick={(e) => e.stopPropagation()}
     />
   {/if}
 
   <span
     class="action"
     title="Refresh"
-    on:click={onRefresh}
+    onclick={onRefresh}
     role="button"
     tabindex="0"
-    on:keydown={(e) => e.key === 'Enter' && onRefresh(e as unknown as MouseEvent)}
+    onkeydown={(e) => e.key === 'Enter' && onRefresh(e as unknown as MouseEvent)}
   >↺</span>
 </div>
 
