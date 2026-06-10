@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Search &amp; filter</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.1</span>
+    <span class="ver">v0.2.5</span>
   </header>
 
   <div class="page">
@@ -22,14 +22,15 @@
       <a href="#hash">Hash prefix</a>
       <a href="#file">File</a>
       <a href="#author">Author</a>
+      <a href="#pickaxe">Code (pickaxe)</a>
       <a href="#scope">Branch scope</a>
     </aside>
 
     <article class="content">
       <h1><span class="glyph">⬡</span>Search &amp; filter</h1>
       <p class="lede">
-        The toolbar search box narrows the commit log four different ways, and the all-branches
-        toggle controls how much history is in scope. Message and author searches run
+        The toolbar search box narrows the commit log five different ways, and the all-branches
+        toggle controls how much history is in scope. Message, author and code searches run
         server-side so the lane graph is re-laid-out over just the matches.
       </p>
 
@@ -38,7 +39,7 @@
         <p>A mode switch sits to the left of the search input; each mode tints the box and has its own placeholder.</p>
         <h3 class="lbl">Entry point</h3>
         <ul class="entrypoints">
-          <li><span class="where">Toolbar</span><span class="what">Click a mode icon (<span class="chip">Message</span> <span class="chip a">Hash</span> <span class="chip g">File</span> <span class="chip p">Author</span>), then type.</span></li>
+          <li><span class="where">Toolbar</span><span class="what">Click a mode icon (<span class="chip">Message</span> <span class="chip a">Hash</span> <span class="chip g">File</span> <span class="chip p">Author</span> <span class="chip">Code</span>), then type.</span></li>
         </ul>
       </section>
 
@@ -72,6 +73,22 @@
           <li>Enter an author name or email.</li>
           <li>Go re-runs <span class="cmd">log</span> with <code>author</code> server-side; the graph re-lays out over the matches.</li>
         </ol>
+      </section>
+
+      <section class="feature" id="pickaxe">
+        <h2>Code search — pickaxe <span class="cmd">log -S</span></h2>
+        <p>"When did this string appear or vanish?" Searches <b>content changes</b>, not messages —
+        only commits where the number of occurrences of the string changed (introduced or removed)
+        match. Unrelated commits that merely shipped alongside the string don't.</p>
+        <h3 class="lbl">Entry point</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Toolbar</span><span class="what">Pick the <span class="chip">Code</span> mode (<code>&lt;/&gt;</code> icon), type a string — e.g. a function name.</span></li>
+        </ul>
+        <ol class="flow">
+          <li>Typing debounces, then Go re-runs <span class="cmd">log</span> with <code>pickaxe</code> (<code>git log -S&lt;string&gt;</code>) server-side.</li>
+          <li>The graph re-lays out over the matches — typically just the commit that introduced the string and the one that removed it.</li>
+        </ol>
+        <div class="related"><b>Related</b><a href="history.html#linehistory">Line / selection history</a></div>
       </section>
 
       <section class="feature" id="scope">

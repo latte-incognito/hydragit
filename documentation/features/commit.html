@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Commit &amp; Staging</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.1</span>
+    <span class="ver">v0.2.5</span>
   </header>
 
   <div class="page">
@@ -20,6 +20,7 @@
       <a href="#commit" class="head">Stage &amp; commit</a>
       <a href="#push">Commit &amp; push</a>
       <a href="#amend">Amend last commit</a>
+      <a href="#safety">Pre-commit safety checks</a>
     </aside>
 
     <article class="content">
@@ -72,6 +73,31 @@
           <li>Clicking <b>Amend</b> runs <span class="cmd amber">commit.amend</span>, folding any staged changes into HEAD with the new message.</li>
         </ol>
         <div class="related"><b>Related</b><a href="interactive-rebase.html#reword">Reword a non-HEAD commit</a><a href="reflog.html">Reflog (recover an amend)</a></div>
+      </section>
+
+      <section class="feature" id="safety">
+        <h2>Pre-commit safety checks <span class="cmd amber">commit.precheck</span></h2>
+        <p>Before any commit from the sidebar, the staged files are scanned for the universal
+        foot-guns. Findings <b>warn, never block</b> — one native "Commit anyway?" dialog, in line
+        with the safety-net thesis. Not git hooks: zero per-repo setup, and any hooks a repo has
+        still run normally.</p>
+        <h3 class="lbl">What is checked</h3>
+        <table>
+          <tr><th>Check</th><th>Fires on</th><th>Setting</th></tr>
+          <tr><td><span class="chip r">secretFile</span></td><td>Credential-shaped names: <code>.env</code>, <code>id_rsa</code>, <code>*.pem</code>, <code>credentials.json</code>, …</td><td><code>hydragit.safety.secretFile</code></td></tr>
+          <tr><td><span class="chip r">secretContent</span></td><td>High-precision token shapes (AWS / GitHub / Slack / OpenAI / Google keys, PEM private keys).</td><td><code>hydragit.safety.secretContent</code></td></tr>
+          <tr><td><span class="chip a">conflictMarker</span></td><td>Leftover <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> / <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code> lines.</td><td><code>hydragit.safety.conflictMarker</code></td></tr>
+          <tr><td><span class="chip a">largeFile</span></td><td>Files over 5&nbsp;MB.</td><td><code>hydragit.safety.largeFile</code></td></tr>
+          <tr><td><span class="chip g">protectedBranch</span></td><td>Committing directly to <code>main</code> / <code>master</code>.</td><td><code>hydragit.safety.protectedBranch</code></td></tr>
+        </table>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>Commit / Commit &amp; Push first sends <span class="cmd amber">commit.precheck</span> with the staged paths; the extension host injects which checks are enabled from settings.</li>
+          <li>No findings → the commit proceeds silently. Findings → a native modal lists them; <b>Yes</b> commits anyway, anything else cancels.</li>
+          <li>All checks disabled → the host answers "no warnings" without calling Go at all.</li>
+        </ol>
+        <div class="note teal"><span class="ic">i</span><span>The token patterns are deliberately <b>high-precision</b> — a false positive trains you to click through, which kills the feature. Matched secrets are truncated to their first 8 characters in the dialog, never echoed in full.</span></div>
+        <div class="related"><b>Related</b><a href="snapshots.html">Working-tree snapshots</a></div>
       </section>
 
       <div class="pager">

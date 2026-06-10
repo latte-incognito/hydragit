@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Integrate &amp; Resolve<span class="sep">/</span>Conflict resolution</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.1</span>
+    <span class="ver">v0.2.5</span>
   </header>
 
   <div class="page">
@@ -20,6 +20,7 @@
       <a href="#banner" class="head">Guidance banner</a>
       <a href="#perfile">Per-file actions</a>
       <a href="#continue">Continue / Abort</a>
+      <a href="#rerere">rerere — reuse resolutions</a>
     </aside>
 
     <article class="content">
@@ -68,6 +69,20 @@
         </ol>
         <div class="note"><span class="ic">i</span><span>For an in-progress <b>rebase</b> specifically, the toolbar also offers <b>Skip</b> (<span class="cmd amber">rebase.skip</span>); the paused state survives reloads via <span class="cmd amber">rebase.status</span>.</span></div>
         <div class="related"><b>Related</b><a href="merge-rebase-reset.html">Merge · Rebase · Reset</a><a href="interactive-rebase.html#pause">Interactive rebase pause</a><a href="undo-squash.html#undo">Undo last operation</a></div>
+      </section>
+
+      <section class="feature" id="rerere">
+        <h2>rerere — reuse recorded resolutions <span class="cmd">rerere.enable</span></h2>
+        <p><b>re</b>use <b>re</b>corded <b>re</b>solution: git remembers how you resolved each conflict
+        and silently replays it when the identical conflict reappears — the second rebase of the
+        same branch just works. Almost nobody knows this exists; HydraGit turns it on for you.</p>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>On activation (and on every repo change) the extension sends <span class="cmd">rerere.enable</span> for each repo: sets <code>rerere.enabled</code> + <code>rerere.autoupdate</code> in the <b>repo-local</b> config — never the global one.</li>
+          <li>From then on git records resolutions transparently; on a repeat conflict the file arrives already resolved and (via autoupdate) already staged.</li>
+        </ol>
+        <div class="note"><span class="ic">i</span><span>Controlled by <code>hydragit.rerere.enabled</code> (default on). Turning the setting off stops enabling it for new repos; already-written repo config stays until changed.</span></div>
+        <div class="related"><b>Related</b><a href="merge-rebase-reset.html#preview">Merge conflict preview</a></div>
       </section>
 
       <div class="pager">

@@ -87,6 +87,10 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 - `id` echoed back so pending promise map resolves correctly
 - `ok: false` → git returned non-zero exit, `error` = git's stderr as-is
 - Go never writes anything to stdout except these JSON lines
+- Requests run **concurrently** (goroutine per request, per-repo RWMutex:
+  mutating cmds exclusive, reads + remote-only ops shared) — responses can
+  arrive out of order; never rely on ordering, only on `id`. Details:
+  `docs/PROJECT_CONTEXT.md` → Concurrency model.
 
 ---
 
