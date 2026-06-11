@@ -397,8 +397,15 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       if (msg.cmd === 'ui.notify') {
-        // Non-modal, persistent info toast (fire-and-forget reminder).
-        void vscode.window.showInformationMessage(msg.params?.message ?? '');
+        // Non-modal, persistent toast (fire-and-forget). Errors use the red
+        // variant — the in-panel status bar is collapsible, so it can't be
+        // the only place a failure shows up.
+        const text = msg.params?.message ?? '';
+        if (msg.params?.severity === 'error') {
+          void vscode.window.showErrorMessage(text);
+        } else {
+          void vscode.window.showInformationMessage(text);
+        }
         return;
       }
       if (msg.cmd === 'ui.pick') {

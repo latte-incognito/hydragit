@@ -161,3 +161,22 @@ describe('Toolbar — all-branches filter', () => {
 
 // Refresh moved out of the toolbar to the `HydraGit: Force Refresh` command
 // (extension host), so there's no toolbar refresh button to test here.
+
+// ── status bar toggle ────────────────────────────────────────────────────────
+
+describe('Toolbar — status toggle', () => {
+  it('calls onToggleStatus when the status icon is clicked', async () => {
+    const onToggleStatus = vi.fn();
+    const { getByTitle } = render(Toolbar, { statusOpen: false, onToggleStatus });
+
+    await fireEvent.click(getByTitle('Show repository status'));
+    expect(onToggleStatus).toHaveBeenCalledOnce();
+  });
+
+  it('reflects open state in title and aria-expanded', () => {
+    const { getByTitle } = render(Toolbar, { statusOpen: true });
+
+    const btn = getByTitle('Hide repository status');
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+  });
+});

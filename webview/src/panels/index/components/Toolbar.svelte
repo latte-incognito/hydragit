@@ -14,6 +14,8 @@
     onModeChange?: (m: typeof searchMode) => void;
     onAllBranches?: (v: boolean) => void;
     onSelectBranch?: (name: string, remote: boolean) => void;
+    statusOpen?: boolean;
+    onToggleStatus?: () => void;
   }
 
   let {
@@ -29,7 +31,9 @@
     onSearch = () => {},
     onModeChange = () => {},
     onAllBranches = () => {},
-    onSelectBranch = () => {}
+    onSelectBranch = () => {},
+    statusOpen = false,
+    onToggleStatus = () => {}
   }: Props = $props();
 
   const MODES: { id: typeof searchMode; label: string; hint: string; placeholder: string }[] = [
@@ -119,6 +123,24 @@
 {/if}
 
 <div class="toolbar">
+
+  <!-- Status bar toggle — pulses until opened -->
+  <button
+    class="status-toggle"
+    class:active={statusOpen}
+    onclick={onToggleStatus}
+    aria-expanded={statusOpen}
+    title={statusOpen ? 'Hide repository status' : 'Show repository status'}
+  >
+    <svg class="st-logo" width="12" height="14" viewBox="0 0 12 16" fill="none">
+      <circle cx="2.5" cy="1.8" r="1.5" fill="currentColor"/>
+      <circle cx="6"   cy="1.8" r="1.5" fill="currentColor"/>
+      <circle cx="9.5" cy="1.8" r="1.5" fill="currentColor"/>
+      <circle cx="6"   cy="14.2" r="1.5" fill="currentColor"/>
+      <path d="M2.5 3.3C2.5 6.5 6 8 6 8M9.5 3.3C9.5 6.5 6 8 6 8M6 3.3V8M6 8v4.7"
+            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+    </svg>
+  </button>
 
   <!-- Branch switcher -->
   <div class="branch-picker-wrap">
@@ -267,6 +289,36 @@
 </div>
 
 <style>
+  .status-toggle {
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    border-radius: 4px;
+    color: var(--vscode-descriptionForeground, #8c8c8c);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .status-toggle:hover {
+    color: var(--vscode-foreground, #ccc);
+    background: var(--vscode-toolbar-hoverBackground, #3a3a3a);
+  }
+  .status-toggle.active {
+    color: var(--vscode-textLink-foreground, #4daafc);
+  }
+  /* Beckon until first opened — scale + glow pulse. */
+  .status-toggle:not(.active) .st-logo {
+    animation: st-beckon 2.2s ease-in-out infinite;
+  }
+  @keyframes st-beckon {
+    0%, 100% { transform: scale(1);    opacity: 0.6; filter: none; }
+    50%      { transform: scale(1.25); opacity: 1;   filter: drop-shadow(0 0 3px currentColor); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .status-toggle:not(.active) .st-logo { animation: none; }
+  }
+
   .toolbar {
     background: var(--vscode-editorGroupHeader-tabsBackground, #2d2d2d);
     height: 34px;

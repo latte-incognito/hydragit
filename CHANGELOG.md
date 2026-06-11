@@ -20,6 +20,8 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 - Snapshot rows were indistinguishable ("before checkout · 11h" ×9): they now show the **branch they were taken on** (recorded in the snapshot commit; older snapshots render without it) and a real date (`Today 3:00 pm` / `Jun 10`) instead of a bare relative age.
 
 ### Changed
+- **In-panel status bar moved to the top and made collapsible** — it duplicated VS Code's own status bar (where HydraGit already shows repo · branch). Hidden by default; a pulsing hydra icon in the toolbar (before the branch pill) slides it in/out, and it auto-peeks while a transient ⚡ message is showing.
+- **Errors now raise native VS Code error toasts** in addition to the in-panel ⚡ flash — a collapsed status bar can no longer swallow a failure (`ui.notify` gained an `error` severity).
 - `IMPLEMENTED_FEATURES.md` merged into this file as the [Feature index](#feature-index) (bottom) and dropped — one inventory, two views: by version above, by topic below.
 - `docs/ROADMAP.md` bug queue now holds open items only; fixed bugs move here instead of being struck through.
 

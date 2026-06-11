@@ -20,12 +20,13 @@ export function uiConfirm(message: string): Promise<boolean> {
 }
 
 /**
- * Native, non-modal notification (a VS Code info toast that persists until
+ * Native, non-modal notification (a VS Code toast that persists until
  * dismissed) — for reminders the user needs after a flash would have vanished,
- * e.g. "finish the rebase, then push". Fire-and-forget.
+ * e.g. "finish the rebase, then push", and for errors, which must never depend
+ * on the collapsible in-panel status bar being visible. Fire-and-forget.
  */
-export function uiNotify(message: string): void {
-  void send('ui.notify', { message });
+export function uiNotify(message: string, severity: 'info' | 'error' = 'info'): void {
+  void send('ui.notify', { message, severity });
 }
 
 /** A richer quick-pick row: a label plus optional grey description/detail. */

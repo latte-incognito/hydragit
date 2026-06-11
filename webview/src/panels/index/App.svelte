@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { slide } from 'svelte/transition';
   import { on, send } from '$shared/messageBus';
   import { uiPrompt, uiConfirm, uiPick, uiNotify } from '$shared/dialogs';
   import { repoState, requestRepoState, openRepoPicker } from '$shared/repoStore';
@@ -100,8 +101,14 @@
 
   // ── Flash bar ────────────────────────────────────────────────────────────
   let flashMsg   = $state('');
+  // Status bar lives at the top, collapsed by default (the real VS Code status
+  // bar already shows repo·branch). Flashes force it visible so they land.
+  let statusOpen = $state(false);
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
-  function flash(msg: string, _color = '#febc2e') {
+  // Call sites tag errors with '#f07070' — those also get a native VS Code
+  // error toast, since the in-panel bar is collapsible and easy to miss.
+  function flash(msg: string, color = '#febc2e') {
+    if (color === '#f07070') uiNotify(msg, 'error');
     flashMsg = msg;
     if (flashTimer) clearTimeout(flashTimer);
     flashTimer = setTimeout(() => { flashMsg = ''; }, 2200);
@@ -1527,7 +1534,23 @@
     onModeChange={handleModeChange}
     onAllBranches={handleAllBranches}
     onSelectBranch={selectBranch}
+    {statusOpen}
+    onToggleStatus={() => (statusOpen = !statusOpen)}
   />
+
+  {#if statusOpen || flashMsg}
+    <div transition:slide={{ duration: 180 }}>
+      <StatusBar
+        repo={repoName}
+        onRepoClick={openRepoPicker}
+        branch={sbBranch}
+        info={sbInfo}
+        infoTitle={sbInfoTitle}
+        countsText={flashMsg ? `⚡ ${flashMsg}` : sbCounts}
+        {iconUri}
+      />
+    </div>
+  {/if}
 
   {#if rebaseEditor}
     <InteractiveRebase
@@ -1643,16 +1666,6 @@
       </div>
     {/if}
   </div>
-
-  <StatusBar
-    repo={repoName}
-    onRepoClick={openRepoPicker}
-    branch={sbBranch}
-    info={sbInfo}
-    infoTitle={sbInfoTitle}
-    countsText={flashMsg ? `⚡ ${flashMsg}` : sbCounts}
-    {iconUri}
-  />
 
   <ContextMenu
     {branchMenu}
