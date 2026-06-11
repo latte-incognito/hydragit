@@ -1589,7 +1589,12 @@
         onSelectWorktree={selectWorktree}
         onWorktreeCtx={showWorktreeCtx}
         {snapshots}
-        onSnapshotSelect={(s) => selectTagCommit(s.hash)}
+        onSnapshotSelect={(s) =>
+          startCompare({
+            kind: 'ref',
+            ref: s.hash,
+            title: `Snapshot "${s.label}" vs working tree`,
+          })}
         onSnapshotAction={snapshotAction}
       />
     </div>

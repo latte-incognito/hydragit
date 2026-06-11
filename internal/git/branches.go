@@ -312,20 +312,22 @@ func PushForce(repoPath, branch string) error {
 	return err
 }
 
+// Fetch updates all remotes and prunes remote-tracking refs whose branches
+// were deleted on the remote — otherwise they linger in the branch pane forever.
 func Fetch(repoPath string) error {
-	_, err := run(repoPath, "fetch", "--all")
+	_, err := run(repoPath, "fetch", "--all", "--prune")
 	return err
 }
 
 func Pull(repoPath string) error {
-	_, err := run(repoPath, "pull")
+	_, err := run(repoPath, "pull", "--prune")
 	return err
 }
 
 // PullMode runs `git pull` with an explicit integration strategy.
 // mode: "rebase" → --rebase, "merge" → --no-rebase, anything else → plain pull.
 func PullMode(repoPath, mode string) error {
-	args := []string{"pull"}
+	args := []string{"pull", "--prune"}
 	switch mode {
 	case "rebase":
 		args = append(args, "--rebase")

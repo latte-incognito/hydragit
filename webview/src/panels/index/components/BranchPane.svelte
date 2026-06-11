@@ -217,7 +217,7 @@
 
   let localOpen = $state(true);
   let remoteOpen = $state(true);
-  let remoteOriginOpen: Record<string, boolean> = {};
+  let remoteOriginOpen: Record<string, boolean> = $state({});
   let tagsOpen = $state(false);
   let stashOpen = $state(false);
   let worktreesOpen = $state(false);
@@ -234,7 +234,6 @@
   function isOriginOpen(o: string) { return remoteOriginOpen[o] ?? true; }
   function toggleOrigin(o: string) {
     remoteOriginOpen[o] = !isOriginOpen(o);
-    remoteOriginOpen = remoteOriginOpen;
   }
 </script>
 

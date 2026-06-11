@@ -112,3 +112,46 @@ describe('BranchPane — stash selection', () => {
     expect(onSelectStash).toHaveBeenCalledWith(0);
   });
 });
+
+// ── remote origin group toggle ───────────────────────────────────────────────
+
+describe('BranchPane — origin group toggle', () => {
+  it('collapses and re-expands an origin group on header click', async () => {
+    const { getAllByText, getByText } = render(BranchPane, { branches, stashes: [], activeBranch: 'main' });
+
+    // visible in both local and remote sections initially
+    expect(getAllByText('feature-x').length).toBe(2);
+
+    // collapse the origin group — remote copy disappears
+    await fireEvent.click(getByText('origin'));
+    expect(getAllByText('feature-x').length).toBe(1);
+
+    // expand again — remote copy is back
+    await fireEvent.click(getByText('origin'));
+    expect(getAllByText('feature-x').length).toBe(2);
+  });
+});
+
+// ── snapshots ────────────────────────────────────────────────────────────────
+
+describe('BranchPane — snapshots', () => {
+  const snapshots = [
+    { ref: 'refs/hydragit/snapshots/1', hash: 'abc1234', date: '2026-01-01T00:00:00Z', label: 'before reset' },
+  ];
+
+  it('calls onSnapshotSelect with the snapshot when a row is clicked', async () => {
+    const onSnapshotSelect = vi.fn();
+    const { getByText } = render(BranchPane, { branches, stashes: [], snapshots, activeBranch: 'main', onSnapshotSelect });
+
+    await fireEvent.click(getByText('Snapshots'));
+    await fireEvent.click(getByText('before reset'));
+    expect(onSnapshotSelect).toHaveBeenCalledWith(snapshots[0]);
+  });
+
+  it('shows the empty state when there are no snapshots', async () => {
+    const { getByText } = render(BranchPane, { branches, stashes: [], snapshots: [], activeBranch: 'main' });
+
+    await fireEvent.click(getByText('Snapshots'));
+    expect(getByText('No snapshots — taken automatically before risky operations')).toBeTruthy();
+  });
+});
