@@ -124,7 +124,7 @@
 
 <div class="toolbar">
 
-  <!-- Status bar toggle — pulses until opened -->
+  <!-- Status bar toggle — teal/silver gradient hydra, glow on hover only -->
   <button
     class="status-toggle"
     class:active={statusOpen}
@@ -133,12 +133,19 @@
     title={statusOpen ? 'Hide repository status' : 'Show repository status'}
   >
     <svg class="st-logo" width="12" height="14" viewBox="0 0 12 16" fill="none">
-      <circle cx="2.5" cy="1.8" r="1.5" fill="currentColor"/>
-      <circle cx="6"   cy="1.8" r="1.5" fill="currentColor"/>
-      <circle cx="9.5" cy="1.8" r="1.5" fill="currentColor"/>
-      <circle cx="6"   cy="14.2" r="1.5" fill="currentColor"/>
+      <defs>
+        <linearGradient id="st-hydra-grad" x1="0" y1="0" x2="12" y2="16" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stop-color="#2fbdb3"/>
+          <stop offset="55%"  stop-color="#1e8f8f"/>
+          <stop offset="100%" stop-color="#c0c8cc"/>
+        </linearGradient>
+      </defs>
+      <circle cx="2.5" cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
+      <circle cx="6"   cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
+      <circle cx="9.5" cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
+      <circle cx="6"   cy="14.2" r="1.5" fill="url(#st-hydra-grad)"/>
       <path d="M2.5 3.3C2.5 6.5 6 8 6 8M9.5 3.3C9.5 6.5 6 8 6 8M6 3.3V8M6 8v4.7"
-            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+            stroke="url(#st-hydra-grad)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
     </svg>
   </button>
 
@@ -289,34 +296,34 @@
 </div>
 
 <style>
+  /* Alpha-Legion teal/silver gradient at rest — visibly "special" without any
+     idle animation (permanent toolbar motion is how extensions get uninstalled).
+     Motion only on interaction: glow on hover, brighter when open. */
   .status-toggle {
     background: transparent;
     border: none;
     padding: 2px 4px;
     border-radius: 4px;
-    color: var(--vscode-descriptionForeground, #8c8c8c);
     cursor: pointer;
     display: flex;
     align-items: center;
     flex-shrink: 0;
   }
+  .status-toggle .st-logo {
+    opacity: 0.85;
+    transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
+  }
   .status-toggle:hover {
-    color: var(--vscode-foreground, #ccc);
     background: var(--vscode-toolbar-hoverBackground, #3a3a3a);
   }
-  .status-toggle.active {
-    color: var(--vscode-textLink-foreground, #4daafc);
+  .status-toggle:hover .st-logo {
+    opacity: 1;
+    transform: scale(1.15);
+    filter: drop-shadow(0 0 3px #2fbdb3);
   }
-  /* Beckon until first opened — scale + glow pulse. */
-  .status-toggle:not(.active) .st-logo {
-    animation: st-beckon 2.2s ease-in-out infinite;
-  }
-  @keyframes st-beckon {
-    0%, 100% { transform: scale(1);    opacity: 0.6; filter: none; }
-    50%      { transform: scale(1.25); opacity: 1;   filter: drop-shadow(0 0 3px currentColor); }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .status-toggle:not(.active) .st-logo { animation: none; }
+  .status-toggle.active .st-logo {
+    opacity: 1;
+    filter: drop-shadow(0 0 2px #2fbdb3);
   }
 
   .toolbar {
