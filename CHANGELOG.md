@@ -11,7 +11,7 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
 
-## [Unreleased]
+## [0.2.6] — 2026-06-11
 
 ### Added
 - `CHANGELOG.md` — this file: per-version history derived from the code diffs between `package.json` version bumps, cross-linked to the feature docs.
@@ -133,6 +133,7 @@ The MVP was replaced with the real foundation in this range (~8 400 insertions).
 
 - Initial build: extension scaffolding, first Go binary wiring, project documentation, repository setup.
 
+[0.2.6]: https://github.com/latte-incognito/hydragit/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/latte-incognito/hydragit/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/latte-incognito/hydragit/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/latte-incognito/hydragit/compare/v0.2.2...v0.2.3
