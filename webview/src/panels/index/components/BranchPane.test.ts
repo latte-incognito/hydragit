@@ -136,8 +136,25 @@ describe('BranchPane — origin group toggle', () => {
 
 describe('BranchPane — snapshots', () => {
   const snapshots = [
-    { ref: 'refs/hydragit/snapshots/1', hash: 'abc1234', date: '2026-01-01T00:00:00Z', label: 'before reset' },
+    { ref: 'refs/hydragit/snapshots/1', hash: 'abc1234', date: '2026-01-01T00:00:00Z', label: 'before reset', branch: 'develop' },
   ];
+
+  it('shows the capture branch next to the label', async () => {
+    const { getByText } = render(BranchPane, { branches, stashes: [], snapshots, activeBranch: 'main' });
+
+    await fireEvent.click(getByText('Snapshots'));
+    expect(getByText('before reset')).toBeTruthy();
+    expect(getByText('· develop')).toBeTruthy();
+  });
+
+  it('renders a branchless (pre-0.2.7) snapshot without a branch suffix', async () => {
+    const old = [{ ref: 'refs/hydragit/snapshots/0', hash: 'def5678', date: '2026-01-01T00:00:00Z', label: 'before rebase' }];
+    const { getByText, queryByText } = render(BranchPane, { branches, stashes: [], snapshots: old, activeBranch: 'main' });
+
+    await fireEvent.click(getByText('Snapshots'));
+    expect(getByText('before rebase')).toBeTruthy();
+    expect(queryByText(/· /)).toBeFalsy();
+  });
 
   it('calls onSnapshotSelect with the snapshot when a row is clicked', async () => {
     const onSnapshotSelect = vi.fn();

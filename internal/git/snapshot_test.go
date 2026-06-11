@@ -42,6 +42,30 @@ func TestSnapshotCreate_capturesWithoutTouchingTree(t *testing.T) {
 	if len(snaps) != 1 || snaps[0].Hash != snap.Hash {
 		t.Fatalf("expected the snapshot in the list, got %+v", snaps)
 	}
+
+	// The capture branch must be recorded and round-trip through the list.
+	branch := currentBranch(t, dir)
+	if snap.Branch != branch {
+		t.Fatalf("expected branch %q on create, got %q", branch, snap.Branch)
+	}
+	if snaps[0].Branch != branch {
+		t.Fatalf("expected branch %q from list, got %q", branch, snaps[0].Branch)
+	}
+}
+
+func TestSnapshotCreate_detachedHeadRecordsPlaceholder(t *testing.T) {
+	dir := dirtyRepo(t)
+	if _, err := run(dir, "checkout", "--detach"); err != nil {
+		t.Fatal(err)
+	}
+
+	snap, err := SnapshotCreate(dir, "detached snap")
+	if err != nil || snap == nil {
+		t.Fatalf("snapshot failed: %v", err)
+	}
+	if snap.Branch != "(detached)" {
+		t.Fatalf("expected \"(detached)\" branch, got %q", snap.Branch)
+	}
 }
 
 func TestSnapshotCreate_cleanTreeIsNoop(t *testing.T) {

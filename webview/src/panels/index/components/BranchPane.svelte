@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Branch, Snapshot, Stash, Worktree } from '../types';
+  import { smartDate } from '$shared/dates';
 
 
   interface Props {
@@ -51,18 +52,6 @@
   }: Props = $props();
 
   let snapshotsOpen = $state(false);
-
-  // Short relative age for snapshot rows ("2h", "3d") — they're timestamps
-  // first, labels second.
-  function snapAge(iso: string): string {
-    const ms = Date.now() - new Date(iso).getTime();
-    const m = Math.floor(ms / 60000);
-    if (m < 1) return 'now';
-    if (m < 60) return `${m}m`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h`;
-    return `${Math.floor(h / 24)}d`;
-  }
 
   // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -548,14 +537,14 @@
           <div
             class="titem snapshot"
             onclick={() => onSnapshotSelect(snap)}
-            title={`${snap.label}\n${new Date(snap.date).toLocaleString()}\nClick: show diff · ↺: restore · ×: delete`}
+            title={`${snap.label}${snap.branch ? ` on ${snap.branch}` : ''}\n${new Date(snap.date).toLocaleString()}\nClick: show what was captured · ↺: restore · ×: delete`}
             role="option"
             aria-selected="false"
             tabindex="0"
           >
             <span class="titem-icon">◷</span>
-            <span class="titem-name">{snap.label}</span>
-            <span class="track">{snapAge(snap.date)}</span>
+            <span class="titem-name">{snap.label}{#if snap.branch} <span class="snap-branch">· {snap.branch}</span>{/if}</span>
+            <span class="track">{smartDate(snap.date)}</span>
             <span
               class="snap-act" title="Restore working tree from this snapshot" role="button" tabindex="0"
               onclick={(e) => { e.stopPropagation(); onSnapshotAction('restore', snap); }}
@@ -582,6 +571,7 @@
     flex-shrink: 0;
   }
   .titem.snapshot:hover .snap-act { display: inline; }
+  .snap-branch { color: var(--vscode-descriptionForeground, #8c8c8c); }
   .snap-act:hover {
     color: var(--vscode-foreground, #ccc);
     background: var(--vscode-toolbar-hoverBackground, #3a3a3a);

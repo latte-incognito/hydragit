@@ -68,6 +68,7 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 - **No `Co-authored-by: Claude` in commit messages**
 - **Never run tests** — the user runs them. Write/change tests if asked, but do not execute them; suggest the command for the user to run instead.
 - **Never read binaries, assets, or raw logs** — never Read/cat the `hydragit-server` binary, image assets (e.g. `docs/HydraGitLogo.png`), `package-lock.json`, or raw log files. They flood context with noise. To inspect logs, grep/filter for a specific `id` or time range; for deps, read `package.json`.
+- **Register all work in `CHANGELOG.md` → `## [Unreleased]`** — every feature, fix, or docs change lands there as part of the same commit/PR. `make release` turns the section into the version entry. Before a release the user will ask to update `documentation/` from the accumulated Unreleased entries — don't update the HTML docs per-change.
 - **Don't build yourself i can do it from terminal
 ---
 

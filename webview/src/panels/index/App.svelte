@@ -3,6 +3,7 @@
   import { on, send } from '$shared/messageBus';
   import { uiPrompt, uiConfirm, uiPick, uiNotify } from '$shared/dialogs';
   import { repoState, requestRepoState, openRepoPicker } from '$shared/repoStore';
+  import { fullDate } from '$shared/dates';
   import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Snapshot, Tag, Worktree } from './types';
   import { planSync } from './syncPlan';
 
@@ -1590,10 +1591,13 @@
         onWorktreeCtx={showWorktreeCtx}
         {snapshots}
         onSnapshotSelect={(s) =>
+          // What the snapshot captured: its tree vs the HEAD it was taken on —
+          // the dirty files at that moment, which is exactly what ↺ restores.
           startCompare({
-            kind: 'ref',
-            ref: s.hash,
-            title: `Snapshot "${s.label}" vs working tree`,
+            kind: 'range',
+            base: `${s.hash}^`,
+            head: s.hash,
+            title: `Snapshot: ${s.label}${s.branch ? ` on ${s.branch}` : ''} — ${fullDate(s.date)} (↺ restores these files)`,
           })}
         onSnapshotAction={snapshotAction}
       />
