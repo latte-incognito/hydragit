@@ -4,12 +4,14 @@ All notable changes to HydraGit, grouped by version. Versions are the actual
 `package.json` version bumps on `develop`; everything committed between one bump
 and the next belongs to the newer version. Entries are derived from the code
 diffs between bumps (new functions, IPC commands, files), not just commit
-messages. Versions without a git tag are marked _(untagged)_.
+messages. Every version is tagged `vX.Y.Z` on the `release` branch — a clean
+linear history with exactly one commit per version, created retroactively on
+2026-06-11; each commit's diff is precisely that version's changes.
 
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
 
-## [0.2.5] — 2026-06-10 (tagged v0.2.5 on 2026-06-11)
+## [0.2.5] — 2026-06-11
 
 ### Added
 - **[Merge preview](documentation/features/merge-rebase-reset.html#preview)** (`internal/git/mergetree.go`) — dry-run merge via `git merge-tree --write-tree` (git ≥ 2.38); detects conflicts without touching the working tree. IPC: `merge.preview`.
@@ -27,13 +29,11 @@ the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPL
 - Security fixes (webview CSP hardening).
 - Scroll bar behaviour; Playwright/e2e stabilisation; shared date formatting (`webview/src/shared/dates.ts`); `SectionHeader` removed in favour of `RepoGroup`.
 
-## [0.2.4] — 2026-06-09 _(untagged)_
-
+## [0.2.4] — 2026-06-09
 ### Changed
 - **Svelte 5 migration** — every webview component (≈20 files, both panels + history) ported to runes. No Go-side changes; a pure frontend modernisation release.
 
-## [0.2.3] — 2026-06-07 _(untagged)_
-
+## [0.2.3] — 2026-06-07
 ### Added
 - **[Multi-repo support](documentation/features/multi-repo.html)** — repo discovery and active-repo tracking (`extension/src/RepoService.ts`), grouped sidebar with a `RepoGroup` per repository (`repoStore.ts`), focused main panel, status-bar switcher; every IPC request stamped with a `repo` root.
 - **[Smart push / sync plan](documentation/features/remotes.html#sync)** (`webview/src/panels/index/syncPlan.ts`) — computes the right fetch/pull/push sequence from ahead/behind state.
@@ -41,8 +41,7 @@ the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPL
 ### Fixed
 - Pull-with-rebase conflict now pauses and surfaces the error instead of failing silently.
 
-## [0.2.2] — 2026-06-06 _(untagged)_
-
+## [0.2.2] — 2026-06-06
 ### Added
 - **[Worktrees](documentation/features/worktrees.html)** (`internal/git/worktree.go`) — list, add (existing or new branch), remove, lock/unlock, move, prune. IPC: `worktree.*`.
 - **[Merge conflict resolution](documentation/features/conflicts.html)** (`internal/git/conflict.go`) — detect conflicts and the operation in progress, keep-current/keep-incoming per file, mark resolved, continue/abort; sidebar `ConflictBanner`. IPC: `conflicts`, `conflict.continue`, `conflict.abort`.
@@ -54,8 +53,7 @@ the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPL
 ### Fixed
 - First push now auto-sets upstream; checkout blocked by local changes can be unblocked via stash.
 
-## [0.2.1] — 2026-06-06 _(untagged)_
-
+## [0.2.1] — 2026-06-06
 ### Added
 - **[Interactive rebase](documentation/features/interactive-rebase.html#editor)** (`internal/git/rebase.go`, `InteractiveRebase.svelte`) — drop, reword, squash, with continue/skip/abort and in-progress detection. IPC: `rebase.*`.
 - **[Reflog pane](documentation/features/reflog.html)** (`internal/git/reflog.go`, `ReflogPane.svelte`) — HEAD undo timeline. IPC: `reflog`.
@@ -67,7 +65,7 @@ the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPL
 - Merge-conflict files now surfaced in `status` (unmerged codes parsed, distinct from untracked).
 - Fuzz test for hunk parsing.
 
-## [0.2.0] — 2026-05-30 (tagged v0.2.0)
+## [0.2.0] — 2026-05-30
 
 ### Added
 - **[Git blame](documentation/features/history.html#blame)** (`internal/git/blame.go`) — porcelain parsing, buffer-aware via stdin so unsaved editor contents blame correctly; inline annotations + hover (`blameAnnotation.ts`). IPC: `blame`, `user`.
@@ -78,22 +76,19 @@ the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPL
 - **[Commit log virtualization](documentation/features/commit-log-graph.html#columns)** — smooth scrolling on large histories.
 - Branch lines in the graph get stable per-segment colours.
 
-## [0.1.9] — 2026-05-29 _(untagged)_
-
+## [0.1.9] — 2026-05-29
 ### Fixed
 - Graph polish: lane connection rendering corrected; compact wide-history rendering test.
 
-## [0.1.8] — 2026-05-29 _(untagged)_
-
+## [0.1.8] — 2026-05-29
 ### Changed
 - **Graph rendering rework** — SVG generation extracted to `graphSvg.ts`; lane algorithm hardened with a topology test suite (octopus and criss-cross merges, multiple roots, lane recycling, detached HEAD, scale tests).
 
-## [0.1.7] — 2026-05-29 _(untagged)_
-
+## [0.1.7] — 2026-05-29
 ### Added
 - **[File history](documentation/features/history.html#filehistory) & [selection history](documentation/features/history.html#linehistory)** (`FileHistory`, `LineHistory`) — per-file log (follows renames) and per-line-range history, shown in a dedicated history panel with a side-by-side diff. IPC: `file.history`, `line.history`.
 
-## [0.1.6] — 2026-05-27 (tagged v0.1.6)
+## [0.1.6] — 2026-05-27
 
 ### Added
 - [Stash file lists](documentation/features/stash.html#show) (`StashFiles`), [branch-containing-commit lookup](documentation/features/branches.html#containing) (`BranchContaining`), [tag deletion](documentation/features/tags.html#delete). IPC: `stash.files`, `branch.containing`, `tag.delete`.
@@ -101,7 +96,7 @@ the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPL
 ### Fixed
 - Stash menu works as expected; starting in an empty folder / without a workspace no longer errors; context menu fixes; annotated tags resolve to commit hashes; e2e cleanup.
 
-## [0.1.5] — 2026-05-24 (tagged v0.1.5)
+## [0.1.5] — 2026-05-24
 
 ### Added
 - **[Tags](documentation/features/tags.html)** — list and create (`internal/git/tags.go`). IPC: `tags`, `tag.create`.
@@ -113,7 +108,7 @@ the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPL
 - Sidebar/UI redesign; branch filter + delete-branch button; case-insensitive file search; commit-via-HydraGit polish.
 - `BUGS.MD` introduced for tracking.
 
-## [0.1.1] — 2026-04-03 _(untagged; bulk shipped as tag v0.1.0 on 2026-04-02)_
+## [0.1.1] — 2026-04-03 (originally shipped via tag v0.1.0 on 2026-04-02)
 
 The MVP was replaced with the real foundation in this range (~8 400 insertions).
 
@@ -129,16 +124,16 @@ The MVP was replaced with the real foundation in this range (~8 400 insertions).
 
 - Initial build: extension scaffolding, first Go binary wiring, project documentation, repository setup.
 
-[0.2.5]: https://github.com/latte-incognito/hydragit/compare/4e194d2...v0.2.5
-[0.2.4]: https://github.com/latte-incognito/hydragit/compare/a3eecbd...4e194d2
-[0.2.3]: https://github.com/latte-incognito/hydragit/compare/1a124c2...a3eecbd
-[0.2.2]: https://github.com/latte-incognito/hydragit/compare/db1ed0f...1a124c2
-[0.2.1]: https://github.com/latte-incognito/hydragit/compare/91b5e85...db1ed0f
-[0.2.0]: https://github.com/latte-incognito/hydragit/compare/53f1283...91b5e85
-[0.1.9]: https://github.com/latte-incognito/hydragit/compare/46c0909...53f1283
-[0.1.8]: https://github.com/latte-incognito/hydragit/compare/a621330...46c0909
-[0.1.7]: https://github.com/latte-incognito/hydragit/compare/77922df...a621330
-[0.1.6]: https://github.com/latte-incognito/hydragit/compare/b71ecbc...77922df
-[0.1.5]: https://github.com/latte-incognito/hydragit/compare/caec3e4...b71ecbc
-[0.1.1]: https://github.com/latte-incognito/hydragit/compare/d0b1980...caec3e4
-[0.1.0]: https://github.com/latte-incognito/hydragit/releases/tag/v0.0.1-mvp
+[0.2.5]: https://github.com/latte-incognito/hydragit/compare/v0.2.4...v0.2.5
+[0.2.4]: https://github.com/latte-incognito/hydragit/compare/v0.2.3...v0.2.4
+[0.2.3]: https://github.com/latte-incognito/hydragit/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/latte-incognito/hydragit/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/latte-incognito/hydragit/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/latte-incognito/hydragit/compare/v0.1.9...v0.2.0
+[0.1.9]: https://github.com/latte-incognito/hydragit/compare/v0.1.8...v0.1.9
+[0.1.8]: https://github.com/latte-incognito/hydragit/compare/v0.1.7...v0.1.8
+[0.1.7]: https://github.com/latte-incognito/hydragit/compare/v0.1.6...v0.1.7
+[0.1.6]: https://github.com/latte-incognito/hydragit/compare/v0.1.5...v0.1.6
+[0.1.5]: https://github.com/latte-incognito/hydragit/compare/v0.1.1...v0.1.5
+[0.1.1]: https://github.com/latte-incognito/hydragit/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/latte-incognito/hydragit/releases/tag/v0.1.0
