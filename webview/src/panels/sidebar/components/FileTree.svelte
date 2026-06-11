@@ -302,7 +302,6 @@
     {#if stagedFiles.length > 0}
       <div class="group-header">
         <span class="group-label">Staged Changes</span>
-        <span class="group-count">{stagedFiles.length}</span>
         <button
           class="group-action"
           title="Unstage all"
@@ -319,7 +318,6 @@
     {#if changesFiles.length > 0}
       <div class="group-header">
         <span class="group-label">Changes</span>
-        <span class="group-count">{changesFiles.length}</span>
         <button
           class="group-action"
           title="Stage all"
@@ -386,16 +384,6 @@
     text-transform: uppercase;
     color: var(--vscode-descriptionForeground, #8c8c8c);
     user-select: none;
-  }
-  .group-count {
-    font-size: var(--hg-font-xxs, 10px);
-    font-weight: 400;
-    letter-spacing: 0;
-    color: var(--vscode-badge-foreground, #9fd0e0);
-    background: var(--vscode-badge-background, #2a3a44);
-    border-radius: 8px;
-    padding: 0 6px;
-    line-height: 14px;
   }
   /* Same visual size/treatment as the file checkboxes, with a bold +/- glyph. */
   .group-action {

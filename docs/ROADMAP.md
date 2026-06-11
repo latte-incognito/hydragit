@@ -123,40 +123,45 @@ Real bugs:
    `color:`/`background:` declarations remain across other components — most
    have token fallbacks already, but audit the ones without before 1.0.
 
-Main panel UI (7–9 = **fix before recording the GIF**):
+Main panel UI — polish pass 2026-06-10 (verify visually under F5):
 
-7. Detail pane shows raw ISO timestamp — humanize like the log column.
-8. Date column truncates — smart dates (time today / `Jun 7` this year / full).
-9. Author column is pure repetition in single-author repos — initials chip or
-   auto-hide.
-10. Ref pills eat the subject — `HEAD →` as icon, middle-truncate, `+N` overflow.
-11. Selected log row: orange outline reads as focus ring — use
-    `list.activeSelectionBackground` fill; outline = keyboard focus only.
+7. ~~Raw ISO timestamp in detail pane~~ — fixed: shared `$shared/dates.ts`
+   `fullDate()` (also applied to the stash date row); unit-tested.
+8. ~~Date column truncates~~ — fixed: `smartDate()` — time for today/yesterday,
+   `Jun 7` this year, `Jun 7, 2025` older; full timestamp in the cell tooltip.
+9. ~~Author column repetition~~ — fixed (decision: auto-hide): column hides
+   when all visible commits share one author; subject reclaims the width.
+10. Ref pills eat the subject — `HEAD →` as icon, middle-truncate, `+N`
+    overflow. *(still open — pill markup pass)*
+11. ~~Selection looked like a focus ring~~ — fixed:
+    `list.activeSelectionBackground/Foreground` fill, themed accent edge.
 12. Detail action row: add checkout-at-commit, create branch/tag, View on
-    GitHub; visually separate Revert (destructive) from Copy hash.
-13. Search mode switching (msg→author/file/hash/code) — make the chip obviously
-    clickable or a dropdown.
-14. Dim author/date text — use `descriptionForeground` token, not hardcoded gray.
+    GitHub; separate Revert from Copy hash. *(still open)*
+13. Search mode switching discoverability. *(still open — needs a UX look)*
+14. ~~Date text borderline-invisible~~ — fixed: `descriptionForeground` token.
 
-Sidebar (multi-repo):
+Sidebar (multi-repo) — polish pass 2026-06-10:
 
-15. Clean repos render the full commit UI (~400 px dead space each) — collapse
-    to header + "No changes"; show the commit area only when changes exist.
-    **This is what makes the sidebar scale past 2 repos.**
-16. "Amend last commit" on a clean tree: button/hint contradict — decide
-    (message-only reword should work) and align.
-17. Change-count shown 3× per repo — drop the CHANGES badge.
-18. No clear indicator of the *active* repo group — give it an explicit header
-    treatment.
-19. Empty-state text duplicated (resolved by 15).
-20. Message textarea full-height when empty ×N repos — single-line, grow on focus.
-21. Branch pill in group header truncates badly — middle-truncate like the
-    main-panel pills (10).
+15. ~~Clean repos rendered full commit UI~~ — fixed: clean repos collapse to
+    one line ("No changes · working tree clean") with an **Amend last
+    commit…** link that opens the commit area amend-armed.
+16. ~~Amend on clean tree contradiction~~ — fixed: message-only amend works
+    (always did); the hint now says "Amending the last commit message" instead
+    of "No changes", and the clean-state amend link feeds `startAmend`.
+17. ~~Count shown 3×~~ — fixed: Staged Changes / Changes group badges removed
+    (header count + folder rollups + the Commit button count remain). Bonus:
+    `SectionHeader.svelte` turned out to have **zero consumers** — deleted.
+18. ~~Active repo group too subtle~~ — fixed: focused group header gets a
+    `list.activeSelectionBackground` fill on top of the edge accent.
+19. ~~Empty-state duplication~~ — resolved by 15.
+20. ~~Textarea full-height ×N repos~~ — fixed: single-line (28px) while idle
+    and empty, grows to 52px on focus or content (pure CSS,
+    `:placeholder-shown`).
+21. ~~Branch pill truncation~~ — fixed: middle-truncate at 26 chars (keeps the
+    informative leaf), full name in tooltip.
 
-Graph style (from the design review): drop `stroke-dasharray` from `ATTR` in
-`graphSvg.ts` (solid = premium look; keep dashes only if given a semantic
-meaning like remote-only), +1 `stroke-width` on the hovered lane, ~120 ms
-opacity transition on the hover dim.
+Graph style — **decided 2026-06-10: dashes stay** (signature look). Revisit
+only as "semantic dashes" (solid local / dashed remote-only) if ever.
 
 ---
 
