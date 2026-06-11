@@ -45,20 +45,29 @@ body {
 }
 
 /* Scrollbars — a constant 2px, auto-hiding: the thumb is transparent while idle
-   and fades in (same 2px, no widening) when you hover/scroll the area. The
-   explicit small width forces a custom scrollbar instead of the macOS overlay
-   one, which would otherwise widen on hover. */
+   and fades in (same 2px, no widening) when you hover/scroll the area.
+
+   The `:root *` prefix is load-bearing: VS Code injects its own default webview
+   stylesheet with bare `::-webkit-scrollbar` rules (10px + hover thumb), and
+   bare-vs-bare the winner depends on injection order. `:root *` adds one
+   pseudo-class of specificity, so our 2px wins deterministically — without it
+   the rail/branch-pane scrollbars "widen on hover" whenever VS Code's sheet
+   lands after ours. */
+:root *::-webkit-scrollbar,
 ::-webkit-scrollbar {
   width: 2px;
   height: 2px;
 }
+:root *::-webkit-scrollbar-track,
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+:root *::-webkit-scrollbar-thumb,
 ::-webkit-scrollbar-thumb {
   background-color: transparent;
   border-radius: 1px;
 }
+:root *:hover::-webkit-scrollbar-thumb,
 :hover::-webkit-scrollbar-thumb {
   background-color: var(--vscode-scrollbarSlider-background, #79797966);
 }

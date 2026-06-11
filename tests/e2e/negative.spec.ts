@@ -23,8 +23,8 @@ test.describe("Resilience & edge cases", () => {
 
     // The frame must still respond to queries (not frozen) and settle on either
     // matching rows or a visible empty state.
-    const rows = log.locator(".commit-row, [data-commit], .log-row");
-    const empty = log.locator(".empty, .no-results, text=No commits");
+    const rows = log.locator(".crow");
+    const empty = log.locator(".log-empty");
     const settled =
       (await rows.count().catch(() => 0)) > 0 ||
       (await empty.count().catch(() => 0)) > 0;
@@ -47,8 +47,9 @@ test.describe("Resilience & edge cases", () => {
     await revealHydraGitPanel(mainWindow);
     const log = await getLogFrame(mainWindow);
 
-    // The new branch should appear in the branch tree after the watcher refresh.
-    const branchEntry = log.locator("text=externally-added-branch");
+    // The new branch should appear in the branch tree after the watcher refresh
+    // (it shows in several places — HEAD row, tree, status bar; any one will do).
+    const branchEntry = log.locator("text=externally-added-branch").first();
     await expect(branchEntry).toBeVisible({ timeout: 10000 });
   });
 });

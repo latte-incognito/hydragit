@@ -2,9 +2,9 @@
   "name": "hydragit",
   "displayName": "HydraGit",
   "description": "The git panel IntelliJ has, inside VS Code. No paywall.",
-  "version": "0.2.3",
+  "version": "0.2.5",
   "publisher": "vkushnarenko",
-  "license": "MIT",
+  "license": "GPL-3.0-only",
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
@@ -17,7 +17,6 @@
     "SCM Providers"
   ],
   "activationEvents": [
-    "onStartupFinished",
     "onStartupFinished"
   ],
   "main": "./extension/out/extension.js",
@@ -103,6 +102,36 @@
           "type": "boolean",
           "default": true,
           "description": "Show inline git blame on the current editor line (author, relative time, and commit summary). Toggle per-session with the \"HydraGit: Toggle Line Blame\" command."
+        },
+        "hydragit.safety.secretFile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn before committing files whose name suggests credentials (.env, id_rsa, *.pem, …)."
+        },
+        "hydragit.safety.secretContent": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn before committing content that looks like an API key, token or private key."
+        },
+        "hydragit.safety.conflictMarker": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn before committing files with leftover merge conflict markers (<<<<<<<)."
+        },
+        "hydragit.safety.largeFile": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn before committing files larger than 5 MB."
+        },
+        "hydragit.safety.protectedBranch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn when committing directly to main/master."
+        },
+        "hydragit.rerere.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable git rerere for opened repos: git records how you resolve each conflict and silently reuses the resolution when the same conflict reappears on a later rebase or merge."
         }
       }
     },

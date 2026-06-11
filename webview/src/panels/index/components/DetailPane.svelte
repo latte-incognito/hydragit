@@ -1,27 +1,45 @@
 <script lang="ts">
   import { send } from '$shared/messageBus';
+  import { fullDate } from '$shared/dates';
   import type { Commit, DiffFile, DiffHunk } from '../types';
 
-  export let commit: Commit | null = null;
-  export let stash: any = null;
   // Active ref/range comparison header (branch/tag/commit "Compare…"); when set,
-  // the pane shows the compared file list instead of a commit/stash.
-  export let compare: { title: string } | null = null;
-  export let files: DiffFile[] = [];
-  export let hunks: DiffHunk[] = [];
-  export let selFile: string | null = null;
-  export let loading: boolean = false;
-  export let iconUri: string = '';
+  
 
-  export let onSelectFile: (path: string) => void = () => {};
-  export let onCommitAction: (action: string, hash: string) => void = () => {};
-  export let onStashAction: (action: string) => void = () => {};
+  interface Props {
+    commit?: Commit | null;
+    stash?: any;
+    // the pane shows the compared file list instead of a commit/stash.
+    compare?: { title: string } | null;
+    files?: DiffFile[];
+    hunks?: DiffHunk[];
+    selFile?: string | null;
+    loading?: boolean;
+    iconUri?: string;
+    onSelectFile?: (path: string) => void;
+    onCommitAction?: (action: string, hash: string) => void;
+    onStashAction?: (action: string) => void;
+  }
 
-  $: isStash = !commit && stash !== null;
+  let {
+    commit = null,
+    stash = null,
+    compare = null,
+    files = [],
+    hunks = [],
+    selFile = null,
+    loading = false,
+    iconUri = '',
+    onSelectFile = () => {},
+    onCommitAction = () => {},
+    onStashAction = () => {}
+  }: Props = $props();
+
+  let isStash = $derived(!commit && stash !== null);
 
   // ── Derived totals ────────────────────────────────────────────────────────
-  $: totalAdd = files.reduce((a, f) => a + (f.additions ?? 0), 0);
-  $: totalDel = files.reduce((a, f) => a + (f.deletions ?? 0), 0);
+  let totalAdd = $derived(files.reduce((a, f) => a + (f.additions ?? 0), 0));
+  let totalDel = $derived(files.reduce((a, f) => a + (f.deletions ?? 0), 0));
 
   // ── Tree building ─────────────────────────────────────────────────────────
   interface TreeFolder {
@@ -107,10 +125,10 @@
     return root;
   }
 
-  $: tree = buildTree(files);
+  let tree = $derived(buildTree(files));
 
   // ── Collapse state ────────────────────────────────────────────────────────
-  let collapsed = new Set<string>();
+  let collapsed = $state(new Set<string>());
 
   function toggleFolder(key: string) {
     if (collapsed.has(key)) collapsed.delete(key);
@@ -197,10 +215,10 @@
   }
 
   // ── Tooltip ───────────────────────────────────────────────────────────────
-  let tipText = '';
-  let tipX = 0;
-  let tipY = 0;
-  let tipVisible = false;
+  let tipText = $state('');
+  let tipX = $state(0);
+  let tipY = $state(0);
+  let tipVisible = $state(false);
   let tipTimer: ReturnType<typeof setTimeout>;
 
   function showTip(e: MouseEvent, text: string) {
@@ -218,9 +236,9 @@
   }
 
   // ── Context menu ──────────────────────────────────────────────────────────
-  let ctxVisible = false;
-  let ctxX = 0;
-  let ctxY = 0;
+  let ctxVisible = $state(false);
+  let ctxX = $state(0);
+  let ctxY = $state(0);
   let ctxFile: string | null = null;
 
   function showCtx(e: MouseEvent, file: string | null = null) {
@@ -319,7 +337,7 @@
   }
 </script>
 
-<svelte:window on:keydown={onKeyDown} />
+<svelte:window onkeydown={onKeyDown} />
 
 <!-- Fixed tooltip -->
 {#if tipVisible}
@@ -328,11 +346,11 @@
 
 <!-- Context menu overlay -->
 {#if ctxVisible}
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div class="ctx-overlay" on:click={closeCtx}></div>
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="ctx-overlay" onclick={closeCtx}></div>
   <div class="ctx-menu" style="left:{ctxX}px;top:{ctxY}px" use:fitMenu>
-    <div class="ctx-item" on:click={ctxShowDiff}>
+    <div class="ctx-item" onclick={ctxShowDiff}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M3 4 L 7 4 M7 4 L 5 2 M7 4 L 5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -342,7 +360,7 @@
       <span class="ci-text">Show Diff</span>
       <span class="ci-shortcut">⌘D</span>
     </div>
-    <div class="ctx-item" on:click={ctxShowDiffNewTab}>
+    <div class="ctx-item" onclick={ctxShowDiffNewTab}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M3 4 L 7 4 M7 4 L 5 2 M7 4 L 5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -351,9 +369,9 @@
       </span>
       <span class="ci-text">Show Diff in a New Tab</span>
     </div>
-    <div class="ctx-item" on:click={ctxCompareWithLocal}><span class="ci-icon"></span><span class="ci-text">Compare with Local</span></div>
-    <div class="ctx-item" on:click={ctxCompareBeforeWithLocal}><span class="ci-icon"></span><span class="ci-text">Compare Before with Local</span></div>
-    <div class="ctx-item" on:click={ctxEditSource}>
+    <div class="ctx-item" onclick={ctxCompareWithLocal}><span class="ci-icon"></span><span class="ci-text">Compare with Local</span></div>
+    <div class="ctx-item" onclick={ctxCompareBeforeWithLocal}><span class="ci-icon"></span><span class="ci-text">Compare Before with Local</span></div>
+    <div class="ctx-item" onclick={ctxEditSource}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M2 12 L 5 11 L 11 5 L 9 3 L 3 9 Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" fill="none"/>
@@ -363,11 +381,11 @@
       <span class="ci-text">Edit Source</span>
       <span class="ci-shortcut">⌘↓</span>
     </div>
-    <div class="ctx-item" on:click={ctxOpenRepoVersion}><span class="ci-icon"></span><span class="ci-text">Open Repository Version</span></div>
+    <div class="ctx-item" onclick={ctxOpenRepoVersion}><span class="ci-icon"></span><span class="ci-text">Open Repository Version</span></div>
 
     <div class="ctx-divider"></div>
 
-    <div class="ctx-item" on:click={ctxRevert}>
+    <div class="ctx-item" onclick={ctxRevert}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M3 7 L 6 4 M3 7 L 6 10 M3 7 H 9 a 3 3 0 0 1 0 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
@@ -375,7 +393,7 @@
       </span>
       <span class="ci-text">Revert Selected Changes</span>
     </div>
-    <div class="ctx-item" on:click={ctxCherryPick}><span class="ci-icon"></span><span class="ci-text">Cherry-Pick Selected Changes</span></div>
+    <div class="ctx-item" onclick={ctxCherryPick}><span class="ci-icon"></span><span class="ci-text">Cherry-Pick Selected Changes</span></div>
     <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Extract Selected Changes to Separate Commit…</span></div>
     <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Drop Selected Changes</span></div>
     <div class="ctx-item">
@@ -424,14 +442,14 @@
               {files.length} file{files.length !== 1 ? 's' : ''} changed
             </span>
             <div class="tt-wrap">
-              <button class="tt-btn" aria-label="Expand all" on:click={expandAll}>
+              <button class="tt-btn" aria-label="Expand all" onclick={expandAll}>
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
                   <path d="M2 3h8M2 6h8M2 9h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
                 </svg>
               </button>
             </div>
             <div class="tt-wrap">
-              <button class="tt-btn" aria-label="Collapse all" on:click={collapseAll}>
+              <button class="tt-btn" aria-label="Collapse all" onclick={collapseAll}>
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
                   <path d="M2 6h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
                 </svg>
@@ -439,14 +457,14 @@
             </div>
           </div>
 
-          <div class="tree-body" on:contextmenu={showCtx}>
+          <div class="tree-body" oncontextmenu={showCtx}>
             {#snippet renderStashFolder(node: TreeFolder, depth: number)}
               <div
                 class="tree-row tree-row--folder"
                 class:tree-row--root={node.fullPath === '__root__'}
                 style="padding-left:{8 + depth * 14}px"
-                on:click={() => toggleFolder(node.fullPath)}
-                on:contextmenu={showCtx}
+                onclick={() => toggleFolder(node.fullPath)}
+                oncontextmenu={showCtx}
               >
                 <svg class="chevron" class:open={!collapsed.has(node.fullPath)} width="10" height="10" viewBox="0 0 10 10" fill="none">
                   <path d="M3 2l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
@@ -469,9 +487,9 @@
                       class="tree-row tree-row--file"
                       class:selected={selFile === f.path}
                       style="padding-left:{8 + (depth + 1) * 14}px"
-                      on:click={() => { onSelectFile(f.path); openDiff(f.path); }}
-                      on:dblclick={() => openDiff(f.path, true)}
-                      on:contextmenu={(e) => showCtx(e, f.path)}
+                      onclick={() => { onSelectFile(f.path); openDiff(f.path); }}
+                      ondblclick={() => openDiff(f.path, true)}
+                      oncontextmenu={(e) => showCtx(e, f.path)}
                       role="option"
                       aria-selected={selFile === f.path}
                       tabindex="0"
@@ -496,7 +514,7 @@
         <div class="dm-msg">{stash.msg ?? stash.message ?? ''}</div>
         <div class="dm-row"><span class="dm-label">Ref</span>stash@{'{'}{stash.index ?? 0}{'}'}</div>
         {#if stash.time ?? stash.date}
-          <div class="dm-row"><span class="dm-label">Date</span>{stash.time ?? stash.date}</div>
+          <div class="dm-row"><span class="dm-label">Date</span>{fullDate(stash.time ?? stash.date ?? '')}</div>
         {/if}
         <div class="dm-stats">
           <span class="stat-add">+{totalAdd}</span>
@@ -504,9 +522,9 @@
           <span class="dm-stat-dim">{files.length} file{files.length !== 1 ? 's' : ''}</span>
         </div>
         <div class="dm-actions">
-          <button class="action-btn" on:click={() => onStashAction('pop')}>Pop</button>
-          <button class="action-btn" on:click={() => onStashAction('apply')}>Apply</button>
-          <button class="action-btn action-btn--danger" on:click={() => onStashAction('drop')}>Drop</button>
+          <button class="action-btn" onclick={() => onStashAction('pop')}>Pop</button>
+          <button class="action-btn" onclick={() => onStashAction('apply')}>Apply</button>
+          <button class="action-btn action-btn--danger" onclick={() => onStashAction('drop')}>Drop</button>
         </div>
       </div>
 
@@ -532,7 +550,7 @@
 
         {:else}
           <!-- Toolbar -->
-          <div class="tree-toolbar" on:contextmenu={showCtx}>
+          <div class="tree-toolbar" oncontextmenu={showCtx}>
             <span class="tree-count">
               {files.length} file{files.length !== 1 ? 's' : ''} changed
             </span>
@@ -540,9 +558,9 @@
               <button
                 class="tt-btn"
                 aria-label="Expand all"
-                on:click={expandAll}
-                on:mouseenter={e => showTip(e, 'Expand all')}
-                on:mouseleave={hideTip}
+                onclick={expandAll}
+                onmouseenter={e => showTip(e, 'Expand all')}
+                onmouseleave={hideTip}
               >
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
                   <path d="M2 3h8M2 6h8M2 9h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
@@ -553,9 +571,9 @@
               <button
                 class="tt-btn"
                 aria-label="Collapse all"
-                on:click={collapseAll}
-                on:mouseenter={e => showTip(e, 'Collapse all')}
-                on:mouseleave={hideTip}
+                onclick={collapseAll}
+                onmouseenter={e => showTip(e, 'Collapse all')}
+                onmouseleave={hideTip}
               >
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
                   <path d="M2 6h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
@@ -565,17 +583,17 @@
           </div>
 
           <!-- Tree -->
-          <div class="tree-body" on:contextmenu={showCtx}>
+          <div class="tree-body" oncontextmenu={showCtx}>
             {#snippet renderFolder(node: TreeFolder, depth: number)}
               <!-- Folder row — always render, including root -->
-              <!-- svelte-ignore a11y-click-events-have-key-events -->
-              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="tree-row tree-row--folder"
                 class:tree-row--root={node.fullPath === '__root__'}
                 style="padding-left:{8 + depth * 14}px"
-                on:click={() => toggleFolder(node.fullPath)}
-                on:contextmenu={showCtx}
+                onclick={() => toggleFolder(node.fullPath)}
+                oncontextmenu={showCtx}
               >
                 <svg class="chevron" class:open={!collapsed.has(node.fullPath)} width="10" height="10" viewBox="0 0 10 10" fill="none">
                   <path d="M3 2l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
@@ -598,15 +616,15 @@
                     {@const isRename = f.status === 'R'}
                     {@const parsed = isRename ? parseRename(f) : null}
                     {@const fname = f.path.split('/').pop() ?? f.path}
-                    <!-- svelte-ignore a11y-click-events-have-key-events -->
-                    <!-- svelte-ignore a11y-no-static-element-interactions -->
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <div
                       class="tree-row tree-row--file"
                       class:selected={selFile === f.path}
                       style="padding-left:{8 + (depth + 1) * 14}px"
-                      on:click={() => { onSelectFile(f.path); openDiff(f.path); }}
-                      on:dblclick={() => openDiff(f.path, true)}
-                      on:contextmenu={(e) => showCtx(e, f.path)}
+                      onclick={() => { onSelectFile(f.path); openDiff(f.path); }}
+                      ondblclick={() => openDiff(f.path, true)}
+                      oncontextmenu={(e) => showCtx(e, f.path)}
                       role="option"
                       aria-selected={selFile === f.path}
                       tabindex="0"
@@ -653,7 +671,7 @@
           <div class="dm-hash">{(commit.hash ?? '').slice(0, 8)}</div>
           <div class="dm-msg">{commit.message ?? commit.msg ?? ''}</div>
           <div class="dm-row"><span class="dm-label">Author</span>{commit.author ?? ''}</div>
-          <div class="dm-row"><span class="dm-label">Date</span>{commit.date ?? ''}</div>
+          <div class="dm-row"><span class="dm-label">Date</span>{fullDate(commit.date ?? '')}</div>
           {#if (commit.refs ?? []).length}
             <div class="dm-row"><span class="dm-label">Refs</span>{(commit.refs ?? []).join(', ')}</div>
           {/if}
@@ -667,9 +685,9 @@
             </div>
           {/if}
           <div class="dm-actions">
-            <button class="action-btn" on:click={() => onCommitAction('cherry-pick', commit?.hash ?? '')}>Cherry-pick</button>
-            <button class="action-btn" on:click={() => onCommitAction('revert', commit?.hash ?? '')}>Revert</button>
-            <button class="action-btn" on:click={() => onCommitAction('copy', commit?.hash ?? '')}>Copy hash</button>
+            <button class="action-btn" onclick={() => onCommitAction('cherry-pick', commit?.hash ?? '')}>Cherry-pick</button>
+            <button class="action-btn" onclick={() => onCommitAction('revert', commit?.hash ?? '')}>Revert</button>
+            <button class="action-btn" onclick={() => onCommitAction('copy', commit?.hash ?? '')}>Copy hash</button>
           </div>
         {/if}
       </div>

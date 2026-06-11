@@ -1,11 +1,21 @@
 <script lang="ts">
   // The "HEAD" undo timeline: git reflog as a flat list, each row offering
   // soft/mixed/hard reset (green → amber → red by destructiveness). Replaces the
-  // commit graph while active; clicking a branch (or the back button) exits.
-  export let entries: { hash: string; selector: string; subject: string; date: string }[] = [];
-  export let activeBranch = '';
-  export let onReset: (hash: string, mode: 'soft' | 'mixed' | 'hard') => void = () => {};
-  export let onExit: () => void = () => {};
+  
+  interface Props {
+    // commit graph while active; clicking a branch (or the back button) exits.
+    entries?: { hash: string; selector: string; subject: string; date: string }[];
+    activeBranch?: string;
+    onReset?: (hash: string, mode: 'soft' | 'mixed' | 'hard') => void;
+    onExit?: () => void;
+  }
+
+  let {
+    entries = [],
+    activeBranch = '',
+    onReset = () => {},
+    onExit = () => {}
+  }: Props = $props();
 
   function rel(iso: string): string {
     const t = Date.parse(iso);
@@ -29,7 +39,7 @@
 
 <div class="reflog-pane">
   <div class="rl-head">
-    <button class="rl-back" on:click={onExit} title="Back to the commit graph">‹ Graph</button>
+    <button class="rl-back" onclick={onExit} title="Back to the commit graph">‹ Graph</button>
     <span class="rl-title">HEAD{activeBranch ? ` · ${activeBranch}` : ''}</span>
     <span class="rl-sub">undo timeline — reset to any point</span>
   </div>
@@ -43,11 +53,11 @@
         <span class="rl-date">{rel(e.date)}</span>
         <span class="rl-actions">
           <button class="rl-reset soft"  title="Soft — move HEAD here, keep changes staged"
-                  on:click={() => onReset(e.hash, 'soft')}>soft</button>
+                  onclick={() => onReset(e.hash, 'soft')}>soft</button>
           <button class="rl-reset mixed" title="Mixed — move HEAD here, keep changes (unstaged)"
-                  on:click={() => onReset(e.hash, 'mixed')}>mixed</button>
+                  onclick={() => onReset(e.hash, 'mixed')}>mixed</button>
           <button class="rl-reset hard"  title="Hard — move HEAD here, DISCARD all changes"
-                  on:click={() => onReset(e.hash, 'hard')}>hard</button>
+                  onclick={() => onReset(e.hash, 'hard')}>hard</button>
         </span>
       </div>
     {/each}

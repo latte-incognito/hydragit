@@ -53,8 +53,8 @@ test.describe("HEAD undo timeline (reflog)", () => {
     await f.locator(".titem.head").click();
     await expect(f.locator(".reflog-pane")).toBeVisible({ timeout: 6000 });
 
-    // Click a real branch row (any non-HEAD branch item).
-    await f.locator(".titem.branch, .titem:not(.head)").first().click();
+    // Click a real branch row — leaf only; folder rows just expand/collapse.
+    await f.locator(".titem:not(.folder-row):not(.head)").first().click();
 
     await expect(f.locator(".reflog-pane")).toHaveCount(0);
     await expect(f.locator(".crow").first()).toBeVisible({ timeout: 6000 });

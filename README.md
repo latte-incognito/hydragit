@@ -41,6 +41,14 @@ Editor extras: right-click a file → **HydraGit: File History**; select lines �
 > **TODO before publishing:** record the demo GIF for the Marketplace listing
 > (15s: open panel → branch tree → click branch → log → click commit → detail → file → diff → right-click → context menu). Extensions without a GIF get ~5× fewer installs.
 
+## License
+
+[GPL-3.0](LICENSE.md) — free forever. Forks must stay open source under the same
+license, so nobody can take HydraGit, tweak it, and put it behind a paywall.
+
+**The HydraGit name and logo are not covered by this license** — forks must use
+their own name and branding.
+
 ---
 Marketplace: vkushnarenko.hydragit
 Started: March 2026

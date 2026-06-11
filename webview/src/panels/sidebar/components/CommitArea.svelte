@@ -1,27 +1,54 @@
 <script lang="ts">
   import { send } from '$shared/messageBus';
 
-  export let hasFiles: boolean = false;
-  export let stagedCount: number = 0;
-  export let hasUpstream: boolean = false;
-  export let branch: string = '';
-  export let error: string = '';
 
-  export let onCommit: (msg: string) => void = () => {};
-  export let onCommitPush: (msg: string) => void = () => {};
-  export let onAmend: (msg: string) => void = () => {};
+  interface Props {
+    hasFiles?: boolean;
+    stagedCount?: number;
+    hasUpstream?: boolean;
+    branch?: string;
+    error?: string;
+    /** Open with amend pre-ticked — the clean-tree "Amend last commit…" path. */
+    startAmend?: boolean;
+    onCommit?: (msg: string) => void;
+    onCommitPush?: (msg: string) => void;
+    onAmend?: (msg: string) => void;
+  }
 
-  let message = '';
+  let {
+    hasFiles = false,
+    stagedCount = 0,
+    hasUpstream = false,
+    branch = '',
+    error = '',
+    startAmend = false,
+    onCommit = () => {},
+    onCommitPush = () => {},
+    onAmend = () => {}
+  }: Props = $props();
+
+  $effect(() => {
+    if (startAmend && !amend) toggleAmend();
+  });
+
+  let message = $state('');
   // Amend mode rewrites HEAD: edit its message and/or fold staged changes in.
-  let amend = false;
+  let amend = $state(false);
 
-  // In amend mode you can commit with just a message (staging is optional).
-  $: canCommit = message.trim().length > 0 && (amend || stagedCount > 0);
-  $: reason = !hasFiles
-    ? 'No changes'
-    : stagedCount === 0
-      ? 'Stage files to commit'
-      : `${stagedCount} file${stagedCount === 1 ? '' : 's'} staged`;
+  // In amend mode you can commit with just a message (staging is optional) —
+  // the hint must say so instead of contradicting the enabled button (§4.16).
+  let canCommit = $derived(message.trim().length > 0 && (amend || stagedCount > 0));
+  let reason = $derived(
+    amend
+      ? stagedCount > 0
+        ? `Amending HEAD + ${stagedCount} staged`
+        : 'Amending the last commit message'
+      : !hasFiles
+        ? 'No changes'
+        : stagedCount === 0
+          ? 'Stage files to commit'
+          : `${stagedCount} file${stagedCount === 1 ? '' : 's'} staged`
+  );
 
   async function toggleAmend() {
     amend = !amend;
@@ -63,7 +90,7 @@
   ></textarea>
 
   <label class="amend-toggle" title="Rewrite the last commit (edit its message and/or fold in staged changes) instead of creating a new one">
-    <input type="checkbox" checked={amend} on:change={toggleAmend} />
+    <input type="checkbox" checked={amend} onchange={toggleAmend} />
     <span>Amend last commit</span>
   </label>
 
@@ -81,14 +108,14 @@
   </div>
 
   <div class="btn-row">
-    <button class="btn btn-primary" disabled={!canCommit} on:click={handleCommit}>
+    <button class="btn btn-primary" disabled={!canCommit} onclick={handleCommit}>
       <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
         <path d="M2.5 7.5l3 3 6-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <span>{amend ? 'Amend' : `Commit${stagedCount > 0 ? ` ${stagedCount}` : ''}`}</span>
     </button>
     {#if hasUpstream && !amend}
-      <button class="btn btn-secondary" disabled={!canCommit} on:click={handleCommitPush} title="Commit &amp; Push">
+      <button class="btn btn-secondary" disabled={!canCommit} onclick={handleCommitPush} title="Commit &amp; Push">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <path d="M7 11V3.5M7 3.5L4 6.5M7 3.5l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -119,8 +146,11 @@
 
   .commit-input {
     width: 100%;
-    min-height: 52px;
+    /* Single-line while idle and empty; grows on focus or content — keeps N
+       stacked repo groups compact (§4.20). */
+    min-height: 28px;
     max-height: 120px;
+    transition: min-height 0.12s ease;
     background: var(--vscode-input-background, #3c3c3c);
     color: var(--vscode-input-foreground, #cccccc);
     border: 1px solid var(--vscode-input-border, transparent);
@@ -136,6 +166,8 @@
     box-sizing: border-box;
   }
   .commit-input::placeholder { color: var(--vscode-input-placeholderForeground, #8c8c8c); }
+  .commit-input:focus,
+  .commit-input:not(:placeholder-shown) { min-height: 52px; }
   .commit-input:focus { border-color: var(--vscode-focusBorder, #007fd4); }
   .commit-input:disabled { opacity: 0.4; cursor: default; }
 

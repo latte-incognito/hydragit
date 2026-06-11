@@ -2,13 +2,23 @@
   // Conflict-resolution guidance, shown above the file tree while a merge/rebase/
   // cherry-pick is paused. Per-file quick actions + Continue/Abort.
   // "Current" = your side (git --ours); "Incoming" = the other side (--theirs).
-  // This holds for both merge AND rebase because HEAD is always "current".
-  export let info: { operation: string; files: string[] } = { operation: '', files: [] };
-  export let onResolve: (action: 'current' | 'incoming' | 'merge-editor', file: string) => void = () => {};
-  export let onContinue: () => void = () => {};
-  export let onAbort: () => void = () => {};
+  
+  interface Props {
+    // This holds for both merge AND rebase because HEAD is always "current".
+    info?: { operation: string; files: string[] };
+    onResolve?: (action: 'current' | 'incoming' | 'merge-editor', file: string) => void;
+    onContinue?: () => void;
+    onAbort?: () => void;
+  }
 
-  $: count = info.files.length;
+  let {
+    info = { operation: '', files: [] },
+    onResolve = () => {},
+    onContinue = () => {},
+    onAbort = () => {}
+  }: Props = $props();
+
+  let count = $derived(info.files.length);
 
   function base(p: string): string {
     return p.split('/').pop() ?? p;
@@ -30,11 +40,11 @@
           <span class="cb-name" title={f}>{base(f)}</span>
           <span class="cb-actions">
             <button class="cb-btn merge" title="Open the 3-way merge editor"
-                    on:click={() => onResolve('merge-editor', f)}>merge</button>
+                    onclick={() => onResolve('merge-editor', f)}>merge</button>
             <button class="cb-btn current" title="Keep your side (HEAD / --ours)"
-                    on:click={() => onResolve('current', f)}>current</button>
+                    onclick={() => onResolve('current', f)}>current</button>
             <button class="cb-btn incoming" title="Keep the other side (--theirs)"
-                    on:click={() => onResolve('incoming', f)}>incoming</button>
+                    onclick={() => onResolve('incoming', f)}>incoming</button>
           </span>
         </div>
       {/each}
@@ -42,8 +52,8 @@
   {/if}
 
   <div class="cb-foot">
-    <button class="cb-cont" disabled={count > 0} on:click={onContinue}>Continue</button>
-    <button class="cb-abort" on:click={onAbort}>Abort</button>
+    <button class="cb-cont" disabled={count > 0} onclick={onContinue}>Continue</button>
+    <button class="cb-abort" onclick={onAbort}>Abort</button>
   </div>
 </div>
 

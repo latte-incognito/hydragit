@@ -18,7 +18,52 @@ function repoRoot(): string {
   return activeRepoRoot ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
 }
 
+// ── Webview-boundary hardening ────────────────────────────────────────────────
+// The webview stamps `repo` onto requests; without a check it could point git
+// at ANY directory on disk (read a foreign repo via log/diff, or destroy one
+// via reset/stash.clear). Only roots RepoService has discovered are allowed.
+// extension.ts refreshes this set on every RepoService change.
+let knownRepoRoots = new Set<string>();
+export function setKnownRepoRoots(roots: string[]): void {
+  knownRepoRoots = new Set(roots);
+}
+function repoAllowed(repo: unknown): boolean {
+  if (repo === undefined || repo === null) return true; // falls back to active/spawn default
+  return typeof repo === 'string' && knownRepoRoots.has(repo);
+}
+
+// Destructive-op gate: don't trust `force: true` (or force-class commands)
+// from the webview alone — they only forward if a native host-side ui.confirm
+// was answered Yes recently. The confirmation isn't bound to the specific op
+// (the webview drives its own flows), but it guarantees a real user clicked a
+// real native dialog moments before anything irreversible runs.
+const FORCE_GATED_CMDS = new Set(['push.force', 'stash.clear']);
+const CONFIRM_WINDOW_MS = 30_000;
+let lastConfirmedAt = 0;
+export function recordConfirmation(): void {
+  lastConfirmedAt = Date.now();
+}
+function destructiveOpBlocked(cmd: string, params: unknown): boolean {
+  const forced = typeof params === 'object' && params !== null && (params as { force?: unknown }).force === true;
+  if (!FORCE_GATED_CMDS.has(cmd) && !forced) return false;
+  return Date.now() - lastConfirmedAt > CONFIRM_WINDOW_MS;
+}
+
+// Pre-commit safety checks read their toggles from user settings — resolved
+// host-side so neither the webview nor Go needs config plumbing of its own.
+const SAFETY_CHECKS = ['secretFile', 'secretContent', 'conflictMarker', 'largeFile', 'protectedBranch'];
+function enabledSafetyChecks(): string[] {
+  const cfg = vscode.workspace.getConfiguration('hydragit.safety');
+  return SAFETY_CHECKS.filter((c) => cfg.get<boolean>(c, true));
+}
+
 // ── Shared diff helpers ───────────────────────────────────────────────────────
+
+// One of two host-side git calls outside the Go binary's run() chokepoint
+// (the other is openCommitUrl). Both are local-only reads, but they're still
+// bounded by a timeout so a pathological repo can't hang the host the way
+// unbounded network git once hung Go (BUGS.md #5).
+const HOST_GIT_TIMEOUT_MS = 5000;
 
 async function fileExistsAtRef(absPath: string, ref: string, root?: string): Promise<boolean> {
   try {
@@ -27,9 +72,13 @@ async function fileExistsAtRef(absPath: string, ref: string, root?: string): Pro
     const exec = promisify(execFile);
     const workspaceRoot = root ?? repoRoot();
     const relPath = path.relative(workspaceRoot, absPath);
-    await exec('git', ['cat-file', '-e', `${ref}:${relPath}`], { cwd: workspaceRoot });
+    await exec('git', ['cat-file', '-e', `${ref}:${relPath}`], {
+      cwd: workspaceRoot,
+      timeout: HOST_GIT_TIMEOUT_MS,
+    });
     return true;
   } catch {
+    // "Missing at this ref" is an expected answer here, not an error.
     return false;
   }
 }
@@ -115,6 +164,7 @@ async function openCommitUrl(params: { commit: string }, root?: string): Promise
     const exec = promisify(execFile);
     const { stdout } = await exec('git', ['config', '--get', 'remote.origin.url'], {
       cwd: workspaceRoot,
+      timeout: HOST_GIT_TIMEOUT_MS,
     });
     const web = remoteUrlToWeb(stdout);
     if (!web) {
@@ -243,6 +293,14 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(webviewView.webview, iconUri);
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
+      // Reject any repo root the host hasn't discovered (see repoAllowed).
+      if (msg?.repo !== undefined && !repoAllowed(msg.repo)) {
+        webviewView.webview.postMessage({
+          id: msg?.id, ok: false,
+          error: `unknown repository: ${String(msg.repo)}`,
+        });
+        return;
+      }
       // openDiff is handled entirely in the extension host — no Go call needed.
       // msg.repo (when present) scopes path resolution to that repo's root, so
       // diffs opened from a non-focused sidebar group target the right files.
@@ -293,14 +351,27 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       }
       // Open a worktree's folder in a new VS Code window (the primary worktree
       // action — keeps the current window's context). Host-only: not a Go cmd.
+      // Only paths git itself reports as worktrees may be opened — the webview
+      // must not be able to point a new window (and its workspace trust) at an
+      // arbitrary directory.
       if (msg.cmd === 'worktree.open') {
         const wtPath = msg.params?.path;
-        if (wtPath) {
-          await vscode.commands.executeCommand(
-            'vscode.openFolder',
-            vscode.Uri.file(wtPath),
-            { forceNewWindow: true }
-          );
+        if (!wtPath) return;
+        try {
+          const wts = (await this.goProcess.send('worktree.list', {}, msg.repo)) as
+            | { path: string }[]
+            | undefined;
+          if (wts?.some((w) => w.path === wtPath)) {
+            await vscode.commands.executeCommand(
+              'vscode.openFolder',
+              vscode.Uri.file(wtPath),
+              { forceNewWindow: true }
+            );
+          } else {
+            void vscode.window.showWarningMessage(`HydraGit: ${wtPath} is not a known worktree.`);
+          }
+        } catch {
+          /* worktree list unavailable — refuse to open */
         }
         return;
       }
@@ -320,6 +391,8 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
           { modal: true },
           'Yes'
         );
+        // A native Yes arms the destructive-op gate (see destructiveOpBlocked).
+        if (pick === 'Yes') recordConfirmation();
         webviewView.webview.postMessage({ id: msg.id, ok: true, data: pick === 'Yes' });
         return;
       }
@@ -338,6 +411,15 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
         const value =
           choice == null ? null : typeof choice === 'string' ? choice : (choice as vscode.QuickPickItem).label;
         webviewView.webview.postMessage({ id: msg.id, ok: true, data: value });
+        return;
+      }
+
+      if (destructiveOpBlocked(msg.cmd, msg.params)) {
+        webviewView.webview.postMessage({
+          id: msg.id,
+          ok: false,
+          error: 'Destructive operation blocked: no recent confirmation.',
+        });
         return;
       }
 
@@ -399,12 +481,17 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'index.css')
     );
 
+    // No remote images are loaded anywhere (the only <img> is the bundled
+    // icon), so img-src deliberately omits https: — with default-src 'none'
+    // and connect-src 'none' the webview has zero network egress, closing the
+    // image-URL exfiltration channel.
     const csp = [
       `default-src 'none'`,
       `script-src ${webview.cspSource}`,
       `style-src  ${webview.cspSource} 'unsafe-inline'`,
-      `img-src data: https: blob: ${webview.cspSource}`,
+      `img-src data: blob: ${webview.cspSource}`,
       `font-src data:`,
+      `connect-src 'none'`,
     ].join('; ');
 
     html = html.replace(
@@ -458,6 +545,14 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
+      // Reject any repo root the host hasn't discovered (see repoAllowed).
+      if (msg?.repo !== undefined && !repoAllowed(msg.repo)) {
+        webviewView.webview.postMessage({
+          id: msg?.id, ok: false,
+          error: `unknown repository: ${String(msg.repo)}`,
+        });
+        return;
+      }
       if (msg.cmd === 'vscode.openFolder') {
         await vscode.commands.executeCommand('vscode.openFolder');
         return;
@@ -482,6 +577,18 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({ id: msg.id, ok: true, data: state });
         return;
       }
+      // Native confirm — same seam as the main panel (used by the pre-commit
+      // safety checks). A Yes also arms the destructive-op gate.
+      if (msg.cmd === 'ui.confirm') {
+        const pick = await vscode.window.showWarningMessage(
+          msg.params?.message ?? 'Are you sure?',
+          { modal: true },
+          'Yes'
+        );
+        if (pick === 'Yes') recordConfirmation();
+        webviewView.webview.postMessage({ id: msg.id, ok: true, data: pick === 'Yes' });
+        return;
+      }
 
       if (!this.goProcess) {
         webviewView.webview.postMessage({
@@ -502,6 +609,17 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
       if (msg.cmd === 'openMergeEditor') {
         await openMergeEditor(msg.params, msg.repo);
         return;
+      }
+
+      // Inject the enabled safety checks from settings. All checks disabled →
+      // answer "no warnings" directly (Go treats an empty set as "all").
+      if (msg.cmd === 'commit.precheck') {
+        const checks = enabledSafetyChecks();
+        if (checks.length === 0) {
+          webviewView.webview.postMessage({ id: msg.id, ok: true, data: [] });
+          return;
+        }
+        msg.params = { ...(msg.params ?? {}), checks };
       }
 
       try {
@@ -567,6 +685,21 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
       vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'sidebar.css')
     );
 
+    // Same locked-down CSP as the main panel — the sidebar previously shipped
+    // with none at all (SECURITY.md "Sidebar panel has no CSP meta tag").
+    const csp = [
+      `default-src 'none'`,
+      `script-src ${webview.cspSource}`,
+      `style-src  ${webview.cspSource} 'unsafe-inline'`,
+      `img-src data: blob: ${webview.cspSource}`,
+      `font-src data:`,
+      `connect-src 'none'`,
+    ].join('; ');
+
+    html = html.replace(
+      /<head>/i,
+      `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`
+    );
     html = html.replace('./sidebar.js', scriptUri.toString());
     html = html.replace('</head>', `<link rel="stylesheet" href="${styleUri}"></head>`);
 

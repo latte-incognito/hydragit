@@ -1,11 +1,15 @@
 <script lang="ts">
-  export let hasPending: boolean = false;   // true → Pull icon highlighted
-  export let onAction: (a: string) => void = () => {};
+  interface Props {
+    hasPending?: boolean; // true → Pull icon highlighted
+    onAction?: (a: string) => void;
+  }
+
+  let { hasPending = false, onAction = () => {} }: Props = $props();
 
   // ── Tooltip ───────────────────────────────────────────────────────────────
-  let tipText = '';
-  let tipX = 0, tipY = 0;
-  let tipVisible = false;
+  let tipText = $state('');
+  let tipX = $state(0), tipY = $state(0);
+  let tipVisible = $state(false);
   let tipTimer: ReturnType<typeof setTimeout>;
 
   function showTip(e: MouseEvent, text: string) {
@@ -27,8 +31,8 @@
 
   <!-- Sync — the primary "bring me up to date" action: fetch, then integrate the
        current branch (silent ff-pull, or a confirmed rebase/stash/push). -->
-  <button class="rail-btn primary" aria-label="Sync" on:click={() => onAction('sync')}
-          on:mouseenter={(e) => showTip(e, 'Smart Sync (fetch · pull · push)')} on:mouseleave={hideTip}>
+  <button class="rail-btn primary" aria-label="Sync" onclick={() => onAction('sync')}
+          onmouseenter={(e) => showTip(e, 'Smart Sync (fetch · pull · push)')} onmouseleave={hideTip}>
     <i class="codicon codicon-sync"></i>
   </button>
 
@@ -36,67 +40,67 @@
 
   <!-- Checkout — the most frequent action, kept prominent near the top. Opens a
        searchable branch picker (the IntelliJ "Branches" popup equivalent). -->
-  <button class="rail-btn" aria-label="Checkout" on:click={() => onAction('branch.switch')}
-          on:mouseenter={(e) => showTip(e, 'Checkout')} on:mouseleave={hideTip}>
+  <button class="rail-btn" aria-label="Checkout" onclick={() => onAction('branch.switch')}
+          onmouseenter={(e) => showTip(e, 'Checkout')} onmouseleave={hideTip}>
     <i class="codicon codicon-arrow-swap"></i>
   </button>
 
   <!-- Group 1: granular remote ops -->
-  <button class="rail-btn" aria-label="Fetch" on:click={() => onAction('fetch')}
-          on:mouseenter={(e) => showTip(e, 'Fetch')} on:mouseleave={hideTip}>
+  <button class="rail-btn" aria-label="Fetch" onclick={() => onAction('fetch')}
+          onmouseenter={(e) => showTip(e, 'Fetch')} onmouseleave={hideTip}>
     <i class="codicon codicon-cloud-download"></i>
   </button>
 
-  <button class="rail-btn" class:pending={hasPending} aria-label="Pull" on:click={() => onAction('pull')}
-          on:mouseenter={(e) => showTip(e, 'Pull')} on:mouseleave={hideTip}>
+  <button class="rail-btn" class:pending={hasPending} aria-label="Pull" onclick={() => onAction('pull')}
+          onmouseenter={(e) => showTip(e, 'Pull')} onmouseleave={hideTip}>
     <i class="codicon codicon-repo-pull"></i>
   </button>
 
-  <button class="rail-btn" aria-label="Push" on:click={() => onAction('push')}
-          on:mouseenter={(e) => showTip(e, 'Push')} on:mouseleave={hideTip}>
+  <button class="rail-btn" aria-label="Push" onclick={() => onAction('push')}
+          onmouseenter={(e) => showTip(e, 'Push')} onmouseleave={hideTip}>
     <i class="codicon codicon-repo-push"></i>
   </button>
 
   <div class="rail-sep"></div>
 
   <!-- Group 2: branch ops -->
-  <button class="rail-btn" aria-label="New branch" on:click={() => onAction('branch.new')}
-          on:mouseenter={(e) => showTip(e, 'New branch')} on:mouseleave={hideTip}>
+  <button class="rail-btn" aria-label="New branch" onclick={() => onAction('branch.new')}
+          onmouseenter={(e) => showTip(e, 'New branch')} onmouseleave={hideTip}>
     <i class="codicon codicon-git-branch"></i>
   </button>
 
-  <button class="rail-btn" aria-label="Merge branch" on:click={() => onAction('merge')}
-          on:mouseenter={(e) => showTip(e, 'Merge branch')} on:mouseleave={hideTip}>
+  <button class="rail-btn" aria-label="Merge branch" onclick={() => onAction('merge')}
+          onmouseenter={(e) => showTip(e, 'Merge branch')} onmouseleave={hideTip}>
     <i class="codicon codicon-git-merge"></i>
   </button>
 
-  <button class="rail-btn" aria-label="Rebase" on:click={() => onAction('rebase')}
-          on:mouseenter={(e) => showTip(e, 'Rebase')} on:mouseleave={hideTip}>
+  <button class="rail-btn" aria-label="Rebase" onclick={() => onAction('rebase')}
+          onmouseenter={(e) => showTip(e, 'Rebase')} onmouseleave={hideTip}>
     <i class="codicon codicon-fold"></i>
   </button>
 
-  <button class="rail-btn danger" aria-label="Delete branch" on:click={() => onAction('branch.delete')}
-          on:mouseenter={(e) => showTip(e, 'Delete branch')} on:mouseleave={hideTip}>
+  <button class="rail-btn danger" aria-label="Delete branch" onclick={() => onAction('branch.delete')}
+          onmouseenter={(e) => showTip(e, 'Delete branch')} onmouseleave={hideTip}>
     <i class="codicon codicon-trash"></i>
   </button>
 
   <div class="rail-sep"></div>
 
   <!-- Group 3: stash / tag -->
-  <button class="rail-btn" aria-label="Stash changes" on:click={() => onAction('stash.save')}
-          on:mouseenter={(e) => showTip(e, 'Stash changes')} on:mouseleave={hideTip}>
+  <button class="rail-btn" aria-label="Stash changes" onclick={() => onAction('stash.save')}
+          onmouseenter={(e) => showTip(e, 'Stash changes')} onmouseleave={hideTip}>
     <i class="codicon codicon-git-stash"></i>
   </button>
 
-  <button class="rail-btn" aria-label="Create tag" on:click={() => onAction('tag')}
-          on:mouseenter={(e) => showTip(e, 'Create tag')} on:mouseleave={hideTip}>
+  <button class="rail-btn" aria-label="Create tag" onclick={() => onAction('tag')}
+          onmouseenter={(e) => showTip(e, 'Create tag')} onmouseleave={hideTip}>
     <i class="codicon codicon-tag"></i>
   </button>
 
   <!-- New worktree — a parallel checkout of a branch in its own folder, opened
        in a new window. Purple-accented to stand apart from the git ops above. -->
-  <button class="rail-btn worktree" aria-label="New worktree" on:click={() => onAction('worktree.new')}
-          on:mouseenter={(e) => showTip(e, 'New worktree')} on:mouseleave={hideTip}>
+  <button class="rail-btn worktree" aria-label="New worktree" onclick={() => onAction('worktree.new')}
+          onmouseenter={(e) => showTip(e, 'New worktree')} onmouseleave={hideTip}>
     <i class="codicon codicon-multiple-windows"></i>
   </button>
 
@@ -115,9 +119,15 @@
     flex-shrink: 0;
     height: 100%;
     min-height: 0;
-    /* Scroll only when the buttons don't fit a short viewport. The scrollbar
-       styling (thin, auto-hide) comes from the global rule in vscode-theme.css. */
+    /* Scroll only when the buttons don't fit a short viewport. No visible
+       scrollbar at all — on a 32px icon strip even a 2px bar is noise, and
+       hiding it is immune to VS Code's injected scrollbar styles (the
+       "widens on hover" bug). Wheel/trackpad scrolling still works. */
     overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .rail::-webkit-scrollbar {
+    display: none;
   }
 
   .rail-btn {

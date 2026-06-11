@@ -10,7 +10,7 @@
   <header class="topbar">
     <a class="brand" href="index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <div class="spacer"></div>
-    <span class="ver">v0.2.1</span>
+    <span class="ver">v0.2.5</span>
   </header>
 
   <section class="hero">
@@ -28,6 +28,7 @@
       <span class="pill"><b>Reflog</b> undo timeline</span>
       <span class="pill"><b>Inline blame</b></span>
       <span class="pill">No paywall</span>
+      <span class="pill"><b>Local-only</b> · zero telemetry</span>
     </div>
   </section>
 
@@ -67,6 +68,7 @@
         <li><a href="features/commit-log-graph.html#graph">Lane graph &amp; hover-highlight</a></li>
         <li><a href="features/commit-log-graph.html#detail">Commit detail pane <span class="cmd">diff</span></a></li>
         <li><a href="features/search-filter.html">Search &amp; filter <span class="cmd">log --grep</span></a></li>
+        <li><a href="features/search-filter.html#pickaxe">Code search — pickaxe <span class="cmd">log -S</span></a></li>
         <li><a href="features/search-filter.html#scope">Branch scope toggle</a></li>
       </ul>
     </article>
@@ -89,6 +91,7 @@
         <li><a href="features/commit.html#commit">Stage &amp; commit <span class="cmd amber">commit</span></a></li>
         <li><a href="features/commit.html#push">Commit &amp; push <span class="cmd amber">commit.push</span></a></li>
         <li><a href="features/commit.html#amend">Amend last commit <span class="cmd amber">commit.amend</span></a></li>
+        <li><a href="features/commit.html#safety">Pre-commit safety checks <span class="cmd amber">commit.precheck</span></a></li>
       </ul>
     </article>
 
@@ -102,6 +105,7 @@
         <li><a href="features/interactive-rebase.html#reword">Edit / reword message <span class="cmd amber">rebase.reword</span></a></li>
         <li><a href="features/interactive-rebase.html#patch">Create patch <span class="cmd amber">patch.format</span></a></li>
         <li><a href="features/interactive-rebase.html#pushupto">Push up to a commit <span class="cmd amber">push.upto</span></a></li>
+        <li><a href="features/interactive-rebase.html#fixup">Fixup &amp; autosquash <span class="cmd amber">commit.fixup</span></a></li>
       </ul>
     </article>
 
@@ -110,11 +114,13 @@
       <p class="blurb">Merge, rebase, reset, cherry-pick, revert — and conflict guidance.</p>
       <ul>
         <li><a href="features/merge-rebase-reset.html#merge">Merge <span class="cmd">merge</span></a></li>
+        <li><a href="features/merge-rebase-reset.html#preview">Merge conflict preview <span class="cmd">merge.preview</span></a></li>
         <li><a href="features/merge-rebase-reset.html#rebase">Rebase <span class="cmd">rebase</span></a></li>
         <li><a href="features/merge-rebase-reset.html#reset">Reset <span class="cmd">reset</span></a></li>
         <li><a href="features/cherrypick-revert.html#cherrypick">Cherry-pick <span class="cmd">cherrypick</span></a></li>
         <li><a href="features/cherrypick-revert.html#revert">Revert <span class="cmd">revert</span></a></li>
         <li><a href="features/conflicts.html">Conflict resolution <span class="cmd">conflicts</span></a></li>
+        <li><a href="features/conflicts.html#rerere">rerere — reuse conflict resolutions <span class="cmd">rerere.enable</span></a></li>
       </ul>
     </article>
 
@@ -134,8 +140,9 @@
 
     <article class="cat amber">
       <h3><span class="dot"></span> Undo &amp; Safety</h3>
-      <p class="blurb">Reflog timeline, one-shot undo, auto-stash, recovery banners.</p>
+      <p class="blurb">Snapshots, reflog timeline, one-shot undo, auto-stash, recovery banners.</p>
       <ul>
+        <li><a href="features/snapshots.html">Working-tree snapshots <span class="cmd amber">snapshot.list</span></a></li>
         <li><a href="features/reflog.html">HEAD undo timeline (reflog) <span class="cmd amber">reflog</span></a></li>
         <li><a href="features/reflog.html#autostash">Auto-stash safety net</a></li>
         <li><a href="features/undo-squash.html#undo">Undo last operation <span class="cmd amber">undo.last</span></a></li>
@@ -161,6 +168,7 @@
         <li><a href="features/context-menus.html#stash">Stash context menu</a></li>
         <li><a href="features/context-menus.html#tag">Tag context menu</a></li>
         <li><a href="features/logging.html">Logging &amp; diagnostics <span class="cmd">openLogs</span></a></li>
+        <li><a href="features/security.html">Trust, privacy &amp; safety</a></li>
       </ul>
     </article>
 

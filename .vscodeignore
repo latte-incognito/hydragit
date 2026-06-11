@@ -7,11 +7,6 @@
 
 # Docs / notes
 CLAUDE.md
-TODO.md
-TODO.MD
-TASKS.md
-SECURITY.md
-DISTRIBUTION.md
 docs/
 
 # Go source
@@ -54,12 +49,11 @@ vitest-setup.ts
 **/*.test.js
 **/*.spec.ts
 
-# ── Dev binary (runtime uses bin/<platform>) ───────────────────────
-hydragit-server
+# ── Dev binary (runtime uses bin/<platform>-suffixed names) ────────
+# Exact path, no wildcard — a trailing * would exclude the platform binaries.
+bin/hydragit-server
 
 # ── Dev docs / notes (not used at runtime) ─────────────────────────
-BUGS.MD
-BUGS.md
 IMPLEMENTED_FEATURES.md
 documentation/
 .vscode/

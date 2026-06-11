@@ -174,12 +174,14 @@ func LineHistory(repoPath, filePath string, start, end int) ([]LineCommit, error
 	}
 	return result, nil
 }
+
 // LogOptions controls which commits Log returns. Zero values mean "no filter".
 type LogOptions struct {
-	Branch string // a branch/ref, or "" for --all
-	Limit  int    // max commits, or 0 for no limit
-	Grep   string // filter by commit message (case-insensitive)
-	Author string // filter by author (case-insensitive)
+	Branch  string // a branch/ref, or "" for --all
+	Limit   int    // max commits, or 0 for no limit
+	Grep    string // filter by commit message (case-insensitive)
+	Author  string // filter by author (case-insensitive)
+	Pickaxe string // filter by content change: commits that add/remove this string (git log -S)
 }
 
 // LogWith returns the commit log filtered by opt. Grep/Author combine with AND
@@ -199,6 +201,11 @@ func LogWith(repoPath string, opt LogOptions) ([]Commit, error) {
 	}
 	if opt.Author != "" {
 		args = append(args, "--author="+opt.Author)
+	}
+	if opt.Pickaxe != "" {
+		// Pickaxe: commits where the *number of occurrences* of the string
+		// changed — i.e. where it was introduced or removed.
+		args = append(args, "-S", opt.Pickaxe)
 	}
 	if opt.Limit > 0 {
 		args = append(args, "--max-count="+strconv.Itoa(opt.Limit))

@@ -3,7 +3,7 @@
   import { on, send } from '$shared/messageBus';
   import { uiPrompt, uiConfirm, uiPick, uiNotify } from '$shared/dialogs';
   import { repoState, requestRepoState, openRepoPicker } from '$shared/repoStore';
-  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Tag, Worktree } from './types';
+  import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Snapshot, Tag, Worktree } from './types';
   import { planSync } from './syncPlan';
 
   import Toolbar     from './components/Toolbar.svelte';
@@ -18,53 +18,47 @@
   import StatusBar   from './components/StatusBar.svelte';
 
   // ── Core state ────────────────────────────────────────────────────────────
-  let branches:    Branch[]   = [];
+  let branches:    Branch[]   = $state([]);
+  let snapshots:   Snapshot[] = $state([]);
   let commits:     Commit[]   = [];
-  let filtered:    Commit[]   = [];
-  let stashes:     Stash[]    = [];
-  let tags:        Tag[]      = [];
-  let worktrees:   Worktree[] = [];
-  let activeBranch = 'master';
-  let selCommitIdx: number | null = null;
-  let selStashIdx:  number | null = null;
-  let selFile:      string | null = null;
-  let diffFiles:    DiffFile[]    = [];
-  let diffHunks:    DiffHunk[]    = [];
+  let filtered:    Commit[]   = $state([]);
+  let stashes:     Stash[]    = $state([]);
+  let tags:        Tag[]      = $state([]);
+  let worktrees:   Worktree[] = $state([]);
+  let activeBranch = $state('master');
+  let selCommitIdx: number | null = $state(null);
+  let selStashIdx:  number | null = $state(null);
+  let selFile:      string | null = $state(null);
+  let diffFiles:    DiffFile[]    = $state([]);
+  let diffHunks:    DiffHunk[]    = $state([]);
   // Active ref/range comparison shown in the detail pane (branch/tag/commit
   // "Compare…" / "Show Diff with Working Tree"); null when viewing a commit/stash.
   type Compare =
     | { kind: 'ref'; ref: string; title: string }
     | { kind: 'range'; base: string; head: string; title: string };
-  let compare: Compare | null = null;
+  let compare: Compare | null = $state(null);
   // True while the repo is paused mid-rebase (conflict) — drives the
   // Continue/Skip/Abort bar. See commitMenuAction 'drop'.
-  let rebaseInProgress = false;
+  let rebaseInProgress = $state(false);
   // HEAD is detached (not on a branch) — drives the calm "create a branch" banner.
-  let detached = false;
+  let detached = $state(false);
   // No user.name / user.email configured — drives the "set up git identity" banner.
-  let identityMissing = false;
+  let identityMissing = $state(false);
   // "HEAD" undo timeline: when on, the commit graph is replaced by the reflog
   // view and the detail pane is hidden for room. Entered from the HEAD row.
   type ReflogEntry = { hash: string; selector: string; subject: string; date: string };
-  let headMode = false;
-  let reflog: ReflogEntry[] = [];
+  let headMode = $state(false);
+  let reflog: ReflogEntry[] = $state([]);
   // Open interactive-rebase editor (commits oldest-first + the base to rebase
   // onto); null when closed.
-  let rebaseEditor: { base: string; commits: { sha: string; subject: string }[] } | null = null;
-  let detailLoading = false;
-  let hasPending    = false;   // ahead > 0 → pull button lit
+  let rebaseEditor: { base: string; commits: { sha: string; subject: string }[] } | null = $state(null);
+  let detailLoading = $state(false);
+  let hasPending    = $state(false);   // ahead > 0 → pull button lit
 
-  let sbBranch = 'master';
-  let sbInfo   = '';
-  let sbInfoTitle = ''; // raw ↑/↓ symbols, shown as a tooltip for git pros
-  let sbCounts = '';
-
-  // Multi-repo breadcrumb: the active repo's name, shown before the branch in
-  // the status bar (repo ▸ branch). Empty in single-repo workspaces → hidden.
-  $: repoName =
-    $repoState.repos.length > 1
-      ? $repoState.repos.find((r) => r.rootPath === $repoState.active)?.name ?? ''
-      : '';
+  let sbBranch = $state('master');
+  let sbInfo   = $state('');
+  let sbInfoTitle = $state(''); // raw ↑/↓ symbols, shown as a tooltip for git pros
+  let sbCounts = $state('');
 
   // Plain-language ahead/behind (ideas.md): "↑2 ↓1" → "2 to push, 1 to pull".
   function aheadBehindText(ahead: number, behind: number): string {
@@ -74,31 +68,37 @@
     return parts.length ? ' · ' + parts.join(', ') : '';
   }
   let iconUri  = document.body.dataset.iconUri ?? '';
-  let repoName = 'HydraGit';
+  // Multi-repo breadcrumb: the active repo's name, shown before the branch in
+  // the status bar (repo ▸ branch). Empty in single-repo workspaces → hidden.
+  let repoName = $derived(
+    $repoState.repos.length > 1
+      ? ($repoState.repos.find((r) => r.rootPath === $repoState.active)?.name ?? '')
+      : ''
+  );
 
-  let branchPaneEl: HTMLElement | null = null;
-  let detailPaneEl: HTMLElement | null = null;
+  let branchPaneEl: HTMLElement | null = $state(null);
+  let detailPaneEl: HTMLElement | null = $state(null);
 
   // ── Search state ──────────────────────────────────────────────────────────
-  type SearchMode = 'msg' | 'hash' | 'file' | 'author';
-  let searchMode:  SearchMode = 'msg';
-  let searchQuery  = '';
-  let allBranches  = false;
+  type SearchMode = 'msg' | 'hash' | 'file' | 'author' | 'code';
+  let searchMode:  SearchMode = $state('msg');
+  let searchQuery  = $state('');
+  let allBranches  = $state(false);
   // When in file mode and a result is returned from Go
-  let fileSearchActive = false;
-  let fileSearchPath   = '';
+  let fileSearchActive = $state(false);
+  let fileSearchPath   = $state('');
 
   // ── Context menus ─────────────────────────────────────────────────────────
-  let branchMenu  = { visible: false, x: 0, y: 0, branch: '', isCurrent: false, current: '' };
-  let stashMenu   = { visible: false, x: 0, y: 0, label: '' };
-  let tagMenu     = { visible: false, x: 0, y: 0, name: '', current: '' };
-  let worktreeMenu = { visible: false, x: 0, y: 0, wt: null as Worktree | null };
+  let branchMenu  = $state({ visible: false, x: 0, y: 0, branch: '', isCurrent: false, current: '' });
+  let stashMenu   = $state({ visible: false, x: 0, y: 0, label: '' });
+  let tagMenu     = $state({ visible: false, x: 0, y: 0, name: '', current: '' });
+  let worktreeMenu = $state({ visible: false, x: 0, y: 0, wt: null as Worktree | null });
   let ctxBranch   = '';
   let ctxStashIdx: number | null = null;
   let ctxWorktree: Worktree | null = null;
 
   // ── Flash bar ────────────────────────────────────────────────────────────
-  let flashMsg   = '';
+  let flashMsg   = $state('');
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
   function flash(msg: string, _color = '#febc2e') {
     flashMsg = msg;
@@ -117,13 +117,14 @@
   // ── Load everything ───────────────────────────────────────────────────────
   async function loadAll() {
     try {
-      const [status, brs, rawStashes, rawTags, rawWorktrees, user] = await Promise.all([
+      const [status, brs, rawStashes, rawTags, rawWorktrees, user, rawSnapshots] = await Promise.all([
         send<GitStatus>('status'),
         send<Branch[]>('branches'),
         send<Stash[]>('stash'),
         send<Tag[]>('tags'),
         send<Worktree[]>('worktree.list'),
         send<{ name: string; email: string }>('user'),
+        send<Snapshot[]>('snapshot.list').catch(() => [] as Snapshot[]),
       ]);
       // Resolve the current branch before requesting its log, so the initial
       // graph shows HEAD's branch rather than the hardcoded default (and so
@@ -145,6 +146,7 @@
       stashes     = rawStashes;
       tags        = rawTags ?? [];
       worktrees   = rawWorktrees ?? [];
+      snapshots   = rawSnapshots ?? [];
       sbCounts    = `${commits.length} commits · ${branches.filter(b => !b.isRemote).length} branches`;
       // Surface a paused rebase (e.g. a Drop/Edit that hit a conflict) so the
       // Continue/Skip/Abort bar reappears across reloads.
@@ -233,6 +235,9 @@
     const params: Record<string, unknown> = { branch: allBranches ? '' : activeBranch, limit: 0 };
     if (searchMode === 'msg')    params.grep = q;
     if (searchMode === 'author') params.author = q;
+    // Pickaxe (`git log -S`): commits where the occurrence count of q changed —
+    // i.e. where the string was introduced or removed.
+    if (searchMode === 'code')   params.pickaxe = q;
     try {
       filtered = await send<Commit[]>('log', params);
       selCommitIdx = null; diffFiles = []; diffHunks = [];
@@ -243,7 +248,7 @@
 
   // Re-apply whatever filter is active (after a branch switch or log reload).
   function reapplySearch() {
-    if ((searchMode === 'msg' || searchMode === 'author') && searchQuery.trim()) {
+    if ((searchMode === 'msg' || searchMode === 'author' || searchMode === 'code') && searchQuery.trim()) {
       runServerFilter();
     } else {
       applyFilter();
@@ -717,6 +722,7 @@
     if (a === 'merge') {
       const target = await uiPrompt('Merge branch into current — branch name:');
       if (target) {
+        if (!(await confirmMerge(target))) return;
         flash(`Merging ${target}…`);
         try { await send('merge', { branch: target }); flash(`Merged ${target}`, '#4ec94e'); loadAll(); }
         catch (e: unknown) { flash('Merge failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
@@ -764,6 +770,23 @@
   }
 
   // ── Commit context menu (LogPane) ────────────────────────────────────────
+  // Dry-run the merge (`git merge-tree`, object-db only) and fold the verdict
+  // into the confirm dialog. Preview unavailable (git < 2.38) → plain confirm.
+  async function confirmMerge(target: string): Promise<boolean> {
+    let msg = `Merge ${target} into ${activeBranch}?`;
+    try {
+      const p = await send<{ clean: boolean; files: string[] }>('merge.preview', { theirs: target });
+      if (p.clean) {
+        msg += '\n\nPreview: merges cleanly — no conflicts.';
+      } else {
+        const list = p.files.slice(0, 8).join('\n');
+        const more = p.files.length > 8 ? `\n…and ${p.files.length - 8} more` : '';
+        msg += `\n\n⚠ Will conflict in ${p.files.length} file${p.files.length === 1 ? '' : 's'}:\n${list}${more}`;
+      }
+    } catch { /* merge-tree unavailable — degrade to a plain confirm */ }
+    return uiConfirm(msg);
+  }
+
   async function commitMenuAction(action: string, commit: Commit) {
     const hash = commit.hash;
     const acts: Record<string, () => Promise<void>> = {
@@ -784,6 +807,28 @@
       revert: async () => {
         await send('revert', { commit: hash });
         flash(`Reverted ${hash.slice(0, 7)}`, '#4ec94e');
+        loadAll();
+      },
+      fixup: async () => {
+        // Fixup: commit all current changes as `fixup! <target>` — a later
+        // autosquash rebase folds them into the target automatically.
+        const st = await send<{ files?: { path: string }[] }>('status');
+        const paths = (st.files ?? []).map((f) => f.path);
+        if (paths.length === 0) { flash('No changes to fix up', '#f07070'); return; }
+        if (!(await uiConfirm(`Commit ${paths.length} changed file${paths.length === 1 ? '' : 's'} as a fixup of ${hash.slice(0, 7)} "${commit.message}"?`))) return;
+        await send('commit.fixup', { commit: hash, paths });
+        flash(`fixup! ${hash.slice(0, 7)} created — autosquash when ready`, '#4ec94e');
+        loadAll();
+      },
+      autosquash: async () => {
+        if (!(await uiConfirm(`Autosquash: rebase onto ${hash.slice(0, 7)}^ folding every fixup! commit into its target?`))) return;
+        const res = await send<{ conflict: boolean }>('rebase.autosquash', { base: hash + '^' });
+        if (res?.conflict) {
+          rebaseInProgress = true;
+          flash('Autosquash paused on a conflict — resolve, then Continue', '#e0a030');
+        } else {
+          flash('Fixups squashed', '#4ec94e');
+        }
         loadAll();
       },
       'new-branch': async () => {
@@ -1113,11 +1158,34 @@
     };
   }
 
+  // ── Snapshots (working-tree time machine) ─────────────────────────────────
+  // Auto-captured by the Go side before risky ops; restore/drop here. Selecting
+  // one shows its diff via the regular commit-diff plumbing (it IS a commit).
+  async function snapshotAction(action: string, snap: Snapshot) {
+    try {
+      if (action === 'restore') {
+        const ok = await uiConfirm(
+          `Restore working tree from "${snap.label}"?\n\nCurrent changes to the snapshotted files are overwritten — a snapshot of the current state is taken first, so this is undoable.`
+        );
+        if (!ok) return;
+        await send('snapshot.restore', { hash: snap.hash });
+        flash('Working tree restored from snapshot', '#4ec94e');
+        loadAll();
+      } else if (action === 'drop') {
+        if (!(await uiConfirm(`Delete snapshot "${snap.label}"? This cannot be undone.`))) return;
+        await send('snapshot.drop', { ref: snap.ref });
+        loadAll();
+      }
+    } catch (e: unknown) {
+      flash('Snapshot action failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
   async function branchAction(a: string) {
     branchMenu = { ...branchMenu, visible: false };
     const acts: Record<string, () => Promise<void>> = {
       checkout:  async () => { await switchToBranch(ctxBranch); },
-      merge:     async () => { await send('merge',    { branch: ctxBranch });                flash(`Merged ${ctxBranch}`, '#4ec94e');     loadAll(); },
+      merge:     async () => { if (!(await confirmMerge(ctxBranch))) return; await send('merge', { branch: ctxBranch }); flash(`Merged ${ctxBranch}`, '#4ec94e'); loadAll(); },
       rebase:    async () => { await send('rebase',   { onto:   ctxBranch });                flash('Rebased', '#4ec94e');                 loadAll(); },
       push:      async () => { await doPush(ctxBranch); },
       delete:    async () => {
@@ -1396,6 +1464,7 @@
           await startCompare({ kind: 'ref', ref: name, title: `${name} ↔ working tree` });
           break;
         case 'merge':
+          if (!(await confirmMerge(name))) break;
           await send('merge', { branch: name });
           flash(`Merged ${name} into ${activeBranch}`, '#4ec94e');
           loadAll();
@@ -1435,8 +1504,8 @@
 </script>
 
 <svelte:window
-  on:click={closeMenus}
-  on:keydown={(e) => {
+  onclick={closeMenus}
+  onkeydown={(e) => {
     if (e.key === 'Escape') closeMenus();
     if (e.key === 'Enter') handleSearchKey(e);
   }}
@@ -1471,7 +1540,7 @@
     <div class="info-bar">
       <span class="info-bar-msg">Git doesn't know who you are yet — set a name &amp; email so your commits are attributed.</span>
       <div class="rebase-bar-actions">
-        <button class="rebase-btn" on:click={setupIdentity}>Set up identity</button>
+        <button class="rebase-btn" onclick={setupIdentity}>Set up identity</button>
       </div>
     </div>
   {/if}
@@ -1480,7 +1549,7 @@
     <div class="info-bar">
       <span class="info-bar-msg">You're not on a branch (detached HEAD). Create one here to keep your work.</span>
       <div class="rebase-bar-actions">
-        <button class="rebase-btn" on:click={createBranchHere}>Create branch here</button>
+        <button class="rebase-btn" onclick={createBranchHere}>Create branch here</button>
       </div>
     </div>
   {/if}
@@ -1489,9 +1558,9 @@
     <div class="rebase-bar">
       <span class="rebase-bar-msg">⚠ Rebase in progress — resolve conflicts, then continue.</span>
       <div class="rebase-bar-actions">
-        <button class="rebase-btn" on:click={() => rebaseControl('continue')}>Continue</button>
-        <button class="rebase-btn" on:click={() => rebaseControl('skip')}>Skip</button>
-        <button class="rebase-btn rebase-btn--danger" on:click={() => rebaseControl('abort')}>Abort</button>
+        <button class="rebase-btn" onclick={() => rebaseControl('continue')}>Continue</button>
+        <button class="rebase-btn" onclick={() => rebaseControl('skip')}>Skip</button>
+        <button class="rebase-btn rebase-btn--danger" onclick={() => rebaseControl('abort')}>Abort</button>
       </div>
     </div>
   {/if}
@@ -1519,6 +1588,9 @@
         onTagSelect={selectTagCommit}
         onSelectWorktree={selectWorktree}
         onWorktreeCtx={showWorktreeCtx}
+        {snapshots}
+        onSnapshotSelect={(s) => selectTagCommit(s.hash)}
+        onSnapshotAction={snapshotAction}
       />
     </div>
 

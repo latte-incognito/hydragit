@@ -1,36 +1,55 @@
 <script lang="ts">
-  export let repoName: string = 'HydraGit';
-  export let iconUri: string = '';
-  export let activeBranch: string = '';
-  export let branches: import('../types').Branch[] = [];
-  export let hasPending: boolean = false;
-  export let allBranches: boolean = false;
-  export let searchMode: 'msg' | 'hash' | 'file' | 'author' = 'msg';
-  export let searchQuery: string = '';
 
-  export let onAction:       (a: string) => void                    = () => {};
-  export let onSearch:       (q: string) => void                    = () => {};
-  export let onModeChange:   (m: typeof searchMode) => void         = () => {};
-  export let onAllBranches:  (v: boolean) => void                   = () => {};
-  export let onSelectBranch: (name: string, remote: boolean) => void = () => {};
+  interface Props {
+    repoName?: string;
+    iconUri?: string;
+    activeBranch?: string;
+    branches?: import('../types').Branch[];
+    hasPending?: boolean;
+    allBranches?: boolean;
+    searchMode?: 'msg' | 'hash' | 'file' | 'author' | 'code';
+    searchQuery?: string;
+    onAction?: (a: string) => void;
+    onSearch?: (q: string) => void;
+    onModeChange?: (m: typeof searchMode) => void;
+    onAllBranches?: (v: boolean) => void;
+    onSelectBranch?: (name: string, remote: boolean) => void;
+  }
+
+  let {
+    repoName = 'HydraGit',
+    iconUri = '',
+    activeBranch = '',
+    branches = [],
+    hasPending = false,
+    allBranches = $bindable(false),
+    searchMode = $bindable('msg'),
+    searchQuery = $bindable(''),
+    onAction = () => {},
+    onSearch = () => {},
+    onModeChange = () => {},
+    onAllBranches = () => {},
+    onSelectBranch = () => {}
+  }: Props = $props();
 
   const MODES: { id: typeof searchMode; label: string; hint: string; placeholder: string }[] = [
     { id: 'msg',    label: 'Message', hint: 'msg',    placeholder: 'Search commit messages…'          },
     { id: 'hash',   label: 'Hash',    hint: 'hash',   placeholder: 'Enter hash prefix (e.g. a0c103)…' },
     { id: 'file',   label: 'File',    hint: 'file',   placeholder: 'File name or path…'               },
     { id: 'author', label: 'Author',  hint: 'author', placeholder: 'Author name or email…'            },
+    { id: 'code',   label: 'Code',    hint: 'code',   placeholder: 'Find commits that added/removed this string…' },
   ];
 
-  $: currentMode = MODES.find(m => m.id === searchMode) ?? MODES[0];
+  let currentMode = $derived(MODES.find(m => m.id === searchMode) ?? MODES[0]);
 
   // ── Branch switcher ───────────────────────────────────────────────────────
-  let branchOpen   = false;
-  let branchFilter = '';
-  let branchInputEl: HTMLInputElement;
+  let branchOpen   = $state(false);
+  let branchFilter = $state('');
+  let branchInputEl: HTMLInputElement = $state();
 
-  $: branchList = branches.filter(b =>
+  let branchList = $derived(branches.filter(b =>
     !branchFilter || b.name.toLowerCase().includes(branchFilter.toLowerCase())
-  );
+  ));
 
   function openBranchPicker() {
     branchFilter = '';
@@ -77,9 +96,9 @@
   }
 
   // ── Tooltip ───────────────────────────────────────────────────────────────
-  let tipText = '';
-  let tipX = 0, tipY = 0;
-  let tipVisible = false;
+  let tipText = $state('');
+  let tipX = $state(0), tipY = $state(0);
+  let tipVisible = $state(false);
   let tipTimer: ReturnType<typeof setTimeout>;
 
   function showTip(e: MouseEvent, text: string) {
@@ -91,7 +110,7 @@
   function hideTip() { clearTimeout(tipTimer); tipVisible = false; }
 </script>
 
-<svelte:window on:click={(e) => {
+<svelte:window onclick={(e) => {
   if (branchOpen && !(e.target as HTMLElement).closest('.branch-picker-wrap')) closeBranchPicker();
 }} />
 
@@ -103,7 +122,7 @@
 
   <!-- Branch switcher -->
   <div class="branch-picker-wrap">
-    <button class="branch-pill" on:click={openBranchPicker} title="Switch branch">
+    <button class="branch-pill" onclick={openBranchPicker} title="Switch branch">
       <span class="branch-name">{activeBranch || repoName}</span>
       <svg width="8" height="8" viewBox="0 0 8 8" fill="none" class="branch-chevron">
         <path d="M1 3l3 3 3-3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
@@ -122,7 +141,7 @@
             class="bd-input"
             placeholder="Filter branches…"
             bind:value={branchFilter}
-            on:keydown={onBranchKeydown}
+            onkeydown={onBranchKeydown}
           />
         </div>
         <div class="bd-list">
@@ -130,13 +149,13 @@
             <div class="bd-empty">No branches match</div>
           {:else}
             {#each branchList as b}
-              <!-- svelte-ignore a11y-click-events-have-key-events -->
-              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="bd-item"
                 class:bd-item--current={b.name === activeBranch}
                 class:bd-item--remote={b.isRemote}
-                on:click={() => pickBranch(b.name, b.isRemote)}
+                onclick={() => pickBranch(b.name, b.isRemote)}
               >
                 <span class="bd-icon">{b.isCurrent ? '★' : '⎇'}</span>
                 <span class="bd-name">{b.name}</span>
@@ -155,16 +174,16 @@
 
   <!-- Search bar -->
   <div class="search-wrap" class:mode-msg={searchMode==='msg'} class:mode-hash={searchMode==='hash'}
-       class:mode-file={searchMode==='file'} class:mode-author={searchMode==='author'}>
+       class:mode-file={searchMode==='file'} class:mode-author={searchMode==='author'} class:mode-code={searchMode==='code'}>
     <div class="mode-tabs">
       {#each MODES as m}
         <button
           class="mtab mtab-{m.id}"
           class:active={searchMode === m.id}
           title={m.label}
-          on:click={() => setMode(m.id)}
-          on:mouseenter={(e) => showTip(e, 'Search by ' + m.label.toLowerCase())}
-          on:mouseleave={hideTip}
+          onclick={() => setMode(m.id)}
+          onmouseenter={(e) => showTip(e, 'Search by ' + m.label.toLowerCase())}
+          onmouseleave={hideTip}
         >
           {#if m.id === 'msg'}
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -178,6 +197,10 @@
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M3 1.5h5l2.5 2.5V11.5a1 1 0 01-1 1H3a1 1 0 01-1-1v-9a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/>
               <path d="M8 1.5V4H10.5" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+          {:else if m.id === 'code'}
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M4.5 3.5 1.5 6.5l3 3M8.5 3.5l3 3-3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           {:else}
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -197,11 +220,11 @@
         type="text"
         placeholder={currentMode.placeholder}
         value={searchQuery}
-        on:input={handleInput}
+        oninput={handleInput}
       />
       <span class="mode-hint mode-hint-{searchMode}">{currentMode.hint}</span>
       {#if searchQuery}
-        <button class="clear-btn" on:click={clearSearch} tabindex="-1">
+        <button class="clear-btn" onclick={clearSearch} tabindex="-1">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
           </svg>
@@ -214,9 +237,9 @@
   <button
     class="filter-pill"
     class:active={allBranches}
-    on:click={() => { allBranches = !allBranches; onAllBranches(allBranches); }}
-    on:mouseenter={(e) => showTip(e, allBranches ? 'Showing all branches' : 'Showing current branch only')}
-    on:mouseleave={hideTip}
+    onclick={() => { allBranches = !allBranches; onAllBranches(allBranches); }}
+    onmouseenter={(e) => showTip(e, allBranches ? 'Showing all branches' : 'Showing current branch only')}
+    onmouseleave={hideTip}
   >
     <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
       <path d="M1 2h8M2.5 5h5M4 8h2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
@@ -230,9 +253,9 @@
        to ORIG_HEAD (the state before the last merge/rebase/reset/pull). -->
   <button
     class="undo-btn"
-    on:click={() => onAction('undo')}
-    on:mouseenter={(e) => showTip(e, 'Undo last operation')}
-    on:mouseleave={hideTip}
+    onclick={() => onAction('undo')}
+    onmouseenter={(e) => showTip(e, 'Undo last operation')}
+    onmouseleave={hideTip}
   >
     <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
       <path d="M4 3L1.5 5.5 4 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>

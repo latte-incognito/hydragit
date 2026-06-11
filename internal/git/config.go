@@ -27,6 +27,20 @@ func User(repoPath string) (GitUser, error) {
 	}, nil
 }
 
+// EnableRerere turns on `rerere` for this repo — git records every conflict
+// resolution and silently replays it when the same conflict reappears on a
+// later rebase/merge. Idempotent; repo-local so it never leaks into the user's
+// global config.
+func EnableRerere(repoPath string) error {
+	if _, err := run(repoPath, "config", "--local", "rerere.enabled", "true"); err != nil {
+		return err
+	}
+	// autoupdate stages the auto-resolved files too, so a fully-rerere'd
+	// conflict can continue without manual re-staging.
+	_, err := run(repoPath, "config", "--local", "rerere.autoupdate", "true")
+	return err
+}
+
 // SetUser configures the git identity (ideas.md "Git identity setup"). When
 // global is true it writes to the user's global config (the usual fix for the
 // cryptic "Please tell me who you are" on a fresh install); otherwise it's

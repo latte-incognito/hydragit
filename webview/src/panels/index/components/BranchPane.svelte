@@ -1,25 +1,68 @@
 <script lang="ts">
-  import type { Branch, Stash, Worktree } from '../types';
+  import type { Branch, Snapshot, Stash, Worktree } from '../types';
 
-  export let branches: Branch[] = [];
-  export let stashes: Stash[] = [];
-  export let tags: { name: string; hash: string; date?: string }[] = [];
-  export let worktrees: Worktree[] = [];
-  export let activeBranch: string = '';
-  export let selStashIdx: number | null = null;
 
-  export let onSelectBranch: (name: string, remote: boolean) => void = () => {};
-  export let onHead: () => void = () => {};
-  export let onFolderCtx: (e: MouseEvent, prefix: string) => void = () => {};
-  export let onSelectStash: (i: number) => void = () => {};
-  export let onStashAction: (a: string) => void = () => {};
-  export let onNewBranch: () => void = () => {};
-  export let onBranchCtx: (e: MouseEvent, name: string, isCurrent: boolean) => void = () => {};
-  export let onStashCtx: (e: MouseEvent, i: number) => void = () => {};
-  export let onTagCtx: (e: MouseEvent, name: string) => void = () => {};
-  export let onTagSelect: (hash: string) => void = () => {};
-  export let onSelectWorktree: (path: string) => void = () => {};
-  export let onWorktreeCtx: (e: MouseEvent, wt: Worktree) => void = () => {};
+  interface Props {
+    branches?: Branch[];
+    stashes?: Stash[];
+    tags?: { name: string; hash: string; date?: string }[];
+    worktrees?: Worktree[];
+    activeBranch?: string;
+    selStashIdx?: number | null;
+    onSelectBranch?: (name: string, remote: boolean) => void;
+    onHead?: () => void;
+    onFolderCtx?: (e: MouseEvent, prefix: string) => void;
+    onSelectStash?: (i: number) => void;
+    onStashAction?: (a: string) => void;
+    onNewBranch?: () => void;
+    onBranchCtx?: (e: MouseEvent, name: string, isCurrent: boolean) => void;
+    onStashCtx?: (e: MouseEvent, i: number) => void;
+    onTagCtx?: (e: MouseEvent, name: string) => void;
+    onTagSelect?: (hash: string) => void;
+    onSelectWorktree?: (path: string) => void;
+    onWorktreeCtx?: (e: MouseEvent, wt: Worktree) => void;
+    snapshots?: Snapshot[];
+    onSnapshotSelect?: (s: Snapshot) => void;
+    onSnapshotAction?: (a: string, s: Snapshot) => void;
+  }
+
+  let {
+    branches = [],
+    stashes = [],
+    tags = [],
+    worktrees = [],
+    activeBranch = '',
+    selStashIdx = null,
+    onSelectBranch = () => {},
+    onHead = () => {},
+    onFolderCtx = () => {},
+    onSelectStash = () => {},
+    onStashAction = () => {},
+    onNewBranch = () => {},
+    onBranchCtx = () => {},
+    onStashCtx = () => {},
+    onTagCtx = () => {},
+    onTagSelect = () => {},
+    onSelectWorktree = () => {},
+    onWorktreeCtx = () => {},
+    snapshots = [],
+    onSnapshotSelect = () => {},
+    onSnapshotAction = () => {}
+  }: Props = $props();
+
+  let snapshotsOpen = $state(false);
+
+  // Short relative age for snapshot rows ("2h", "3d") — they're timestamps
+  // first, labels second.
+  function snapAge(iso: string): string {
+    const ms = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(ms / 60000);
+    if (m < 1) return 'now';
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    return `${Math.floor(h / 24)}d`;
+  }
 
   // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,22 +82,22 @@
 
   // ── Derived ───────────────────────────────────────────────────────────────────
 
-  $: local = branches.filter((b) => !b.isRemote);
-  $: remote = branches.filter((b) => b.isRemote);
+  let local = $derived(branches.filter((b) => !b.isRemote));
+  let remote = $derived(branches.filter((b) => b.isRemote));
 
   // The ⭐ marks ONLY the default branch (master/main) — a single, consistent
   // meaning. It used to also mark the current branch's upstream on remote
   // branches, which made the star appear in two places with two meanings (BUG
   // #21). The current branch is shown prominently in the HEAD row at the top.
-  $: defaultBranchName = (() => {
+  let defaultBranchName = $derived((() => {
     for (const name of ['master', 'main']) {
       if (local.some((b) => b.name === name)) return name;
     }
     return '';
-  })();
+  })());
 
   // Remote: group by first path segment (the remote name, e.g. "origin")
-  $: remoteByOrigin = remote.reduce(
+  let remoteByOrigin = $derived(remote.reduce(
     (acc, b) => {
       const slash = b.name.indexOf('/');
       const origin = slash === -1 ? b.name : b.name.slice(0, slash);
@@ -64,7 +107,7 @@
       return acc;
     },
     {} as Record<string, { branch: Branch; short: string }[]>
-  );
+  ));
 
   // ── Tree builder ──────────────────────────────────────────────────────────────
   //
@@ -126,22 +169,23 @@
     }
   }
 
-  // openState caches are plain lets — never read by any $: statement,
-  // so they can be written freely without creating reactive cycles.
+  // openState caches are deliberately NOT $state — the effects below both read
+  // and write them; making them reactive would retrigger the effects forever.
   let localOpenCache:  TreeNode[] = [];
   let remoteOpenCache: Record<string, TreeNode[]> = {};
 
-  let localTree:   TreeNode[] = [];
-  let remoteTrees: Record<string, TreeNode[]> = {};
+  let localTree:   TreeNode[] = $state([]);
+  let remoteTrees: Record<string, TreeNode[]> = $state({});
 
-  $: {
+  // $effect.pre so the trees are computed before paint (no empty-tree flash).
+  $effect.pre(() => {
     const next = sortTree(buildTree(local.map((b) => ({ name: b.name, branch: b }))));
     mergeOpen(localOpenCache, next);
     localOpenCache = next;
     localTree = next;
-  }
+  });
 
-  $: {
+  $effect.pre(() => {
     const next: Record<string, TreeNode[]> = {};
     for (const [origin, items] of Object.entries(remoteByOrigin)) {
       const treeItems = items.map(({ branch, short }) => ({
@@ -156,7 +200,7 @@
     }
     remoteOpenCache = next;
     remoteTrees = next;
-  }
+  });
 
   // ── Toggle helpers ────────────────────────────────────────────────────────────
 
@@ -171,12 +215,12 @@
 
   // ── Section open state ────────────────────────────────────────────────────────
 
-  let localOpen = true;
-  let remoteOpen = true;
+  let localOpen = $state(true);
+  let remoteOpen = $state(true);
   let remoteOriginOpen: Record<string, boolean> = {};
-  let tagsOpen = false;
-  let stashOpen = false;
-  let worktreesOpen = false;
+  let tagsOpen = $state(false);
+  let stashOpen = $state(false);
+  let worktreesOpen = $state(false);
 
   // Label for a worktree row: branch name, else a short detached hash, else the
   // folder basename (covers bare/odd cases).
@@ -200,10 +244,10 @@
     <span
       class="pane-hdr-btn"
       title="New branch"
-      on:click={onNewBranch}
+      onclick={onNewBranch}
       role="button"
       tabindex="0"
-      on:keydown={(e) => e.key === 'Enter' && onNewBranch()}>+</span
+      onkeydown={(e) => e.key === 'Enter' && onNewBranch()}>+</span
     >
   </div>
 
@@ -213,7 +257,7 @@
          LOCAL below; this row is HEAD's movement history, not a branch select. -->
     <div
       class="titem active current head"
-      on:click={onHead}
+      onclick={onHead}
       title="Open the HEAD undo timeline (reflog)"
       role="option"
       aria-selected="true"
@@ -224,7 +268,7 @@
     </div>
 
     <!-- ── LOCAL ──────────────────────────────────────────────────────────── -->
-    <div class="tgroup-hdr" on:click={() => (localOpen = !localOpen)} role="button" tabindex="0">
+    <div class="tgroup-hdr" onclick={() => (localOpen = !localOpen)} role="button" tabindex="0">
       <span class="tgroup-arrow" class:closed={!localOpen}>▾</span>
       <span class="tgroup-label">Local</span>
       <span class="tgroup-count">{local.length}</span>
@@ -235,8 +279,8 @@
           <div
             class="titem folder-row"
             style="padding-left:22px"
-            on:click={() => toggleLocal(node)}
-            on:contextmenu={(e) => onFolderCtx(e, node.label)}
+            onclick={() => toggleLocal(node)}
+            oncontextmenu={(e) => onFolderCtx(e, node.label)}
             title="Right-click to rename this folder of branches"
             role="button" tabindex="0"
           >
@@ -251,8 +295,8 @@
                 <div
                   class="titem folder-row"
                   style="padding-left:36px"
-                  on:click={() => toggleLocal(child)}
-                  on:contextmenu={(e) => onFolderCtx(e, `${node.label}/${child.label}`)}
+                  onclick={() => toggleLocal(child)}
+                  oncontextmenu={(e) => onFolderCtx(e, `${node.label}/${child.label}`)}
                   title="Right-click to rename this folder of branches"
                   role="button" tabindex="0"
                 >
@@ -270,8 +314,8 @@
                         class:active={b.name === activeBranch}
                         class:gone={b.gone}
                         style="padding-left:50px"
-                        on:click={() => onSelectBranch(b.name, false)}
-                        on:contextmenu={(e) => onBranchCtx(e, b.name, b.isCurrent)}
+                        onclick={() => onSelectBranch(b.name, false)}
+                        oncontextmenu={(e) => onBranchCtx(e, b.name, b.isCurrent)}
                         role="option" aria-selected={b.name === activeBranch} tabindex="0"
                       >
                         <span class="titem-icon">{b.name === defaultBranchName ? '⭐' : '⎇'}</span>
@@ -291,8 +335,8 @@
                   class:active={b.name === activeBranch}
                   class:gone={b.gone}
                   style="padding-left:36px"
-                  on:click={() => onSelectBranch(b.name, false)}
-                  on:contextmenu={(e) => onBranchCtx(e, b.name, b.isCurrent)}
+                  onclick={() => onSelectBranch(b.name, false)}
+                  oncontextmenu={(e) => onBranchCtx(e, b.name, b.isCurrent)}
                   role="option" aria-selected={b.name === activeBranch} tabindex="0"
                 >
                   <span class="titem-icon">{b.name === defaultBranchName ? '⭐' : '⎇'}</span>
@@ -311,8 +355,8 @@
             class:current={b.isCurrent}
             class:active={b.name === activeBranch}
             class:gone={b.gone}
-            on:click={() => onSelectBranch(b.name, false)}
-            on:contextmenu={(e) => onBranchCtx(e, b.name, b.isCurrent)}
+            onclick={() => onSelectBranch(b.name, false)}
+            oncontextmenu={(e) => onBranchCtx(e, b.name, b.isCurrent)}
             role="option" aria-selected={b.name === activeBranch} tabindex="0"
           >
             <span class="titem-icon">{b.name === defaultBranchName ? '⭐' : '⎇'}</span>
@@ -325,7 +369,7 @@
     {/if}
 
     <!-- ── REMOTE ───────────────────────────────────────────────────────────── -->
-    <div class="tgroup-hdr" on:click={() => (remoteOpen = !remoteOpen)} role="button" tabindex="0">
+    <div class="tgroup-hdr" onclick={() => (remoteOpen = !remoteOpen)} role="button" tabindex="0">
       <span class="tgroup-arrow" class:closed={!remoteOpen}>▾</span>
       <span class="tgroup-label">Remote</span>
       <span class="tgroup-count">{remote.length}</span>
@@ -336,7 +380,7 @@
         <div
           class="tsubgroup-hdr"
           role="button" tabindex="0"
-          on:click={() => toggleOrigin(origin)}
+          onclick={() => toggleOrigin(origin)}
         >
           <span class="tgroup-arrow" class:closed={!isOriginOpen(origin)}>▾</span>
           <span>{origin}</span>
@@ -347,7 +391,7 @@
               <div
                 class="titem folder-row remote"
                 style="padding-left:36px"
-                on:click={() => toggleRemote(origin, node)}
+                onclick={() => toggleRemote(origin, node)}
                 role="button" tabindex="0"
               >
                 <span class="folder-arrow" class:open={node.open}>▾</span>
@@ -363,8 +407,8 @@
                       class:active={full === activeBranch}
                       class:gone={child.branch.gone}
                       style="padding-left:50px"
-                      on:click={() => onSelectBranch(full, true)}
-                      on:contextmenu={(e) => onBranchCtx(e, full, false)}
+                      onclick={() => onSelectBranch(full, true)}
+                      oncontextmenu={(e) => onBranchCtx(e, full, false)}
                       role="option" aria-selected={full === activeBranch} tabindex="0"
                     >
                       <span class="titem-icon">⎇</span>
@@ -381,8 +425,8 @@
                 class:active={full === activeBranch}
                 class:gone={node.branch.gone}
                 style="padding-left:36px"
-                on:click={() => onSelectBranch(full, true)}
-                on:contextmenu={(e) => onBranchCtx(e, full, false)}
+                onclick={() => onSelectBranch(full, true)}
+                oncontextmenu={(e) => onBranchCtx(e, full, false)}
                 role="option" aria-selected={full === activeBranch} tabindex="0"
               >
                 <span class="titem-icon">⎇</span>
@@ -396,7 +440,7 @@
     {/if}
 
     <!-- ── TAGS ─────────────────────────────────────────────────────────────── -->
-    <div class="tgroup-hdr" on:click={() => (tagsOpen = !tagsOpen)} role="button" tabindex="0">
+    <div class="tgroup-hdr" onclick={() => (tagsOpen = !tagsOpen)} role="button" tabindex="0">
       <span class="tgroup-arrow" class:closed={!tagsOpen}>▾</span>
       <span class="tgroup-label">Tags</span>
       <span class="tgroup-count">{tags.length}</span>
@@ -410,8 +454,8 @@
                Right-click opens context menu via onTagCtx prop. -->
           <div
             class="titem tag-row"
-            on:click={() => onTagSelect(tag.hash)}
-            on:contextmenu|preventDefault={(e) => onTagCtx(e, tag.name)}
+            onclick={() => onTagSelect(tag.hash)}
+            oncontextmenu={(e) => { e.preventDefault(); onTagCtx(e, tag.name); }}
             role="option"
             aria-selected="false"
             tabindex="0"
@@ -425,7 +469,7 @@
     {/if}
 
     <!-- ── STASHES ───────────────────────────────────────────────────────────── -->
-    <div class="tgroup-hdr" on:click={() => (stashOpen = !stashOpen)} role="button" tabindex="0">
+    <div class="tgroup-hdr" onclick={() => (stashOpen = !stashOpen)} role="button" tabindex="0">
       <span class="tgroup-arrow" class:closed={!stashOpen}>▾</span>
       <span class="tgroup-label">Stashes</span>
       <span class="tgroup-count">{stashes.length}</span>
@@ -438,8 +482,8 @@
           <div
             class="titem stash"
             class:active={selStashIdx === i}
-            on:click={() => onSelectStash(i)}
-            on:contextmenu={(e) => onStashCtx(e, i)}
+            onclick={() => onSelectStash(i)}
+            oncontextmenu={(e) => onStashCtx(e, i)}
             role="option"
             aria-selected={selStashIdx === i}
             tabindex="0"
@@ -461,7 +505,7 @@
     {/if}
 
     <!-- ── WORKTREES ─────────────────────────────────────────────────────────── -->
-    <div class="tgroup-hdr" on:click={() => (worktreesOpen = !worktreesOpen)} role="button" tabindex="0">
+    <div class="tgroup-hdr" onclick={() => (worktreesOpen = !worktreesOpen)} role="button" tabindex="0">
       <span class="tgroup-arrow" class:closed={!worktreesOpen}>▾</span>
       <span class="tgroup-label">Worktrees</span>
       <span class="tgroup-count">{worktrees.length}</span>
@@ -474,8 +518,8 @@
           <div
             class="titem worktree"
             class:current={wt.isMain}
-            on:click={() => onSelectWorktree(wt.path)}
-            on:contextmenu|preventDefault={(e) => onWorktreeCtx(e, wt)}
+            onclick={() => onSelectWorktree(wt.path)}
+            oncontextmenu={(e) => { e.preventDefault(); onWorktreeCtx(e, wt); }}
             title={wt.locked && wt.lockReason ? `${wt.path}\nLocked: ${wt.lockReason}` : wt.path}
             role="option"
             aria-selected="false"
@@ -491,11 +535,59 @@
       {/if}
     {/if}
 
+    <!-- ── SNAPSHOTS — working-tree time machine ─────────────────────────────── -->
+    <div class="tgroup-hdr" onclick={() => (snapshotsOpen = !snapshotsOpen)} role="button" tabindex="0">
+      <span class="tgroup-arrow" class:closed={!snapshotsOpen}>▾</span>
+      <span class="tgroup-label">Snapshots</span>
+      <span class="tgroup-count">{snapshots.length}</span>
+    </div>
+    {#if snapshotsOpen}
+      {#if snapshots.length === 0}
+        <div class="stash-empty">No snapshots — taken automatically before risky operations</div>
+      {:else}
+        {#each snapshots as snap (snap.ref)}
+          <div
+            class="titem snapshot"
+            onclick={() => onSnapshotSelect(snap)}
+            title={`${snap.label}\n${new Date(snap.date).toLocaleString()}\nClick: show diff · ↺: restore · ×: delete`}
+            role="option"
+            aria-selected="false"
+            tabindex="0"
+          >
+            <span class="titem-icon">◷</span>
+            <span class="titem-name">{snap.label}</span>
+            <span class="track">{snapAge(snap.date)}</span>
+            <span
+              class="snap-act" title="Restore working tree from this snapshot" role="button" tabindex="0"
+              onclick={(e) => { e.stopPropagation(); onSnapshotAction('restore', snap); }}
+            >↺</span>
+            <span
+              class="snap-act" title="Delete snapshot" role="button" tabindex="0"
+              onclick={(e) => { e.stopPropagation(); onSnapshotAction('drop', snap); }}
+            >×</span>
+          </div>
+        {/each}
+      {/if}
+    {/if}
+
   </div><!-- /tree-scroll -->
 
 </div>
 
 <style>
+  .snap-act {
+    display: none;
+    padding: 0 3px;
+    border-radius: 3px;
+    color: var(--vscode-descriptionForeground, #8c8c8c);
+    flex-shrink: 0;
+  }
+  .titem.snapshot:hover .snap-act { display: inline; }
+  .snap-act:hover {
+    color: var(--vscode-foreground, #ccc);
+    background: var(--vscode-toolbar-hoverBackground, #3a3a3a);
+  }
+
   .pane-branches {
     width: 200px;
     min-width: 120px;

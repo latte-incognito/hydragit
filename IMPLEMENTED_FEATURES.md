@@ -44,6 +44,7 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 - [Hash prefix jump](documentation/features/search-filter.html#hash)
 - [File search](documentation/features/search-filter.html#file)
 - [Author filter](documentation/features/search-filter.html#author)
+- [Pickaxe / code search — commits that added or removed a string](documentation/features/search-filter.html#pickaxe)
 - [Branch scope](documentation/features/search-filter.html#scope)
 
 ## Diff & Compare
@@ -58,6 +59,7 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 - [Stage & commit](documentation/features/commit.html#commit)
 - [Commit & push](documentation/features/commit.html#push)
 - [Amend last commit](documentation/features/commit.html#amend)
+- [Pre-commit safety checks](documentation/features/commit.html#safety) — warn (never block) on likely secrets, conflict markers, files > 5 MB, commits straight to main/master
 
 ## History Rewriting
 
@@ -68,10 +70,13 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 - [Edit / reword message](documentation/features/interactive-rebase.html#reword)
 - [Create patch](documentation/features/interactive-rebase.html#patch)
 - [Push up to a commit](documentation/features/interactive-rebase.html#pushupto)
+- [Fixup + autosquash](documentation/features/interactive-rebase.html#fixup) — park corrections as `fixup!` commits, fold them all in one autosquash rebase
 
 ## Integrate & Resolve
 
 - [Merge](documentation/features/merge-rebase-reset.html#merge)
+- [Merge conflict preview](documentation/features/merge-rebase-reset.html#preview) — dry-run verdict in every merge confirm, working tree untouched (git ≥ 2.38)
+- [rerere](documentation/features/conflicts.html#rerere) — conflict resolutions recorded and silently reused on repeat (`hydragit.rerere.enabled`)
 - [Rebase](documentation/features/merge-rebase-reset.html#rebase)
 - [Reset](documentation/features/merge-rebase-reset.html#reset)
 - [Cherry-pick](documentation/features/cherrypick-revert.html#cherrypick)
@@ -91,6 +96,7 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 
 ## Undo & Safety
 
+- [Working-tree snapshots](documentation/features/snapshots.html) — full tree (incl. untracked) auto-captured before risky ops; browse/diff/restore/delete from the branch pane
 - [HEAD undo timeline (reflog)](documentation/features/reflog.html)
 - [Reset to any point](documentation/features/reflog.html#reset)
 - [Auto-stash safety net](documentation/features/reflog.html#autostash)
@@ -140,8 +146,8 @@ full documentation (UI entry points + what happens next) in [`documentation/`](d
 
 ---
 
-> Backlog / not-yet-built features live in [`docs/ideas.md`](docs/ideas.md) — the
-> single source of truth for what's planned.
+> Backlog / not-yet-built features live in [`docs/ROADMAP.md`](docs/ROADMAP.md) §5 —
+> the single source of truth for what's planned (frozen until after 1.0).
 
 ## Testing
 
