@@ -34,6 +34,12 @@ test("S10 stage a file, write a message, and commit", async ({ mainWindow }) => 
   await sb.locator("textarea, .commit-message, input.commit-input").first().fill("test: commit staged change");
   await sb.getByRole("button", { name: /commit/i }).first().click();
 
+  // committing on main trips the protected-branch safety check → confirm it
+  await mainWindow
+    .locator(".monaco-dialog-box .monaco-button", { hasText: "Yes" })
+    .click({ timeout: 5000 })
+    .catch(() => {});
+
   // the staged file should clear from the tree
   await expect(sb.getByText("app.js", { exact: false })).toHaveCount(0, { timeout: 8000 });
 
@@ -47,7 +53,7 @@ test("S11 stash working changes, then pop them back", async ({ mainWindow }) => 
   const mp = await main(mainWindow);
 
   // Stash via the action-rail "Stash changes" button (no dialog).
-  await mp.locator("button.rail-btn").nth(7).click();
+  await mp.locator('button.rail-btn[aria-label="Stash changes"]').click();
   await expect(mp.getByText("⚡", { exact: false }).first()).toBeVisible({ timeout: 6000 });
 
   // A stash entry appears in the branch tree (expand Stashes first).

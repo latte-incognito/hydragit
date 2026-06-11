@@ -39,9 +39,16 @@ test("#1 file-name search stays responsive", async ({ mainWindow }) => {
 
 // ── #2 — Create tag button not working ──────────────────────────────────────────
 test("#2 create-tag (action rail) creates a tag", async ({ mainWindow }) => {
-  autoAnswerDialogs(mainWindow, "e2e-tag");
   const f = await main(mainWindow);
-  await f.locator("button.rail-btn").nth(8).click(); // tag button (last in rail)
+  await f.locator('button.rail-btn[aria-label="Create tag"]').click();
+  // dialog seam: name + annotation message arrive as VS Code quick-inputs
+  const input = mainWindow.locator(".quick-input-box input");
+  await input.waitFor({ state: "visible", timeout: 5000 });
+  await input.fill("e2e-tag");
+  await mainWindow.keyboard.press("Enter");
+  await input.waitFor({ state: "visible", timeout: 5000 });
+  await input.fill("e2e tag message");
+  await mainWindow.keyboard.press("Enter");
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
 });
 
@@ -55,7 +62,14 @@ test("#3 stash 'Show Diff' opens a diff", async ({ mainWindow }) => {
   if ((await stash.count()) === 0) test.skip(true, "fixture has no stash; needs a stash fixture");
   await stash.click({ button: "right" });
   await f.locator(".ctx").getByText("Show Diff", { exact: true }).click();
-  await expect(f.locator(".hunk, .diff-line, .stash-diff").first()).toBeVisible({ timeout: 6000 });
+  // the stash's changed files render in the detail pane…
+  const file = f.locator(".tree-row--file").first();
+  await expect(file).toBeVisible({ timeout: 6000 });
+  await file.click();
+  // …and clicking one opens its stash version in a workbench editor tab
+  await expect(
+    mainWindow.locator(".tab", { hasText: "stash@" }).first()
+  ).toBeVisible({ timeout: 8000 });
 });
 
 // ── #19 — Merge conflicts on the sidebar ────────────────────────────────────────
@@ -87,20 +101,52 @@ test("#21 only the default branch is starred", async ({ mainWindow }) => {
 test.fixme("#22 inline blame hover appears only after 5s and only over the annotation", async () => {});
 
 // ── #23 — Dead commit-menu items ────────────────────────────────────────────────
-for (const label of ["Create Patch…", "Edit Commit Message…", "Drop Commit", "Push All up to Here…"]) {
-  test(`#23 commit menu "${label}" does something when clicked`, async ({ mainWindow }) => {
-    const f = await main(mainWindow);
-    await f.locator(".crow").first().click({ button: "right" });
-    await f.locator(".ctx-menu").getByText(label, { exact: false }).first().click();
-    await expect(flash(f)).toBeVisible({ timeout: 4000 });
-  });
+// Each item now opens a dialog seam (quick input / native modal) that must be
+// answered before the app flashes a result. "Create Patch…" ends in a native OS
+// save dialog Playwright can't drive — left as a tracked TODO.
+test.fixme("#23 commit menu \"Create Patch…\" — ends in a native save dialog (not automatable)", async () => {});
+
+async function answerQuickInput(page: any, text: string) {
+  const input = page.locator(".quick-input-box input");
+  await input.waitFor({ state: "visible", timeout: 5000 });
+  await input.fill(text);
+  await page.keyboard.press("Enter");
+}
+async function confirmYes(page: any) {
+  await page.locator(".monaco-dialog-box .monaco-button", { hasText: "Yes" }).click();
 }
 
+test('#23 commit menu "Edit Commit Message…" reword lands', async ({ mainWindow }) => {
+  const f = await main(mainWindow);
+  await f.locator(".crow").first().click({ button: "right" });
+  await f.locator(".ctx-menu").getByText("Edit Commit Message…", { exact: false }).first().click();
+  await answerQuickInput(mainWindow, "e2e: reworded message");
+  await expect(flash(f)).toBeVisible({ timeout: 6000 });
+});
+
+test('#23 commit menu "Drop Commit" does something when clicked', async ({ mainWindow }) => {
+  const f = await main(mainWindow);
+  await f.locator(".crow").first().click({ button: "right" });
+  await f.locator(".ctx-menu").getByText("Drop Commit", { exact: false }).first().click();
+  await confirmYes(mainWindow);
+  await expect(flash(f)).toBeVisible({ timeout: 6000 });
+});
+
+test('#23 commit menu "Push All up to Here…" does something when clicked', async ({ mainWindow }) => {
+  const f = await main(mainWindow);
+  await f.locator(".crow").first().click({ button: "right" });
+  await f.locator(".ctx-menu").getByText("Push All up to Here…", { exact: false }).first().click();
+  await confirmYes(mainWindow);
+  // no remote in the fixture — a success or failure flash both prove the wiring
+  await expect(flash(f)).toBeVisible({ timeout: 6000 });
+});
+
 // ── #24 — Dead file-context-menu items ──────────────────────────────────────────
-for (const label of ["Revert Selected Changes", "Cherry-Pick Selected Changes", "Open Repository Version"]) {
+for (const label of ["Revert Selected Changes", "Cherry-Pick Selected Changes"]) {
   test(`#24 file menu "${label}" does something when clicked`, async ({ mainWindow }) => {
     const f = await main(mainWindow);
-    await f.locator(".crow").first().click(); // select commit → detail pane shows files
+    // newest rows are clean merges (empty diff-tree) — pick a commit with files
+    await f.locator(".crow", { hasText: "feat:" }).first().click();
     const file = f.locator(".tree-row--file").first();
     await expect(file).toBeVisible({ timeout: 6000 });
     await file.click({ button: "right" });
@@ -109,12 +155,27 @@ for (const label of ["Revert Selected Changes", "Cherry-Pick Selected Changes", 
   });
 }
 
+test('#24 file menu "Open Repository Version" opens an editor', async ({ mainWindow }) => {
+  const f = await main(mainWindow);
+  await f.locator(".crow", { hasText: "feat:" }).first().click();
+  const file = f.locator(".tree-row--file").first();
+  await expect(file).toBeVisible({ timeout: 6000 });
+  await file.click({ button: "right" });
+  await f.locator(".ctx-menu").getByText("Open Repository Version", { exact: false }).first().click();
+  // opens the committed file content in a workbench editor tab (no flash)
+  await expect(mainWindow.locator(".tabs-container .tab").last()).toBeVisible({ timeout: 8000 });
+});
+
 // ── #25 — Dead branch context-menu items ────────────────────────────────────────
 for (const label of ["Compare with", "Show Diff with Working Tree"]) {
   test(`#25 branch menu "${label}" does something when clicked`, async ({ mainWindow }) => {
     const f = await main(mainWindow);
-    await f.locator(".titem").first().click({ button: "right" });
+    // expand a branch folder and use a leaf row — folder/HEAD rows have no menu
+    await f.locator(".titem.folder-row", { hasText: "feature" }).first().click();
+    await f.locator(".titem:not(.folder-row):not(.head)", { hasText: "auth" }).first()
+      .click({ button: "right" });
     await f.locator(".ctx").getByText(label, { exact: false }).first().click();
-    await expect(flash(f)).toBeVisible({ timeout: 4000 });
+    // compare renders in the detail pane (no flash): a file list or hunks appear
+    await expect(f.locator(".tree-row--file, .hunk").first()).toBeVisible({ timeout: 6000 });
   });
 }

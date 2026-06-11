@@ -40,7 +40,8 @@ test("S1 cold open renders branch tree, log, and status", async ({ mainWindow })
 // ── S2 — Explore a commit → file → diff ─────────────────────────────────────────
 test("S2 selecting a commit shows its files; clicking a file opens a diff", async ({ mainWindow }) => {
   const f = await main(mainWindow);
-  await f.locator(".crow").first().click();
+  // newest rows are clean merges (empty diff-tree) — pick a commit with files
+  await f.locator(".crow", { hasText: "feat:" }).first().click();
   const file = f.locator(".tree-row--file").first();
   await expect(file).toBeVisible({ timeout: 6000 });
   await file.click();
@@ -72,6 +73,15 @@ test("S5 search filters the log and clears back", async ({ mainWindow }) => {
 
 // ── S6 — File history ───────────────────────────────────────────────────────────
 test("S6 File History command opens a per-file timeline", async ({ mainWindow }) => {
+  // File History acts on the active editor — open a tracked file first
+  await mainWindow.keyboard.press("Meta+P");
+  const quickOpen = mainWindow.locator(".quick-input-box input");
+  await quickOpen.waitFor({ state: "visible", timeout: 5000 });
+  await quickOpen.fill("README.md");
+  await mainWindow.waitForTimeout(500);
+  await mainWindow.keyboard.press("Enter");
+  await mainWindow.waitForTimeout(1500);
+
   await mainWindow.keyboard.press("Meta+Shift+P");
   const input = mainWindow.locator(".quick-input-box input");
   await input.fill(">HydraGit: File History");
@@ -84,8 +94,10 @@ test("S6 File History command opens a per-file timeline", async ({ mainWindow })
 // ── S7 — Switch branch (checkout via context menu — no dialog) ──────────────────
 test("S7 checkout a branch from the tree context menu", async ({ mainWindow }) => {
   const f = await main(mainWindow);
-  // pick a non-current local branch row
-  const row = f.locator(".titem").filter({ hasNotText: "⭐" }).nth(1);
+  // slash-named branches nest in collapsed folders — expand "feature" first,
+  // then right-click a leaf row (folder/HEAD rows have no branch menu).
+  await f.locator(".titem.folder-row", { hasText: "feature" }).first().click();
+  const row = f.locator(".titem:not(.folder-row):not(.head)", { hasText: "logging" }).first();
   await row.click({ button: "right" });
   await f.locator(".ctx").getByText("Switch to Branch", { exact: true }).click();
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
@@ -94,8 +106,11 @@ test("S7 checkout a branch from the tree context menu", async ({ mainWindow }) =
 // ── S8 — Merge a branch into current (no dialog) ────────────────────────────────
 test("S8 merge a feature branch into the current branch", async ({ mainWindow }) => {
   const f = await main(mainWindow);
-  await f.locator(".titem").nth(1).click({ button: "right" });
+  await f.locator(".titem.folder-row", { hasText: "feature" }).first().click();
+  await f.locator(".titem:not(.folder-row):not(.head)", { hasText: "auth" }).first()
+    .click({ button: "right" });
   await f.locator(".ctx").getByText("Merge", { exact: false }).first().click();
+  await confirmModal(mainWindow); // merge preview → native 'Yes' modal
   await expect(flash(f)).toBeVisible({ timeout: 8000 });
 });
 
@@ -118,7 +133,7 @@ test("S13 revert a commit creates a revert commit", async ({ mainWindow }) => {
 // ── S9 — Create a branch (dialog seam) ──────────────────────────────────────────
 test("S9 create a new branch via the rail (native input)", async ({ mainWindow }) => {
   const f = await main(mainWindow);
-  await f.locator("button.rail-btn").nth(3).click(); // New Branch
+  await f.locator('button.rail-btn[aria-label="New branch"]').click();
   await answerPrompt(mainWindow, "journey/new-branch");
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
   await expect(f.getByText("journey/new-branch", { exact: false }).first()).toBeVisible({ timeout: 6000 });
@@ -136,7 +151,7 @@ test("S14 reset current branch to a commit (mode prompt)", async ({ mainWindow }
 // ── S15 — Tag lifecycle (dialog seam) ───────────────────────────────────────────
 test("S15 create a tag via the rail (name + message prompts)", async ({ mainWindow }) => {
   const f = await main(mainWindow);
-  await f.locator("button.rail-btn").nth(8).click(); // tag
+  await f.locator('button.rail-btn[aria-label="Create tag"]').click();
   await answerPrompt(mainWindow, "v9.9.9");       // name
   await answerPrompt(mainWindow, "journey tag");  // annotation message
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
