@@ -149,11 +149,11 @@ describe('BranchPane — snapshots', () => {
 
   it('renders a branchless (pre-0.2.7) snapshot without a branch suffix', async () => {
     const old = [{ ref: 'refs/hydragit/snapshots/0', hash: 'def5678', date: '2026-01-01T00:00:00Z', label: 'before rebase' }];
-    const { getByText, queryByText } = render(BranchPane, { branches, stashes: [], snapshots: old, activeBranch: 'main' });
+    const { getByText, container } = render(BranchPane, { branches, stashes: [], snapshots: old, activeBranch: 'main' });
 
     await fireEvent.click(getByText('Snapshots'));
     expect(getByText('before rebase')).toBeTruthy();
-    expect(queryByText(/· /)).toBeFalsy();
+    expect(container.querySelector('.snap-branch')).toBeFalsy();
   });
 
   it('calls onSnapshotSelect with the snapshot when a row is clicked', async () => {

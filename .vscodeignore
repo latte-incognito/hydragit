@@ -8,6 +8,7 @@
 # Docs / notes
 CLAUDE.md
 docs/
+alpharius/
 
 # Go source
 cmd/
