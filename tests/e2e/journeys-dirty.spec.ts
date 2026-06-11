@@ -1,5 +1,5 @@
 import { test, expect } from "./vscode-fixture";
-import { getSidebarFrame, getWebviewFrame } from "./webview-helpers";
+import { getSidebarFrame, getWebviewFrame, workerRepo, git } from "./webview-helpers";
 
 // Stage / commit / stash journeys. Runs on the vscode-dirty project
 // (create-dirty-repo.sh leaves "M app.js" + "?? NOTES.md" uncommitted). The
@@ -43,6 +43,11 @@ test("S10 stage a file, write a message, and commit", async ({ mainWindow }) => 
   // the staged file should clear from the tree
   await expect(sb.getByText("app.js", { exact: false })).toHaveCount(0, { timeout: 8000 });
 
+  // the commit must really exist, with app.js committed (only NOTES.md left dirty)
+  const repo = workerRepo(test.info());
+  expect(git(repo, "log -1 --format=%s")).toBe("test: commit staged change");
+  expect(git(repo, "status --porcelain")).toBe("?? NOTES.md");
+
   // and the new commit appears in the main-panel log
   const mp = await main(mainWindow);
   await expect(mp.getByText("test: commit staged change", { exact: false }).first()).toBeVisible({ timeout: 8000 });
@@ -51,18 +56,30 @@ test("S10 stage a file, write a message, and commit", async ({ mainWindow }) => 
 // ── S11 — Stash & restore ────────────────────────────────────────────────────────
 test("S11 stash working changes, then pop them back", async ({ mainWindow }) => {
   const mp = await main(mainWindow);
+  const repo = workerRepo(test.info());
+  expect(git(repo, "status --porcelain")).toContain("M app.js"); // dirty to start
 
   // Stash via the action-rail "Stash changes" button (no dialog).
   await mp.locator('button.rail-btn[aria-label="Stash changes"]').click();
   await expect(mp.getByText("⚡", { exact: false }).first()).toBeVisible({ timeout: 6000 });
+
+  // The tracked change is really stashed: one stash entry, app.js clean again.
+  await expect(() => {
+    expect(git(repo, "stash list")).toContain("stash@{0}");
+    expect(git(repo, "status --porcelain")).not.toContain("M app.js");
+  }).toPass({ timeout: 8000 });
 
   // A stash entry appears in the branch tree (expand Stashes first).
   await mp.getByText("Stashes", { exact: false }).first().click().catch(() => {});
   const stashRow = mp.locator(".titem.stash").first();
   await expect(stashRow).toBeVisible({ timeout: 6000 });
 
-  // Pop it from the context menu — changes return.
+  // Pop it from the context menu — changes return and the stash empties.
   await stashRow.click({ button: "right" });
   await mp.locator(".ctx").getByText("Pop", { exact: true }).click();
   await expect(mp.getByText("⚡", { exact: false }).first()).toBeVisible({ timeout: 6000 });
+  await expect(() => {
+    expect(git(repo, "stash list")).toBe("");
+    expect(git(repo, "status --porcelain")).toContain("M app.js");
+  }).toPass({ timeout: 8000 });
 });

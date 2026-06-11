@@ -1,4 +1,19 @@
 import { Page, FrameLocator } from "@playwright/test";
+import { execSync } from "child_process";
+
+/**
+ * The per-worker fixture repo path (vscode-fixture.ts builds the repo at
+ * `${repoPath}-w${workerIndex}`). Lets specs assert real git state.
+ */
+export function workerRepo(testInfo: any): string {
+  const base = (testInfo.project.use as any).repoPath;
+  return `${base}-w${testInfo.workerIndex}`;
+}
+
+/** Run a git command in the fixture repo and return trimmed stdout. */
+export function git(repo: string, args: string): string {
+  return execSync(`git -C "${repo}" ${args}`, { stdio: "pipe" }).toString().trim();
+}
 
 // Root markers identifying each webview's Svelte app:
 // main panel → LogPane's `.pane-log`; sidebar → Sidebar.svelte's `.repo-list`.

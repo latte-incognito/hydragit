@@ -1,26 +1,22 @@
 import { test, expect } from "./vscode-fixture";
-import { getWebviewFrame, getSidebarFrame } from "./webview-helpers";
-import { execSync } from "child_process";
+import { getWebviewFrame, getSidebarFrame, workerRepo, git } from "./webview-helpers";
+import fs from "fs";
 
 // E2e coverage keyed to BUGS.MD. Intentionally overlaps the unit layer: an emit
 // test proves a control fires an action, NOT that the feature works end-to-end —
-// these verify real behavior in the running app. Tests assert the CORRECT
-// behavior, so the open bugs are RED until fixed. Runs on the default fixture
-// (vscode project); the vscode/mainWindow fixtures build the repo + activate.
+// these verify real behavior in the running app, asserting REAL git state (via
+// `git` against the worker's fixture repo) rather than just a status-bar flash.
+// Runs on the default fixture (vscode project); the vscode/mainWindow fixtures
+// build the repo + activate.
 //
 // Selectors mirror the Svelte components; flashes render as "⚡ …" in StatusBar.
-// Several actions open native prompt()/confirm() dialogs — we auto-answer them
-// via page.on('dialog'). Tune selectors/timing on first real run.
+// Mutating actions go through the dialog seam (VS Code quick-inputs + DOM
+// modals, see vscode-fixture's window.dialogStyle) — answered inline.
 
 async function main(page: any) {
   const f = await getWebviewFrame(page, "main");
   expect(f, "main webview frame").not.toBeNull();
   return f!;
-}
-function autoAnswerDialogs(page: any, value = "e2e-test") {
-  page.on("dialog", async (d: any) => {
-    try { await d.accept(value); } catch { /* confirm() has no value */ }
-  });
 }
 const flash = (f: any) => f.getByText("⚡", { exact: false }).first();
 
@@ -50,6 +46,8 @@ test("#2 create-tag (action rail) creates a tag", async ({ mainWindow }) => {
   await input.fill("e2e tag message");
   await mainWindow.keyboard.press("Enter");
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
+  // the tag must actually exist in the repo
+  expect(git(workerRepo(test.info()), "tag -l e2e-tag")).toBe("e2e-tag");
 });
 
 // ── #3 — Show Diff: nothing happens on click ────────────────────────────────────
@@ -77,10 +75,9 @@ test.skip("#19 merge-conflict file shown in sidebar — see conflict.spec.ts (vs
 
 // ── #20 — External git change can wedge HydraGit ────────────────────────────────
 test("#20 reflects an external git change without getting stuck", async ({ mainWindow }) => {
-  const cfg = test.info().project.use as { repoPath?: string };
-  const repo = `${cfg.repoPath}-w${test.info().workerIndex}`;
-  execSync(`git -C "${repo}" checkout -b externally-added-branch`, { stdio: "pipe" });
-  execSync(`git -C "${repo}" commit --allow-empty -m "external"`, { stdio: "pipe" });
+  const repo = workerRepo(test.info());
+  git(repo, "checkout -b externally-added-branch");
+  git(repo, 'commit --allow-empty -m "external"');
   const f = await main(mainWindow);
   await expect(f.getByText("externally-added-branch", { exact: false }).first()).toBeVisible({ timeout: 10000 });
 });
@@ -116,44 +113,92 @@ async function confirmYes(page: any) {
   await page.locator(".monaco-dialog-box .monaco-button", { hasText: "Yes" }).click();
 }
 
-test('#23 commit menu "Edit Commit Message…" reword lands', async ({ mainWindow }) => {
+// Each #23 test plants a real commit on the current branch (the watcher picks it
+// up), drives the menu item on that row, and asserts the rewritten history.
+// The commit carries a real file change — rebase-based ops (reword/drop) discard
+// empty commits.
+async function plantTipCommit(f: any, testInfo: any, subject: string): Promise<string> {
+  const repo = workerRepo(testInfo);
+  fs.writeFileSync(`${repo}/e2e-marker.txt`, subject);
+  git(repo, "add e2e-marker.txt");
+  git(repo, `commit -m "${subject}"`);
+  await expect(f.locator(".crow", { hasText: subject }).first()).toBeVisible({ timeout: 10000 });
+  return repo;
+}
+
+test('#23 commit menu "Edit Commit Message…" rewords the commit', async ({ mainWindow }) => {
   const f = await main(mainWindow);
-  await f.locator(".crow").first().click({ button: "right" });
+  const repo = await plantTipCommit(f, test.info(), "e2e-reword-me");
+  await f.locator(".crow", { hasText: "e2e-reword-me" }).first().click({ button: "right" });
   await f.locator(".ctx-menu").getByText("Edit Commit Message…", { exact: false }).first().click();
   await answerQuickInput(mainWindow, "e2e: reworded message");
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
+  await expect(() => {
+    expect(git(repo, "log -1 --format=%s")).toBe("e2e: reworded message");
+  }).toPass({ timeout: 8000 });
 });
 
-test('#23 commit menu "Drop Commit" does something when clicked', async ({ mainWindow }) => {
+test('#23 commit menu "Drop Commit" removes the commit from history', async ({ mainWindow }) => {
   const f = await main(mainWindow);
-  await f.locator(".crow").first().click({ button: "right" });
+  const repo = await plantTipCommit(f, test.info(), "e2e-drop-me");
+  await f.locator(".crow", { hasText: "e2e-drop-me" }).first().click({ button: "right" });
   await f.locator(".ctx-menu").getByText("Drop Commit", { exact: false }).first().click();
   await confirmYes(mainWindow);
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
+  await expect(() => {
+    expect(git(repo, "log -5 --format=%s")).not.toContain("e2e-drop-me");
+  }).toPass({ timeout: 8000 });
 });
 
-test('#23 commit menu "Push All up to Here…" does something when clicked', async ({ mainWindow }) => {
+test('#23 commit menu "Push All up to Here…" updates the remote branch', async ({ mainWindow }) => {
   const f = await main(mainWindow);
-  await f.locator(".crow").first().click({ button: "right" });
+  const repo = await plantTipCommit(f, test.info(), "e2e-push-me");
+  const branch = git(repo, "rev-parse --abbrev-ref HEAD");
+  await f.locator(".crow", { hasText: "e2e-push-me" }).first().click({ button: "right" });
   await f.locator(".ctx-menu").getByText("Push All up to Here…", { exact: false }).first().click();
   await confirmYes(mainWindow);
-  // no remote in the fixture — a success or failure flash both prove the wiring
-  await expect(flash(f)).toBeVisible({ timeout: 6000 });
+  await expect(flash(f)).toBeVisible({ timeout: 8000 });
+  // the fixture's bare origin must now have the commit as the branch tip
+  await expect(() => {
+    const local = git(repo, "rev-parse HEAD");
+    const remote = git(repo, `ls-remote origin refs/heads/${branch}`).split("\t")[0];
+    expect(remote).toBe(local);
+  }).toPass({ timeout: 8000 });
 });
 
 // ── #24 — Dead file-context-menu items ──────────────────────────────────────────
-for (const label of ["Revert Selected Changes", "Cherry-Pick Selected Changes"]) {
-  test(`#24 file menu "${label}" does something when clicked`, async ({ mainWindow }) => {
-    const f = await main(mainWindow);
-    // newest rows are clean merges (empty diff-tree) — pick a commit with files
-    await f.locator(".crow", { hasText: "feat:" }).first().click();
-    const file = f.locator(".tree-row--file").first();
-    await expect(file).toBeVisible({ timeout: 6000 });
-    await file.click({ button: "right" });
-    await f.locator(".ctx-menu").getByText(label, { exact: false }).first().click();
-    await expect(flash(f)).toBeVisible({ timeout: 4000 });
-  });
+// Revert/cherry-pick operate at commit granularity. Targets are chosen so the
+// op succeeds cleanly on the fixture: "feat: octopus branch a" IS in the default
+// branch's history (its file exists → clean revert); "feat: cross y" is NOT
+// (cross-y.txt is absent → clean cherry-pick).
+async function openFileCtx(f: any, commitSubject: string, item: string) {
+  await f.locator(".crow", { hasText: commitSubject }).first().click();
+  const file = f.locator(".tree-row--file").first();
+  await expect(file).toBeVisible({ timeout: 6000 });
+  await file.click({ button: "right" });
+  await f.locator(".ctx-menu").getByText(item, { exact: false }).first().click();
 }
+
+test('#24 file menu "Revert Selected Changes" creates a revert commit', async ({ mainWindow }) => {
+  const f = await main(mainWindow);
+  await openFileCtx(f, "feat: octopus branch a", "Revert Selected Changes");
+  await expect(flash(f)).toBeVisible({ timeout: 6000 });
+  await expect(() => {
+    expect(git(workerRepo(test.info()), "log -1 --format=%s"))
+      .toBe('Revert "feat: octopus branch a"');
+  }).toPass({ timeout: 8000 });
+});
+
+test('#24 file menu "Cherry-Pick Selected Changes" lands the commit on HEAD', async ({ mainWindow }) => {
+  const f = await main(mainWindow);
+  // "feat: cross y" lives on cross/y — switch the log to all branches first
+  await f.getByText("This branch", { exact: true }).click();
+  await openFileCtx(f, "feat: cross y", "Cherry-Pick Selected Changes");
+  await expect(flash(f)).toBeVisible({ timeout: 6000 });
+  await expect(() => {
+    expect(git(workerRepo(test.info()), "log -1 --format=%s")).toBe("feat: cross y");
+  }).toPass({ timeout: 8000 });
+});
 
 test('#24 file menu "Open Repository Version" opens an editor', async ({ mainWindow }) => {
   const f = await main(mainWindow);
@@ -168,7 +213,7 @@ test('#24 file menu "Open Repository Version" opens an editor', async ({ mainWin
 
 // ── #25 — Dead branch context-menu items ────────────────────────────────────────
 for (const label of ["Compare with", "Show Diff with Working Tree"]) {
-  test(`#25 branch menu "${label}" does something when clicked`, async ({ mainWindow }) => {
+  test(`#25 branch menu "${label}" renders the compare in the detail pane`, async ({ mainWindow }) => {
     const f = await main(mainWindow);
     // expand a branch folder and use a leaf row — folder/HEAD rows have no menu
     await f.locator(".titem.folder-row", { hasText: "feature" }).first().click();

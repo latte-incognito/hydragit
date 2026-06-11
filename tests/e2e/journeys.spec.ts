@@ -1,5 +1,5 @@
 import { test, expect } from "./vscode-fixture";
-import { getWebviewFrame } from "./webview-helpers";
+import { getWebviewFrame, workerRepo, git } from "./webview-helpers";
 
 // Real end-to-end user journeys against the default rich-history fixture. The
 // vscode/mainWindow fixtures build the repo, launch VS Code, and activate the
@@ -101,33 +101,54 @@ test("S7 checkout a branch from the tree context menu", async ({ mainWindow }) =
   await row.click({ button: "right" });
   await f.locator(".ctx").getByText("Switch to Branch", { exact: true }).click();
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
+  // HEAD must actually be on the branch now
+  await expect(() => {
+    expect(git(workerRepo(test.info()), "rev-parse --abbrev-ref HEAD")).toBe("feature/logging");
+  }).toPass({ timeout: 8000 });
 });
 
-// ── S8 — Merge a branch into current (no dialog) ────────────────────────────────
+// ── S8 — Merge a branch into current ────────────────────────────────────────────
 test("S8 merge a feature branch into the current branch", async ({ mainWindow }) => {
   const f = await main(mainWindow);
+  // feature/diverged is the only feature branch NOT yet merged into the default
+  // branch — merging it is a real state change we can assert.
   await f.locator(".titem.folder-row", { hasText: "feature" }).first().click();
-  await f.locator(".titem:not(.folder-row):not(.head)", { hasText: "auth" }).first()
+  await f.locator(".titem:not(.folder-row):not(.head)", { hasText: "diverged" }).first()
     .click({ button: "right" });
   await f.locator(".ctx").getByText("Merge", { exact: false }).first().click();
   await confirmModal(mainWindow); // merge preview → native 'Yes' modal
   await expect(flash(f)).toBeVisible({ timeout: 8000 });
+  await expect(() => {
+    const repo = workerRepo(test.info());
+    git(repo, "merge-base --is-ancestor feature/diverged HEAD"); // throws if not merged
+  }).toPass({ timeout: 8000 });
 });
 
-// ── S12 — Cherry-pick from the commit menu (no dialog) ──────────────────────────
-test("S12 cherry-pick a commit", async ({ mainWindow }) => {
+// ── S12 — Cherry-pick from the commit menu ──────────────────────────────────────
+test("S12 cherry-pick a commit lands it on HEAD", async ({ mainWindow }) => {
   const f = await main(mainWindow);
-  await f.locator(".crow").nth(1).click({ button: "right" });
+  // "feat: cross y" is not in the default branch's history → clean cherry-pick.
+  // It lives on cross/y, so switch the log to all branches first.
+  await f.getByText("This branch", { exact: true }).click();
+  await f.locator(".crow", { hasText: "feat: cross y" }).first().click({ button: "right" });
   await f.locator(".ctx-menu").getByText("Cherry-Pick").click();
   await expect(flash(f)).toBeVisible({ timeout: 8000 });
+  await expect(() => {
+    expect(git(workerRepo(test.info()), "log -1 --format=%s")).toBe("feat: cross y");
+  }).toPass({ timeout: 8000 });
 });
 
-// ── S13 — Revert a commit (no dialog) ───────────────────────────────────────────
+// ── S13 — Revert a commit ───────────────────────────────────────────────────────
 test("S13 revert a commit creates a revert commit", async ({ mainWindow }) => {
   const f = await main(mainWindow);
-  await f.locator(".crow").first().click({ button: "right" });
+  // "feat: octopus branch a" IS in the default branch's history → clean revert
+  await f.locator(".crow", { hasText: "feat: octopus branch a" }).first().click({ button: "right" });
   await f.locator(".ctx-menu").getByText("Revert Commit").click();
   await expect(flash(f)).toBeVisible({ timeout: 8000 });
+  await expect(() => {
+    expect(git(workerRepo(test.info()), "log -1 --format=%s"))
+      .toBe('Revert "feat: octopus branch a"');
+  }).toPass({ timeout: 8000 });
 });
 
 // ── S9 — Create a branch (dialog seam) ──────────────────────────────────────────
@@ -137,15 +158,21 @@ test("S9 create a new branch via the rail (native input)", async ({ mainWindow }
   await answerPrompt(mainWindow, "journey/new-branch");
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
   await expect(f.getByText("journey/new-branch", { exact: false }).first()).toBeVisible({ timeout: 6000 });
+  expect(git(workerRepo(test.info()), "branch --list journey/new-branch")).toContain("journey/new-branch");
 });
 
 // ── S14 — Reset to a commit (dialog seam) ───────────────────────────────────────
 test("S14 reset current branch to a commit (mode prompt)", async ({ mainWindow }) => {
   const f = await main(mainWindow);
-  await f.locator(".crow").nth(2).click({ button: "right" });
+  // reset to a known commit in the default branch's history
+  await f.locator(".crow", { hasText: "docs: add contributing section" }).first()
+    .click({ button: "right" });
   await f.locator(".ctx-menu").getByText("Reset Current Branch to Here…").click();
   await answerPrompt(mainWindow, "mixed"); // mode input box (default 'mixed')
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
+  await expect(() => {
+    expect(git(workerRepo(test.info()), "log -1 --format=%s")).toBe("docs: add contributing section");
+  }).toPass({ timeout: 8000 });
 });
 
 // ── S15 — Tag lifecycle (dialog seam) ───────────────────────────────────────────
@@ -155,4 +182,5 @@ test("S15 create a tag via the rail (name + message prompts)", async ({ mainWind
   await answerPrompt(mainWindow, "v9.9.9");       // name
   await answerPrompt(mainWindow, "journey tag");  // annotation message
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
+  expect(git(workerRepo(test.info()), "tag -l v9.9.9")).toBe("v9.9.9");
 });
