@@ -96,7 +96,7 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 
 ## Feature → cmd map
 
-> Name index: `IMPLEMENTED_FEATURES.md`. Per-feature HTML docs (UI entry point →
+> Name index: `CHANGELOG.md` → Feature index. Per-feature HTML docs (UI entry point →
 > what happens next): `documentation/index.html`. Quick map below.
 
 | Feature | cmd |
@@ -134,7 +134,7 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 |---|---|
 | `docs/PROJECT_CONTEXT.md` | Full architecture, data types, IPC reference, concurrency + security model |
 | `docs/ROADMAP.md` | Everything actionable: release checklist, testing (incl. Windows), bugs/polish queue, frozen backlog, security TODOs |
-| `IMPLEMENTED_FEATURES.md` | Authoritative name index of what ships — links into `documentation/` |
+| `CHANGELOG.md` | Per-version history + authoritative feature index (bottom) — links into `documentation/` |
 | `documentation/index.html` | Per-feature HTML docs: UI entry point → what happens next (browsable) |
 
 ---

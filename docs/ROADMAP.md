@@ -5,7 +5,7 @@ what comes later.** If a task isn't here, it isn't planned.
 
 > Reference docs (the "how things work" side):
 > [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md) — architecture, IPC, concurrency,
-> security model · [`IMPLEMENTED_FEATURES.md`](../IMPLEMENTED_FEATURES.md) +
+> security model · [`CHANGELOG.md`](../CHANGELOG.md) +
 > [`documentation/`](../documentation/index.html) — feature inventory ·
 > [`CLAUDE.md`](../CLAUDE.md) — agent/session rules.
 >
@@ -103,62 +103,24 @@ every mutation) lives in `CLAUDE.md` → Testing approach.
 
 ## 4 · Bugs & polish queue
 
+> Fixed bugs are removed from this queue — `CHANGELOG.md` is the record of
+> what was fixed and when.
+
 Real bugs:
-1. ~~Scrollbars (activity rail + branch pane) widen on hover~~ — fixed
-   2026-06-10: VS Code's injected webview stylesheet (bare
-   `::-webkit-scrollbar`, 10px) could win the cascade over our bare 2px rules
-   depending on injection order. Now `:root *`-prefixed for deterministic
-   specificity; the action rail hides its scrollbar entirely. **Verify
-   visually under F5** — if it still widens, the fallback is standard
-   `scrollbar-width: thin` + `scrollbar-color` (non-expanding, but ~8px).
-2. Main-panel status bar: show "no upstream / unpublished branch" state after
+1. Main-panel status bar: show "no upstream / unpublished branch" state after
    the branch name, clickable → push & set upstream.
-3. Amend with remote sync not amending; after amending, "magic sync" rebases
+2. Amend with remote sync not amending; after amending, "magic sync" rebases
    back instead of force-with-lease offering. (Two related reports.)
-4. ~~HydraGit status bar doesn't follow theme changes~~ — fixed 2026-06-10:
-   `StatusBar.svelte` was a fully hardcoded blue palette; now
-   `statusBar.background/foreground/border` tokens (it matches the user's real
-   status bar), dim segments via `opacity` so they track any theme. **Verify
-   under F5 with a light theme.** Broader sweep still open: ~76 hardcoded
-   `color:`/`background:` declarations remain across other components — most
-   have token fallbacks already, but audit the ones without before 1.0.
+3. Theme-token audit: ~76 hardcoded `color:`/`background:` declarations remain
+   across components — most have token fallbacks already, but audit the ones
+   without before 1.0.
 
-Main panel UI — polish pass 2026-06-10 (verify visually under F5):
-
-7. ~~Raw ISO timestamp in detail pane~~ — fixed: shared `$shared/dates.ts`
-   `fullDate()` (also applied to the stash date row); unit-tested.
-8. ~~Date column truncates~~ — fixed: `smartDate()` — time for today/yesterday,
-   `Jun 7` this year, `Jun 7, 2025` older; full timestamp in the cell tooltip.
-9. ~~Author column repetition~~ — fixed (decision: auto-hide): column hides
-   when all visible commits share one author; subject reclaims the width.
-10. Ref pills eat the subject — `HEAD →` as icon, middle-truncate, `+N`
-    overflow. *(still open — pill markup pass)*
-11. ~~Selection looked like a focus ring~~ — fixed:
-    `list.activeSelectionBackground/Foreground` fill, themed accent edge.
-12. Detail action row: add checkout-at-commit, create branch/tag, View on
-    GitHub; separate Revert from Copy hash. *(still open)*
-13. Search mode switching discoverability. *(still open — needs a UX look)*
-14. ~~Date text borderline-invisible~~ — fixed: `descriptionForeground` token.
-
-Sidebar (multi-repo) — polish pass 2026-06-10:
-
-15. ~~Clean repos rendered full commit UI~~ — fixed: clean repos collapse to
-    one line ("No changes · working tree clean") with an **Amend last
-    commit…** link that opens the commit area amend-armed.
-16. ~~Amend on clean tree contradiction~~ — fixed: message-only amend works
-    (always did); the hint now says "Amending the last commit message" instead
-    of "No changes", and the clean-state amend link feeds `startAmend`.
-17. ~~Count shown 3×~~ — fixed: Staged Changes / Changes group badges removed
-    (header count + folder rollups + the Commit button count remain). Bonus:
-    `SectionHeader.svelte` turned out to have **zero consumers** — deleted.
-18. ~~Active repo group too subtle~~ — fixed: focused group header gets a
-    `list.activeSelectionBackground` fill on top of the edge accent.
-19. ~~Empty-state duplication~~ — resolved by 15.
-20. ~~Textarea full-height ×N repos~~ — fixed: single-line (28px) while idle
-    and empty, grows to 52px on focus or content (pure CSS,
-    `:placeholder-shown`).
-21. ~~Branch pill truncation~~ — fixed: middle-truncate at 26 chars (keeps the
-    informative leaf), full name in tooltip.
+Main panel UI:
+4. Ref pills eat the subject — `HEAD →` as icon, middle-truncate, `+N`
+   overflow. *(pill markup pass)*
+5. Detail action row: add checkout-at-commit, create branch/tag, View on
+   GitHub; separate Revert from Copy hash.
+6. Search mode switching discoverability. *(needs a UX look)*
 
 Graph style — **decided 2026-06-10: dashes stay** (signature look). Revisit
 only as "semantic dashes" (solid local / dashed remote-only) if ever.

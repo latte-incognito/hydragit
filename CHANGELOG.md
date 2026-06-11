@@ -9,7 +9,18 @@ linear history with exactly one commit per version, created retroactively on
 2026-06-11; each commit's diff is precisely that version's changes.
 
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
-the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
+the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
+
+## [Unreleased]
+
+### Fixed
+- Stale remote branches lingered in the branch pane forever — `fetch`/`pull` now run with `--prune`, so branches deleted on the remote disappear from the tree.
+- Remote origin groups in the branch pane wouldn't collapse/expand on click — a Svelte 5 runes-migration regression (`remoteOriginOpen` missed `$state` in the 0.2.4 port).
+- Clicking a [snapshot](documentation/features/snapshots.html) did nothing (it looked the commit up in the log, but snapshot commits are on no branch). It now opens a "snapshot vs working tree" compare in the detail pane — exactly what Restore would change.
+
+### Changed
+- `IMPLEMENTED_FEATURES.md` merged into this file as the [Feature index](#feature-index) (bottom) and dropped — one inventory, two views: by version above, by topic below.
+- `docs/ROADMAP.md` bug queue now holds open items only; fixed bugs move here instead of being struck through.
 
 ## [0.2.6] — 2026-06-11
 
@@ -132,6 +143,44 @@ The MVP was replaced with the real foundation in this range (~8 400 insertions).
 ## [0.1.0] — 2026-03-25 (tag v0.0.1-mvp covers this era)
 
 - Initial build: extension scaffolding, first Go binary wiring, project documentation, repository setup.
+
+---
+
+## Feature index
+
+Everything HydraGit ships today, by topic. Each entry links to its full
+documentation (UI entry point → what happens next) in
+[`documentation/`](documentation/index.html).
+
+**Views & layout** — [main panel](documentation/features/main-panel.html) · [sidebar (staging view)](documentation/features/sidebar.html) · [multi-repo workspaces](documentation/features/multi-repo.html) · [status, status bar & badge](documentation/features/status.html) · [visual file history](documentation/features/history.html#filehistory) · [selection / line history](documentation/features/history.html#linehistory) · [inline line blame](documentation/features/history.html#blame)
+
+**Branches** — [tree & list](documentation/features/branches.html#list) · [checkout / switch](documentation/features/branches.html#checkout) · [create](documentation/features/branches.html#create) · [rename local / remote / folder](documentation/features/branches.html#rename) · [delete local](documentation/features/branches.html#delete) / [remote](documentation/features/remotes.html#remote-delete) · [branches containing a commit](documentation/features/branches.html#containing)
+
+**Commit log & graph** — [log](documentation/features/commit-log-graph.html#log) · [lane graph](documentation/features/commit-log-graph.html#graph) · [hover-highlight](documentation/features/commit-log-graph.html#hover) · [detail pane](documentation/features/commit-log-graph.html#detail) · [columns & virtualization](documentation/features/commit-log-graph.html#columns)
+
+**Search & filter** — [message](documentation/features/search-filter.html#message) · [hash prefix jump](documentation/features/search-filter.html#hash) · [file](documentation/features/search-filter.html#file) · [author](documentation/features/search-filter.html#author) · [pickaxe / code search](documentation/features/search-filter.html#pickaxe) · [branch scope](documentation/features/search-filter.html#scope)
+
+**Diff & compare** — [commit diff](documentation/features/diff.html) · [branch / ref compare](documentation/features/compare.html#range) · [ref vs working tree](documentation/features/compare.html#ref) · [file vs local](documentation/features/compare.html#file)
+
+**Commit & staging** — [stage & commit](documentation/features/commit.html#commit) · [commit & push](documentation/features/commit.html#push) · [amend](documentation/features/commit.html#amend) · [pre-commit safety checks](documentation/features/commit.html#safety)
+
+**History rewriting** — [interactive rebase editor](documentation/features/interactive-rebase.html#editor) · [pause on conflict](documentation/features/interactive-rebase.html#pause) · [squash with parent](documentation/features/interactive-rebase.html#squash) · [drop](documentation/features/interactive-rebase.html#drop) · [reword](documentation/features/interactive-rebase.html#reword) · [create patch](documentation/features/interactive-rebase.html#patch) · [push up to a commit](documentation/features/interactive-rebase.html#pushupto) · [fixup + autosquash](documentation/features/interactive-rebase.html#fixup)
+
+**Integrate & resolve** — [merge](documentation/features/merge-rebase-reset.html#merge) · [merge conflict preview](documentation/features/merge-rebase-reset.html#preview) · [rerere](documentation/features/conflicts.html#rerere) · [rebase](documentation/features/merge-rebase-reset.html#rebase) · [reset](documentation/features/merge-rebase-reset.html#reset) · [cherry-pick](documentation/features/cherrypick-revert.html#cherrypick) · [revert](documentation/features/cherrypick-revert.html#revert) · [conflict resolution](documentation/features/conflicts.html)
+
+**Remotes & sync** — [sync (fetch + integrate)](documentation/features/remotes.html#sync) · [fetch](documentation/features/remotes.html#fetch) · [pull + pull mode](documentation/features/remotes.html#pull) · [push](documentation/features/remotes.html#push) · [safe force-push](documentation/features/remotes.html#force) · [auto-set upstream](documentation/features/remotes.html#upstream) · [remote branch delete](documentation/features/remotes.html#remote-delete) · [network-op timeout](documentation/features/remotes.html#timeout)
+
+**Undo & safety** — [working-tree snapshots](documentation/features/snapshots.html) · [HEAD undo timeline (reflog)](documentation/features/reflog.html) · [reset to any point](documentation/features/reflog.html#reset) · [auto-stash safety net](documentation/features/reflog.html#autostash) · [live reflog refresh](documentation/features/reflog.html#live) · [undo last operation](documentation/features/undo-squash.html#undo) · [detached-HEAD banner](documentation/features/health-banners.html#detached) · [git identity setup](documentation/features/health-banners.html#identity) · [critical-error reload](documentation/features/health-banners.html#reload)
+
+**Stash** — [list](documentation/features/stash.html#list) · [save](documentation/features/stash.html#save) · [apply / pop / unstash](documentation/features/stash.html#applypop) · [drop / clear](documentation/features/stash.html#dropclear) · [show diff & files](documentation/features/stash.html#show)
+
+**Tags** — [list](documentation/features/tags.html#list) · [create](documentation/features/tags.html#create) · [delete](documentation/features/tags.html#delete) · [checkout · diff · merge · push](documentation/features/tags.html#more)
+
+**Worktrees** — [list](documentation/features/worktrees.html#list) · [add](documentation/features/worktrees.html#add) · [open in new window](documentation/features/worktrees.html#open) · [lock / unlock](documentation/features/worktrees.html#lock) · [move](documentation/features/worktrees.html#move) · [remove](documentation/features/worktrees.html#remove) · [prune stale](documentation/features/worktrees.html#prune)
+
+**Context menus & tooling** — [commit](documentation/features/context-menus.html#commit) / [branch](documentation/features/context-menus.html#branch) / [stash](documentation/features/context-menus.html#stash) / [tag](documentation/features/context-menus.html#tag) context menus · [logging & diagnostics](documentation/features/logging.html) · [version info](documentation/features/logging.html#version) · [force refresh](documentation/features/logging.html#refresh)
+
+> Backlog / not-yet-built features live in [`docs/ROADMAP.md`](docs/ROADMAP.md) §5.
 
 [0.2.6]: https://github.com/latte-incognito/hydragit/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/latte-incognito/hydragit/compare/v0.2.4...v0.2.5

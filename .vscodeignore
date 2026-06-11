@@ -54,6 +54,5 @@ vitest-setup.ts
 bin/hydragit-server
 
 # ── Dev docs / notes (not used at runtime) ─────────────────────────
-IMPLEMENTED_FEATURES.md
 documentation/
 .vscode/
