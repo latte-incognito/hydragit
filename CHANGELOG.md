@@ -11,6 +11,15 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
 
+## [Unreleased]
+
+### Added
+- `CHANGELOG.md` — this file: per-version history derived from the code diffs between `package.json` version bumps, cross-linked to the feature docs.
+
+### Changed
+- **Release flow reworked to snapshot releases** (see [`docs/GITFLOW.md`](docs/GITFLOW.md)) — `make release` publishes develop's tree as one tagged commit on master; no develop↔master merges or back-merges anymore.
+- master rebuilt as a linear release line (one commit per version); all historical versions retro-tagged `v0.1.0`–`v0.2.5`; old squash-merge master archived as `old-master`.
+
 ## [0.2.5] — 2026-06-11
 
 ### Added
