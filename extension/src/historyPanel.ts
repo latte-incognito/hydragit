@@ -134,12 +134,15 @@ export class HistoryPanelManager {
       vscode.Uri.joinPath(this.ctx.extensionUri, 'webview', 'history.css')
     );
 
+    // No remote images are loaded — img-src omits https: so the panel has zero
+    // network egress (see panel.ts getHtml for the rationale).
     const csp = [
       `default-src 'none'`,
       `script-src ${webview.cspSource}`,
       `style-src  ${webview.cspSource} 'unsafe-inline'`,
-      `img-src data: https: blob: ${webview.cspSource}`,
+      `img-src data: blob: ${webview.cspSource}`,
       `font-src data:`,
+      `connect-src 'none'`,
     ].join('; ');
 
     html = html.replace(

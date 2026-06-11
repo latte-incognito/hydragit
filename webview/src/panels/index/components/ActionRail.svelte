@@ -119,9 +119,15 @@
     flex-shrink: 0;
     height: 100%;
     min-height: 0;
-    /* Scroll only when the buttons don't fit a short viewport. The scrollbar
-       styling (thin, auto-hide) comes from the global rule in vscode-theme.css. */
+    /* Scroll only when the buttons don't fit a short viewport. No visible
+       scrollbar at all — on a 32px icon strip even a 2px bar is noise, and
+       hiding it is immune to VS Code's injected scrollbar styles (the
+       "widens on hover" bug). Wheel/trackpad scrolling still works. */
     overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .rail::-webkit-scrollbar {
+    display: none;
   }
 
   .rail-btn {

@@ -27,16 +27,33 @@ export const test = base.extend<TestFixtures>({
 
     const isHeaded = !!process.env.HEADED;
 
+    // On macOS VS Code renders modal dialogs natively by default — invisible to
+    // Playwright. Force DOM dialogs (.monaco-dialog-box) so uiConfirm modals
+    // (merge preview, drop commit, commit safety check…) can be driven.
+    const userDataDir = `/tmp/hydragit-test-vscode-data-${testInfo.workerIndex}`;
+    fs.mkdirSync(`${userDataDir}/User`, { recursive: true });
+    fs.writeFileSync(
+      `${userDataDir}/User/settings.json`,
+      JSON.stringify({
+        "window.dialogStyle": "custom",
+        "update.mode": "none",
+        "workbench.startupEditor": "none",
+      })
+    );
+
     const app = await electron.launch({
       executablePath: vscodePath,
       args: [
         workerRepoPath,
         `--extensionDevelopmentPath=${extensionPath}`,
-        "--disable-other-extensions",
+        // Installed extensions live in ~/.vscode/extensions and load regardless
+        // of --user-data-dir; point at an empty dir so only built-ins + the dev
+        // extension run (a crowded activity bar pushes HydraGit into overflow).
+        `--extensions-dir=/tmp/hydragit-test-vscode-ext-${testInfo.workerIndex}`,
         "--skip-welcome",
         "--skip-release-notes",
         "--disable-workspace-trust",
-        `--user-data-dir=/tmp/hydragit-test-vscode-data-${testInfo.workerIndex}`,
+        `--user-data-dir=${userDataDir}`,
       ],
       env: {
         ...process.env,

@@ -200,6 +200,22 @@ func RunInteractiveRebase(repoPath, base string, items []RebaseTodoItem) (confli
 	return false, nil
 }
 
+// RebaseAutosquash runs `git rebase -i --autosquash <base>` non-interactively:
+// git reorders the todo so every `fixup!`/`squash!` commit folds into its
+// target, and GIT_SEQUENCE_EDITOR=true accepts that auto-generated plan as-is.
+// base is the commit *before* the oldest fixup target (callers usually pass
+// `<target>^`). Returns conflict=true if the rebase paused.
+func RebaseAutosquash(repoPath, base string) (conflict bool, err error) {
+	_, err = runEnv(repoPath, noEditorEnv, "rebase", "-i", "--autosquash", base)
+	if err != nil {
+		if RebaseInProgress(repoPath) {
+			return true, nil
+		}
+		return false, err
+	}
+	return false, nil
+}
+
 // SquashWithParent folds `commit` into its immediate parent, combining their
 // messages into one commit in their place (one-click squash of two adjacent
 // commits — ideas.md). Built on the interactive-rebase machinery, so it works

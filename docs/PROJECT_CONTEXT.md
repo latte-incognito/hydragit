@@ -214,6 +214,42 @@ Rules:
 - `id` echoed back — multiple in-flight requests resolve via pending map
 - `ok: false` → git returned non-zero exit, `error` = git's stderr as-is
 - stdout = JSON only, stderr = Go logs only, never mixed
+- optional `repo` field on any request routes it to that repo root (multi-repo);
+  absent → the spawn-time default (`HYDRAGIT_REPO`). The extension host rejects
+  any `repo` that RepoService hasn't discovered (security: the webview must not
+  be able to point git at arbitrary directories).
+
+### Concurrency model (since 2026-06-09)
+
+The stdin loop is **not serial**: each request runs in its own goroutine
+(`main.go`, `WaitGroup.Go`), so a slow command — a fetch against a dead remote
+holding the 30s network timeout — can't freeze the status poll or other panels.
+Responses may arrive **out of order**; the TS pending-map matches by `id`.
+stdout stays JSON-clean via a write mutex. The stdin scanner buffer is raised to
+16 MB (blame requests carry whole editor buffers; the 64 KB default killed the
+loop).
+
+Serialization happens **per repo** in `ipc.Handle` with a `sync.RWMutex` per
+repo path:
+
+- Commands in the `mutatingCmds` set (index/worktree/HEAD/local-ref/config
+  writers: checkout, merge, rebase\*, commit\*, reset, pull, stash mutations,
+  worktree ops, …) take the repo's **exclusive** lock — git must never run two
+  state-changing operations on one `.git` concurrently (index/ref-lock
+  corruption).
+- Everything else shares a **read** lock: pure reads, plus remote-only ops
+  (fetch, push, `*.remote`) that touch `refs/remotes` at most — deliberately,
+  so a hung fetch never blocks status.
+- Distinct repos never block each other.
+
+Just before a command in the `autoSnapshotCmds` set runs (merge, rebase\*,
+reset, pull, checkout, cherry-pick, revert, undo, stash pop/apply, snapshot
+restore), the handler takes a working-tree snapshot inside the same lock —
+see `internal/git/snapshot.go`. Best-effort: clean tree skips, failure never
+blocks the operation.
+
+Covered by `internal/ipc/handler_concurrency_test.go` — run with
+`go test -race`.
 
 ---
 
@@ -227,7 +263,7 @@ Authoritative list = the `case` strings in `internal/ipc/handler.go`.
 | ping | — | "pong" |
 | status | — | StatusResult |
 | branches | — | []Branch |
-| log | { branch?, limit?, grep?, author? } | []LaidOutCommit |
+| log | { branch?, limit?, grep?, author?, pickaxe? } | []LaidOutCommit |
 | log.file | { path } | []LaidOutCommit |
 | file.history | { path, ref? } | []Commit |
 | line.history | { path, start, end } | []Commit |
@@ -257,6 +293,7 @@ Authoritative list = the `case` strings in `internal/ipc/handler.go`.
 | cmd | params | returns |
 |-----|--------|---------|
 | merge | { branch } | — |
+| merge.preview | { ours?, theirs } | { clean, files[] } (dry-run via merge-tree, git ≥ 2.38) |
 | rebase | { onto } | — |
 | reset | { commit, mode } | { stashed } |
 | cherrypick | { commit } | — |
@@ -266,6 +303,8 @@ Authoritative list = the `case` strings in `internal/ipc/handler.go`.
 | rebase.reword | { commit, message } | { conflict } |
 | commit.squash | { commit } | { conflict } |
 | rebase.continue / rebase.skip | — | { conflict } |
+| commit.fixup | { commit, paths[] } | CommitResult (`commit --fixup`) |
+| rebase.autosquash | { base } | { conflict } |
 | rebase.abort / rebase.status | — | — / status |
 | patch.format | { commit } | string (.patch) |
 | push.upto | { commit, branch } | — |
@@ -302,10 +341,57 @@ Authoritative list = the `case` strings in `internal/ipc/handler.go`.
 | commit | { message, paths[] } | CommitResult |
 | commit.push | { message, paths[] } | CommitResult |
 | commit.amend | { message, paths[] } | CommitResult |
+| commit.precheck | { paths[], checks[]? } | []SafetyWarning (checks injected by host from settings) |
 | commit.lastMessage | — | string |
 | undo.last | — | UndoResult |
 | reflog | — | []ReflogEntry |
 | user.set | { name, email, global? } | — |
+| rerere.enable | — | — (repo-local rerere.enabled + autoupdate) |
+
+**Snapshots (working-tree time machine)**
+| cmd | params | returns |
+|-----|--------|---------|
+| snapshot.list | — | []Snapshot |
+| snapshot.save | { label? } | Snapshot or null (clean tree) |
+| snapshot.restore | { hash } | — |
+| snapshot.drop | { ref } | — (refuses non-snapshot refs) |
+
+**Worktrees**
+| cmd | params | returns |
+|-----|--------|---------|
+| worktree.list | — | []Worktree |
+| worktree.add | { path, branch?, newBranch?, start? } | — |
+| worktree.remove | { path, force } | — |
+| worktree.lock / worktree.unlock | { path, reason? } | — |
+| worktree.move | { from, to } | — |
+| worktree.prune | — | — |
+
+---
+
+## Security model
+
+Not a web app: no server, no auth tokens, no cloud, no telemetry — the attack
+surface is the webview boundary, the git CLI layer, and the filesystem.
+Open hardening TODOs live in [`ROADMAP.md`](ROADMAP.md) §6. The load-bearing
+mitigations, all enforced in code as of 2026-06-10:
+
+- **Webview boundary** (`panel.ts`): per-request `repo` allowlisted against
+  RepoService's discovered roots; `worktree.open` paths validated against
+  `worktree.list`; destructive ops (`force: true`, `push.force`, `stash.clear`)
+  only forward within 30s of a native ui.confirm Yes.
+- **CSP**: all three webviews share `default-src 'none'` + `connect-src 'none'`
+  and no `https:` in `img-src` — zero network egress. Never loosen with blanket
+  `https:`; allowlist a specific host if ever needed.
+- **Go binary**: single exec point (`repo.go`), args-slice only (no shell);
+  `missingParam()` rejects empty required params on mutating cmds;
+  `HYDRAGIT_REPO` sanity-checked at startup (warn, not exit — multi-repo
+  overrides may still be valid); logs `0o700`/`0o600`.
+
+Deliberately out of scope: IPC encryption (postMessage/stdio are same-machine
+channels, not network), sandboxing the Go binary (it needs repo filesystem
+access by design), and defending against other malicious extensions (they
+already have Node access). Git's own ref validation is the authority on valid
+ref names; ours is belt-and-suspenders only.
 
 ---
 

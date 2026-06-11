@@ -18,8 +18,9 @@ test.describe("Merge conflict — sidebar (BUG #19)", () => {
       (await getSidebarFrame(mainWindow)) ?? (await getWebviewFrame(mainWindow, "sidebar"));
     expect(sidebar, "sidebar webview frame should be present").not.toBeNull();
 
-    // conflict.txt must show up as a changed file.
-    const fileRow = sidebar!.locator("text=conflict.txt");
+    // conflict.txt must show up as a changed file (it renders both in the
+    // conflict banner and the file tree — any occurrence proves it's listed).
+    const fileRow = sidebar!.locator("text=conflict.txt").first();
     await expect(fileRow).toBeVisible({ timeout: 8000 });
   });
 

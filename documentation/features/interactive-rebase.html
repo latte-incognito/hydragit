@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>History Rewriting</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.1</span>
+    <span class="ver">v0.2.5</span>
   </header>
 
   <div class="page">
@@ -24,6 +24,7 @@
       <a href="#reword">Edit / reword message</a>
       <a href="#patch">Create patch</a>
       <a href="#pushupto">Push up to a commit</a>
+      <a href="#fixup">Fixup &amp; autosquash</a>
     </aside>
 
     <article class="content">
@@ -117,6 +118,25 @@
           <li>Go runs <span class="cmd amber">push.upto</span> with <code>{ commit, branch }</code> — publishing history only up to that commit.</li>
         </ol>
         <div class="related"><b>Related</b><a href="remotes.html#push">Push</a><a href="reflog.html">Reflog (recover after a rewrite)</a></div>
+      </section>
+
+      <section class="feature" id="fixup">
+        <h2>Fixup &amp; autosquash <span class="cmd amber">commit.fixup</span> <span class="cmd amber">rebase.autosquash</span></h2>
+        <p>The "this belongs in an earlier commit" workflow without manual rebase surgery: park
+        corrections as <code>fixup!</code> commits while you work, fold them all in at the end.</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Commit menu</span><span class="what"><b>Fixup: Commit Changes into This…</b> — commits the current changes as <code>fixup!</code> of the right-clicked commit.</span></li>
+          <li><span class="where">Commit menu</span><span class="what"><b>Apply Fixups Below (Autosquash)…</b> — folds every <code>fixup!</code> into its target.</span></li>
+        </ul>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li><b>Fixup</b>: after a confirm listing the changed-file count, Go runs <span class="cmd amber">commit.fixup</span> — stages the paths and commits with <code>--fixup=&lt;sha&gt;</code>. Repeat freely against any commits.</li>
+          <li><b>Autosquash</b>: Go runs <span class="cmd amber">rebase.autosquash</span> (<code>rebase -i --autosquash</code> with the auto-generated todo accepted as-is) from the target's parent — every fixup folds into its commit, messages untouched.</li>
+          <li>A conflict pauses with the standard Continue / Skip / Abort bar — never auto-aborted.</li>
+        </ol>
+        <div class="note teal"><span class="ic">i</span><span>An auto-<a href="snapshots.html">snapshot</a> is taken before the autosquash rebase, like every history rewrite.</span></div>
+        <div class="related"><b>Related</b><a href="#editor">Interactive rebase editor</a><a href="#squash">Squash with parent</a></div>
       </section>
 
       <div class="pager">

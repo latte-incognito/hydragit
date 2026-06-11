@@ -11,13 +11,14 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Integrate &amp; Resolve<span class="sep">/</span>Merge · Rebase · Reset</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.1</span>
+    <span class="ver">v0.2.5</span>
   </header>
 
   <div class="page">
     <aside class="toc">
       <h4>On this page</h4>
       <a href="#merge" class="head">Merge</a>
+      <a href="#preview">Conflict preview</a>
       <a href="#rebase">Rebase</a>
       <a href="#reset">Reset</a>
     </aside>
@@ -39,9 +40,24 @@
           <li><span class="where">Tag menu</span><span class="what"><b>Merge '&lt;tag&gt;' into '&lt;current&gt;'</b>.</span></li>
         </ul>
         <ol class="flow">
+          <li>The confirm dialog first shows the <a href="#preview">conflict preview</a> verdict.</li>
           <li>Go runs <span class="cmd">merge</span> with <code>{ branch }</code>.</li>
           <li>A clean merge updates the log; a conflict pauses and shows the <a href="conflicts.html">conflict banner</a> (Continue commits the merge).</li>
         </ol>
+      </section>
+
+      <section class="feature" id="preview">
+        <h2>Merge conflict preview <span class="cmd">merge.preview</span></h2>
+        <p>Every merge confirm answers the question you actually have — <i>"will this conflict?"</i> —
+        before anything runs. The dry run happens entirely in git's object database
+        (<code>git merge-tree --write-tree</code>): the index, working tree and refs are untouched.</p>
+        <h3 class="lbl">What happens next</h3>
+        <ol class="flow">
+          <li>Picking a merge (action rail / branch menu / tag menu) sends <span class="cmd">merge.preview</span> with <code>{ theirs }</code> (ours defaults to <code>HEAD</code>).</li>
+          <li>The confirm dialog appends the verdict: <b>"merges cleanly — no conflicts"</b>, or <b>"⚠ will conflict in N files"</b> with the first 8 paths listed.</li>
+          <li>You decide with full information; declining leaves the repo exactly as it was.</li>
+        </ol>
+        <div class="note"><span class="ic">i</span><span>Needs <b>git ≥ 2.38</b>. On older git the preview silently degrades to a plain confirm — the merge itself is unaffected. Bad refs are validated up front (merge-tree's exit code can't distinguish "conflicts" from "not mergeable").</span></div>
       </section>
 
       <section class="feature" id="rebase">

@@ -4,6 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	"hydragit/internal/git"
@@ -19,18 +22,33 @@ type Request struct {
 }
 
 type Response struct {
-	ID    string      `json:"id"`
-	OK    bool        `json:"ok"`
-	Data  interface{} `json:"data,omitempty"`
-	Error string      `json:"error,omitempty"`
+	ID    string `json:"id"`
+	OK    bool   `json:"ok"`
+	Data  any    `json:"data,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
-func ok(id string, data interface{}) Response {
+func ok(id string, data any) Response {
 	return Response{ID: id, OK: true, Data: data}
 }
 
 func fail(id string, err error) Response {
 	return Response{ID: id, OK: false, Error: err.Error()}
+}
+
+// missingParam validates required string params for mutating commands, given
+// as ("name", value) pairs; it returns a failure Response naming the first
+// empty one, or nil when all are present. Git would reject most of these
+// anyway, but failing fast keeps garbage out of the exec layer and the error
+// readable (SECURITY.md "empty-param rejection").
+func missingParam(id string, pairs ...string) *Response {
+	for i := 0; i+1 < len(pairs); i += 2 {
+		if strings.TrimSpace(pairs[i+1]) == "" {
+			r := fail(id, fmt.Errorf("missing required parameter: %s", pairs[i]))
+			return &r
+		}
+	}
+	return nil
 }
 
 // logSilentCmds suppresses IPC request/response logging for high-frequency
@@ -39,16 +57,143 @@ var logSilentCmds = map[string]bool{
 	"status": true,
 }
 
-// lastStatusHash tracks the last seen status payload to log only on change.
-var lastStatusHash string
+// lastStatusHash tracks the last seen status payload per repo, to log only on
+// change. Keyed by repo path — a multi-repo workspace polls several repos, and
+// a single global would ping-pong between their hashes and log forever.
+var (
+	statusLogMu    sync.Mutex
+	lastStatusHash = map[string]string{}
+)
+
+// Per-repo locking. Mutating commands take the repo's exclusive lock — git
+// must never run two state-changing operations on the same .git concurrently
+// (index/ref-lock corruption). Everything else shares a read lock, so reads
+// run concurrently and a hung network op can't freeze the status poll.
+// Distinct repos never block each other.
+var (
+	repoLocksMu sync.Mutex
+	repoLocks   = map[string]*sync.RWMutex{}
+)
+
+func lockFor(repoPath string) *sync.RWMutex {
+	repoLocksMu.Lock()
+	defer repoLocksMu.Unlock()
+	l, ok := repoLocks[repoPath]
+	if !ok {
+		l = &sync.RWMutex{}
+		repoLocks[repoPath] = l
+	}
+	return l
+}
+
+// mutatingCmds lists commands that modify the index, working tree, HEAD, local
+// refs or config — they serialize per repo. Commands not listed are treated as
+// shared: pure reads, plus remote-only ops (fetch, push, push.force, push.upto,
+// branch.*.remote) that touch refs/remotes at most and are safe alongside
+// reads — deliberately, so a 30s-hung fetch doesn't block the status poll.
+var mutatingCmds = map[string]bool{
+	"checkout":              true,
+	"branch.create":         true,
+	"branch.delete":         true,
+	"branch.rename":         true,
+	"branch.rename.folder":  true,
+	"merge":                 true,
+	"rebase":                true,
+	"rebase.drop":           true,
+	"rebase.interactive":    true,
+	"rebase.reword":         true,
+	"rebase.continue":       true,
+	"rebase.skip":           true,
+	"rebase.abort":          true,
+	"commit":                true,
+	"commit.push":           true,
+	"commit.amend":          true,
+	"commit.squash":         true,
+	"cherrypick":            true,
+	"revert":                true,
+	"reset":                 true,
+	"undo.last":             true,
+	"pull":                  true,
+	"pull.mode":             true,
+	"stash.pop":             true,
+	"stash.apply":           true,
+	"stash.drop":            true,
+	"stash.clear":           true,
+	"stash.save":            true,
+	"conflict.keepCurrent":  true,
+	"conflict.keepIncoming": true,
+	"conflict.resolve":      true,
+	"conflict.continue":     true,
+	"conflict.abort":        true,
+	"tag.create":            true,
+	"tag.delete":            true,
+	"user.set":              true,
+	"worktree.add":          true,
+	"worktree.remove":       true,
+	"worktree.lock":         true,
+	"worktree.unlock":       true,
+	"worktree.move":         true,
+	"worktree.prune":        true,
+	"commit.fixup":          true,
+	"rebase.autosquash":     true,
+	"rerere.enable":         true,
+	"snapshot.save":         true,
+	"snapshot.restore":      true,
+	"snapshot.drop":         true,
+}
+
+// autoSnapshotCmds trigger a working-tree snapshot (refs/hydragit/snapshots)
+// right before they run — the safety net for operations that can eat
+// uncommitted work. Best-effort: a clean tree skips silently, and a snapshot
+// failure never blocks the operation itself. Runs inside the repo's exclusive
+// lock, so the captured state is exactly what the operation sees.
+var autoSnapshotCmds = map[string]bool{
+	"merge":              true,
+	"rebase":             true,
+	"rebase.interactive": true,
+	"rebase.autosquash":  true,
+	"rebase.drop":        true,
+	"commit.squash":      true,
+	"reset":              true,
+	"pull":               true,
+	"cherrypick":         true,
+	"revert":             true,
+	"undo.last":          true,
+	"checkout":           true,
+	"stash.pop":          true,
+	"stash.apply":        true,
+	"snapshot.restore":   true,
+}
 
 func Handle(repoPath string, req Request) Response {
+	// Per-request repo override: a multi-repo workspace sends the active repo
+	// root on each request; when absent, fall back to the spawn-time default
+	// (HYDRAGIT_REPO). Resolved here so locking targets the real repo.
+	if req.Repo != "" {
+		repoPath = req.Repo
+	}
+
 	id := req.ID
 	start := time.Now()
 	silent := logSilentCmds[req.Cmd]
 
 	if !silent {
 		logger.IPCRequest(id, req.Cmd)
+	}
+
+	l := lockFor(repoPath)
+	if mutatingCmds[req.Cmd] {
+		l.Lock()
+		defer l.Unlock()
+	} else {
+		l.RLock()
+		defer l.RUnlock()
+	}
+
+	if autoSnapshotCmds[req.Cmd] {
+		if _, err := git.SnapshotCreate(repoPath, "before "+req.Cmd); err != nil {
+			logger.Error("snapshot", "auto-snapshot before "+req.Cmd+" failed: "+err.Error())
+		}
 	}
 
 	resp := handle(repoPath, req)
@@ -70,16 +215,10 @@ func Handle(repoPath string, req Request) Response {
 }
 
 // handle contains the actual dispatch logic, kept separate so Handle() can
-// wrap it cleanly with timing and logging.
+// wrap it cleanly with timing, logging and per-repo locking. repoPath arrives
+// already resolved (per-request repo override applied in Handle).
 func handle(repoPath string, req Request) Response {
 	id := req.ID
-
-	// Per-request repo override: a multi-repo workspace sends the active repo
-	// root on each request. When absent, fall back to the spawn-time default
-	// (HYDRAGIT_REPO). Every git.* call below runs against this path.
-	if req.Repo != "" {
-		repoPath = req.Repo
-	}
 
 	switch req.Cmd {
 
@@ -91,14 +230,16 @@ func handle(repoPath string, req Request) Response {
 		if err != nil {
 			return fail(id, err)
 		}
-		// Only log when status actually changes
+		// Only log when this repo's status actually changes
 		b, _ := json.Marshal(s)
 		sum := sha256.Sum256(b)
 		h := hex.EncodeToString(sum[:8])
-		if h != lastStatusHash {
-			lastStatusHash = h
+		statusLogMu.Lock()
+		if h != lastStatusHash[repoPath] {
+			lastStatusHash[repoPath] = h
 			logger.Info("status", "status changed")
 		}
+		statusLogMu.Unlock()
 
 		return ok(id, s)
 
@@ -111,19 +252,21 @@ func handle(repoPath string, req Request) Response {
 
 	case "log":
 		var p struct {
-			Branch string `json:"branch"`
-			Limit  int    `json:"limit"`
-			Grep   string `json:"grep"`
-			Author string `json:"author"`
+			Branch  string `json:"branch"`
+			Limit   int    `json:"limit"`
+			Grep    string `json:"grep"`
+			Author  string `json:"author"`
+			Pickaxe string `json:"pickaxe"`
 		}
 		json.Unmarshal(req.Params, &p)
 		// p.Limit == 0 means "no limit" — load the full history. The webview
 		// virtualizes rendering (LogPane), so it can hold the whole log.
 		commits, err := git.LogWith(repoPath, git.LogOptions{
-			Branch: p.Branch,
-			Limit:  p.Limit,
-			Grep:   p.Grep,
-			Author: p.Author,
+			Branch:  p.Branch,
+			Limit:   p.Limit,
+			Grep:    p.Grep,
+			Author:  p.Author,
+			Pickaxe: p.Pickaxe,
 		})
 		if err != nil {
 			return fail(id, err)
@@ -287,6 +430,9 @@ func handle(repoPath string, req Request) Response {
 			Index int `json:"index"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if p.Index < 0 {
+			return fail(id, fmt.Errorf("invalid stash index: %d", p.Index))
+		}
 		if err := git.StashPop(repoPath, p.Index); err != nil {
 			return fail(id, err)
 		}
@@ -297,6 +443,9 @@ func handle(repoPath string, req Request) Response {
 			Index int `json:"index"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if p.Index < 0 {
+			return fail(id, fmt.Errorf("invalid stash index: %d", p.Index))
+		}
 		if err := git.StashApply(repoPath, p.Index); err != nil {
 			return fail(id, err)
 		}
@@ -307,6 +456,9 @@ func handle(repoPath string, req Request) Response {
 			Index int `json:"index"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if p.Index < 0 {
+			return fail(id, fmt.Errorf("invalid stash index: %d", p.Index))
+		}
 		if err := git.StashDrop(repoPath, p.Index); err != nil {
 			return fail(id, err)
 		}
@@ -355,6 +507,9 @@ func handle(repoPath string, req Request) Response {
 			Branch string `json:"branch"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "branch", p.Branch); r != nil {
+			return *r
+		}
 		if err := git.Checkout(repoPath, p.Branch); err != nil {
 			return fail(id, err)
 		}
@@ -366,6 +521,9 @@ func handle(repoPath string, req Request) Response {
 			From string `json:"from"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "name", p.Name); r != nil {
+			return *r
+		}
 		if err := git.CreateBranch(repoPath, p.Name, p.From); err != nil {
 			return fail(id, err)
 		}
@@ -377,6 +535,9 @@ func handle(repoPath string, req Request) Response {
 			Force bool   `json:"force"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "name", p.Name); r != nil {
+			return *r
+		}
 		if err := git.DeleteBranch(repoPath, p.Name, p.Force); err != nil {
 			return fail(id, err)
 		}
@@ -388,6 +549,9 @@ func handle(repoPath string, req Request) Response {
 			Branch string `json:"branch"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "remote", p.Remote, "branch", p.Branch); r != nil {
+			return *r
+		}
 		if err := git.DeleteRemoteBranch(repoPath, p.Remote, p.Branch); err != nil {
 			return fail(id, err)
 		}
@@ -399,6 +563,9 @@ func handle(repoPath string, req Request) Response {
 			To   string `json:"to"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "from", p.From, "to", p.To); r != nil {
+			return *r
+		}
 		if err := git.RenameBranch(repoPath, p.From, p.To); err != nil {
 			return fail(id, err)
 		}
@@ -455,10 +622,31 @@ func handle(repoPath string, req Request) Response {
 			Branch string `json:"branch"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "branch", p.Branch); r != nil {
+			return *r
+		}
 		if err := git.Merge(repoPath, p.Branch); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)
+
+	case "merge.preview":
+		var p struct {
+			Ours   string `json:"ours"`
+			Theirs string `json:"theirs"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if p.Ours == "" {
+			p.Ours = "HEAD"
+		}
+		if r := missingParam(id, "theirs", p.Theirs); r != nil {
+			return *r
+		}
+		preview, err := git.PreviewMerge(repoPath, p.Ours, p.Theirs)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, preview)
 
 	case "conflicts":
 		info, err := git.Conflicts(repoPath)
@@ -513,6 +701,9 @@ func handle(repoPath string, req Request) Response {
 			Mode   string `json:"mode"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
 		stashed, err := git.ResetWithAutostash(repoPath, p.Commit, p.Mode)
 		if err != nil {
 			return fail(id, err)
@@ -538,6 +729,9 @@ func handle(repoPath string, req Request) Response {
 			Onto string `json:"onto"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "onto", p.Onto); r != nil {
+			return *r
+		}
 		if err := git.Rebase(repoPath, p.Onto); err != nil {
 			return fail(id, err)
 		}
@@ -548,6 +742,9 @@ func handle(repoPath string, req Request) Response {
 			Commit string `json:"commit"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
 		conflict, err := git.DropCommit(repoPath, p.Commit)
 		if err != nil {
 			return fail(id, err)
@@ -571,6 +768,9 @@ func handle(repoPath string, req Request) Response {
 			Commit string `json:"commit"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
 		conflict, err := git.SquashWithParent(repoPath, p.Commit)
 		if err != nil {
 			return fail(id, err)
@@ -583,6 +783,9 @@ func handle(repoPath string, req Request) Response {
 			Message string `json:"message"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit, "message", p.Message); r != nil {
+			return *r
+		}
 		conflict, err := git.RewordCommit(repoPath, p.Commit, p.Message)
 		if err != nil {
 			return fail(id, err)
@@ -670,6 +873,9 @@ func handle(repoPath string, req Request) Response {
 			Commit string `json:"commit"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
 		if err := git.CherryPick(repoPath, p.Commit); err != nil {
 			return fail(id, err)
 		}
@@ -711,6 +917,100 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, result)
 
+	case "commit.precheck":
+		var p struct {
+			Paths  []string `json:"paths"`
+			Checks []string `json:"checks"` // enabled checks, injected by the host from settings; empty = all
+		}
+		json.Unmarshal(req.Params, &p)
+		enabled := map[string]bool{}
+		for _, c := range p.Checks {
+			enabled[c] = true
+		}
+		return ok(id, git.CommitSafety(repoPath, p.Paths, enabled))
+
+	case "commit.fixup":
+		var p struct {
+			Commit string   `json:"commit"`
+			Paths  []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
+		result, err := git.FixupCommit(repoPath, p.Commit, p.Paths)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, result)
+
+	case "rebase.autosquash":
+		var p struct {
+			Base string `json:"base"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "base", p.Base); r != nil {
+			return *r
+		}
+		conflict, err := git.RebaseAutosquash(repoPath, p.Base)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"conflict": conflict})
+
+	case "rerere.enable":
+		if err := git.EnableRerere(repoPath); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "snapshot.list":
+		snaps, err := git.SnapshotList(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, snaps)
+
+	case "snapshot.save":
+		var p struct {
+			Label string `json:"label"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if p.Label == "" {
+			p.Label = "manual snapshot"
+		}
+		snap, err := git.SnapshotCreate(repoPath, p.Label)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, snap) // null when the tree was clean
+
+	case "snapshot.restore":
+		var p struct {
+			Hash string `json:"hash"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "hash", p.Hash); r != nil {
+			return *r
+		}
+		if err := git.SnapshotRestore(repoPath, p.Hash); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "snapshot.drop":
+		var p struct {
+			Ref string `json:"ref"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "ref", p.Ref); r != nil {
+			return *r
+		}
+		if err := git.SnapshotDrop(repoPath, p.Ref); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "commit.lastMessage":
 		msg, err := git.LastCommitMessage(repoPath)
 		if err != nil {
@@ -723,6 +1023,9 @@ func handle(repoPath string, req Request) Response {
 			Commit string `json:"commit"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "commit", p.Commit); r != nil {
+			return *r
+		}
 		if err := git.Revert(repoPath, p.Commit); err != nil {
 			return fail(id, err)
 		}
@@ -742,6 +1045,9 @@ func handle(repoPath string, req Request) Response {
 			Message string `json:"message"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "name", p.Name); r != nil {
+			return *r
+		}
 		if err := git.CreateTag(repoPath, p.Name, p.Commit, p.Message); err != nil {
 			return fail(id, err)
 		}
@@ -752,6 +1058,9 @@ func handle(repoPath string, req Request) Response {
 			Name string `json:"name"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "name", p.Name); r != nil {
+			return *r
+		}
 		if err := git.DeleteTag(repoPath, p.Name); err != nil {
 			return fail(id, err)
 		}
@@ -772,6 +1081,9 @@ func handle(repoPath string, req Request) Response {
 			Start     string `json:"start"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "path", p.Path); r != nil {
+			return *r
+		}
 		var werr error
 		if p.NewBranch != "" {
 			werr = git.WorktreeAddNew(repoPath, p.Path, p.NewBranch, p.Start)
@@ -789,6 +1101,9 @@ func handle(repoPath string, req Request) Response {
 			Force bool   `json:"force"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "path", p.Path); r != nil {
+			return *r
+		}
 		if err := git.WorktreeRemove(repoPath, p.Path, p.Force); err != nil {
 			return fail(id, err)
 		}
@@ -821,6 +1136,9 @@ func handle(repoPath string, req Request) Response {
 			To   string `json:"to"`
 		}
 		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "from", p.From, "to", p.To); r != nil {
+			return *r
+		}
 		if err := git.WorktreeMove(repoPath, p.From, p.To); err != nil {
 			return fail(id, err)
 		}

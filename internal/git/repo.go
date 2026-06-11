@@ -28,6 +28,14 @@ var logSilentGitCmds = map[string]bool{
 	"status":    true,
 }
 
+// IsRepo reports whether path is inside a git repository. Used by main to
+// sanity-check the spawn-time default repo (SECURITY.md "HYDRAGIT_REPO not
+// validated") — still routed through the single exec point.
+func IsRepo(path string) bool {
+	_, err := run(path, "rev-parse", "--git-dir")
+	return err == nil
+}
+
 // run is the single entry point for all git CLI calls.
 // Successful executions of commands in logSilentGitCmds are not logged.
 // Errors are always logged.
@@ -57,6 +65,32 @@ func runEnv(repoPath string, env []string, args ...string) (string, error) {
 func runTimeout(repoPath string, timeout time.Duration, args ...string) (string, error) {
 	return runCore(repoPath, nil, nil, timeout, args...)
 }
+
+// runExitCode is run() for commands whose exit status is an answer rather than
+// a failure — e.g. `merge-tree --write-tree` exits 1 to mean "conflicts" while
+// still writing its result to stdout. Returns stdout, the exit code, and an
+// error only for genuine failures (spawn problems, exit codes above 1).
+func runExitCode(repoPath string, args ...string) (string, int, error) {
+	out, err := runCore(repoPath, nil, nil, 0, args...)
+	if err == nil {
+		return out, 0, nil
+	}
+	if ec, ok := err.(*exitError); ok && ec.code == 1 {
+		return ec.stdout, 1, nil
+	}
+	return "", -1, err
+}
+
+// exitError carries the exit code and captured stdout through runCore's error
+// path for runExitCode. Its message stays git's stderr, so existing callers
+// that just propagate the error are unchanged.
+type exitError struct {
+	code   int
+	stdout string
+	msg    string
+}
+
+func (e *exitError) Error() string { return e.msg }
 
 // runCore is the one place os/exec is called. stdin, extraEnv and timeout are
 // optional (nil / 0 disables each).
@@ -106,7 +140,11 @@ func runCore(repoPath string, stdin []byte, extraEnv []string, timeout time.Dura
 		}
 		// errors are always logged, never silent
 		logger.GitCmd(cmdLabel, durationMs, exitCode, errMsg)
-		return "", fmt.Errorf("%s", errMsg)
+		return "", &exitError{
+			code:   exitCode,
+			stdout: strings.TrimRight(stdout.String(), "\n"),
+			msg:    errMsg,
+		}
 	}
 
 	if !logSilentGitCmds[args[0]] {

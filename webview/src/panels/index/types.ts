@@ -82,6 +82,15 @@ export interface Tag {
   date?: string;  // ISO date string (git creatordate:short)
 }
 
+// A working-tree snapshot (refs/hydragit/snapshots) — auto-captured before
+// risky operations; hash is an ordinary commit, diffable like any other.
+export interface Snapshot {
+  ref: string;
+  hash: string;
+  date: string;  // RFC3339
+  label: string; // e.g. "before reset"
+}
+
 export interface Worktree {
   path: string;
   head: string;          // commit hash, "" for a bare main worktree

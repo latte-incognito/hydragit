@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trust, privacy &amp; safety — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Trust, privacy &amp; safety</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.5</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#local" class="head">Local-only by design</a>
+      <a href="#boundary">Hardened webview boundary</a>
+      <a href="#destructive">Destructive-op guardrails</a>
+      <a href="#performance">Concurrent backend</a>
+      <a href="#license">License</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">⬡</span>Trust, privacy &amp; safety</h1>
+      <p class="lede">
+        HydraGit runs your git, on your machine, and talks to nobody else. No telemetry, no
+        accounts, no cloud — and a set of guardrails that assume the riskiest thing in the room
+        is an honest mistake.
+      </p>
+
+      <section class="feature" id="local">
+        <h2>Local-only by design</h2>
+        <ol class="flow">
+          <li><b>Zero network egress from the UI.</b> Every panel ships a Content-Security-Policy of <code>default-src 'none'</code> + <code>connect-src 'none'</code>, with no remote image loading — the webviews <i>cannot</i> phone home, by browser enforcement, not by promise.</li>
+          <li><b>No telemetry, no analytics, no accounts.</b> The only network traffic is git itself talking to your remotes when you fetch/pull/push.</li>
+          <li><b>Zero runtime dependencies.</b> No third-party npm packages ship in the extension; the Go backend has no production dependencies. The supply chain is: VS Code, git, HydraGit.</li>
+          <li>Logs stay on disk in VS Code's extension log folder, owner-readable only (<code>0700</code>/<code>0600</code>), rotated after 7 days.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="boundary">
+        <h2>Hardened webview boundary</h2>
+        <p>The panels are webviews; the extension host treats them as untrusted and verifies what
+        they ask for:</p>
+        <ol class="flow">
+          <li>Requests may only target repositories the extension has actually discovered in your workspace — a panel can't point git at an arbitrary directory.</li>
+          <li>"Open worktree" only opens paths git itself reports as worktrees.</li>
+          <li>The Go backend validates required parameters on every state-changing command and runs git with argument lists only — there is no shell anywhere in the path.</li>
+        </ol>
+        <p>The full security model lives in the repo's <code>docs/PROJECT_CONTEXT.md</code>.</p>
+      </section>
+
+      <section class="feature" id="destructive">
+        <h2>Destructive-op guardrails</h2>
+        <ol class="flow">
+          <li>Force-class operations (force delete, force push, clear all stashes) only execute moments after you've answered a <b>native VS Code dialog</b> — a confirmation the UI layer can't fake.</li>
+          <li>Force-push always uses <code>--force-with-lease</code> — it refuses to overwrite remote commits you haven't seen.</li>
+          <li>Before every risky operation the working tree is <a href="snapshots.html">snapshotted automatically</a>; hard resets <a href="reflog.html#autostash">auto-stash</a> on top.</li>
+          <li>Pre-commit <a href="commit.html#safety">safety checks</a> warn before a secret, a conflict marker or a huge file lands in history.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="performance">
+        <h2>Concurrent backend</h2>
+        <p>Requests to the git backend run concurrently, with git operations serialized <b>per
+        repository</b>: writes are exclusive (two state-changing commands never race on one
+        <code>.git</code>), reads run in parallel, and a slow network operation — a fetch against a
+        dead remote — can't freeze the rest of the UI. In multi-repo workspaces, repositories never
+        block each other.</p>
+      </section>
+
+      <section class="feature" id="license">
+        <h2>License</h2>
+        <p><b>GPL-3.0</b> — free forever, and every fork must stay open source under the same
+        license, so nobody can take HydraGit, tweak it, and put it behind a paywall. The HydraGit
+        name and logo are not covered by the license.</p>
+        <div class="related"><b>Related</b><a href="snapshots.html">Working-tree snapshots</a><a href="commit.html#safety">Pre-commit safety checks</a><a href="logging.html">Logging &amp; diagnostics</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="logging.html"><small>Prev</small> Logging &amp; diagnostics</a>
+        <a class="next" href="../index.html"><small>Next</small> Home</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Trust, privacy &amp; safety</footer>
+</body>
+</html>

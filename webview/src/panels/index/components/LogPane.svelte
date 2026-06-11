@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Commit } from '../types';
   import { buildGraphSVG, LANE_W, PAD, ROW_H } from '../graphSvg';
+  import { fullDate, smartDate } from '$shared/dates';
 
   interface Props {
     commits?: Commit[];
@@ -32,30 +33,12 @@
     return r.startsWith('tag:') ? r.slice(4).trim() : r;
   }
 
-  // ── Date formatting ───────────────────────────────────────────────────────
-  function formatDate(raw: string): string {
-    if (!raw) return '';
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return raw;
+  // ── Date formatting: smartDate keeps the column from truncating (older
+  // dates drop the time); the full timestamp lives in the cell tooltip.
 
-    const now   = new Date();
-    const todayStart     = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const yesterdayStart = new Date(todayStart.getTime() - 86400000);
-
-    // 12-hour time, no seconds, lowercase am/pm
-    const time = d.toLocaleTimeString(undefined, {
-      hour:   'numeric',
-      minute: '2-digit',
-      hour12: true,
-    }).toLowerCase().replace(/\s/g, '\u202f'); // narrow no-break space before am/pm
-
-    if (d >= todayStart)     return `Today ${time}`;
-    if (d >= yesterdayStart) return `Yesterday ${time}`;
-
-    // Older: YYYY-MM-DD, time
-    const ymd = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    return `${ymd}, ${time}`;
-  }
+  // Single-author repos (the common solo case): the author column is pure
+  // repetition — hide it and give the width back to the subject.
+  let singleAuthor = $derived(new Set(commits.map((c) => c.author ?? '')).size <= 1);
 
   // ── Resizable columns ─────────────────────────────────────────────────────
   // subjectW is derived: it fills whatever space author+date don't use.
@@ -67,7 +50,10 @@
   const MIN_W    = 60;
 
   // subject gets the remainder after author, date, and two handles
-  let subjectW = $derived(Math.max(MIN_W, containerW - authorW - dateW - HANDLE_W * 2));
+  // (a hidden author column contributes zero — the subject reclaims it)
+  let subjectW = $derived(
+    Math.max(MIN_W, containerW - (singleAuthor ? 0 : authorW + HANDLE_W) - dateW - HANDLE_W)
+  );
 
   function startResize(e: MouseEvent, left: 'subject' | 'author', right: 'author' | 'date') {
     e.preventDefault();
@@ -78,7 +64,12 @@
     function onMove(ev: MouseEvent) {
       const delta = ev.clientX - startX;
 
-      if (left === 'subject' && right === 'author') {
+      if (left === 'subject' && right === 'date') {
+        // Single-author layout: the only handle trades subject ↔ date.
+        const newDate = Math.max(MIN_W, startDate - delta);
+        const wouldBeSubject = containerW - newDate - HANDLE_W;
+        if (wouldBeSubject >= MIN_W) dateW = newDate;
+      } else if (left === 'subject' && right === 'author') {
         // Dragging right: author shrinks (its left edge moves right), subject grows via reactive remainder
         // Dragging left: author grows, subject shrinks
         const newAuthor = Math.max(MIN_W, startAuthor - delta);
@@ -296,6 +287,8 @@
       <span class="ci-text">Reset Current Branch to Here…</span>
     </div>
     <div class="ctx-item" onclick={() => runAction('revert')}><span class="ci-icon"></span><span class="ci-text">Revert Commit</span></div>
+    <div class="ctx-item" onclick={() => runAction('fixup')}><span class="ci-icon"></span><span class="ci-text">Fixup: Commit Changes into This…</span></div>
+    <div class="ctx-item" onclick={() => runAction('autosquash')}><span class="ci-icon"></span><span class="ci-text">Apply Fixups Below (Autosquash)…</span></div>
     <div class="ctx-item ctx-item--dim"><span class="ci-icon"></span><span class="ci-text">Undo Commit…</span></div>
 
     <div class="ctx-divider"></div>
@@ -350,13 +343,16 @@
   {#if fileSearchActive}
     <div class="file-search-bar">⌕ Commits touching: <em>{fileSearchPath}</em></div>
   {/if}
-  <!-- Column headers -->
+  <!-- Column headers — the Author column (header, cell and resize handle)
+       disappears together in single-author repos, keeping header/row alignment. -->
   <div class="log-col-hdr">
     <div class="lch-graph" style="width:{graphW}px;flex-shrink:0"></div>
     <div class="lch-col" style="width:{subjectW}px">Commit</div>
-    <div class="col-resize" onmousedown={(e) => startResize(e, 'subject', 'author')} onmouseenter={(e) => showTip(e, 'Drag to resize')} onmouseleave={hideTip}></div>
-    <div class="lch-col" style="width:{authorW}px">Author</div>
-    <div class="col-resize" onmousedown={(e) => startResize(e, 'author', 'date')} onmouseenter={(e) => showTip(e, 'Drag to resize')} onmouseleave={hideTip}></div>
+    {#if !singleAuthor}
+      <div class="col-resize" onmousedown={(e) => startResize(e, 'subject', 'author')} onmouseenter={(e) => showTip(e, 'Drag to resize')} onmouseleave={hideTip}></div>
+      <div class="lch-col" style="width:{authorW}px">Author</div>
+    {/if}
+    <div class="col-resize" onmousedown={(e) => startResize(e, singleAuthor ? 'subject' : 'author', 'date')} onmouseenter={(e) => showTip(e, 'Drag to resize')} onmouseleave={hideTip}></div>
     <div class="lch-col" style="width:{dateW}px">Date</div>
   </div>
 
@@ -395,10 +391,12 @@
                   {c.message ?? c.msg ?? ''}
                 {/if}
               </div>
+              {#if !singleAuthor}
+                <div class="col-spacer"></div>
+                <div class="cauthor" style="width:{authorW}px">{c.author ?? ''}</div>
+              {/if}
               <div class="col-spacer"></div>
-              <div class="cauthor" style="width:{authorW}px">{c.author ?? ''}</div>
-              <div class="col-spacer"></div>
-              <div class="cdate" style="width:{dateW}px">{formatDate(c.date ?? '')}</div>
+              <div class="cdate" style="width:{dateW}px" title={fullDate(c.date ?? '')}>{smartDate(c.date ?? '')}</div>
             </div>
           {/each}
         </div>
@@ -526,7 +524,16 @@
     padding-right: 10px;
   }
   .crow:hover { background: var(--vscode-list-hoverBackground, #2a2a2a); }
-  .crow.sel   { background: #0e2030; border-left-color: #56c8e8; }
+  /* Selection = themed fill (reads as selection, not a focus ring) — ROADMAP §4.11 */
+  .crow.sel {
+    background: var(--vscode-list-activeSelectionBackground, #0e2030);
+    border-left-color: var(--vscode-focusBorder, #56c8e8);
+  }
+  .crow.sel .csubject,
+  .crow.sel .cauthor,
+  .crow.sel .cdate {
+    color: var(--vscode-list-activeSelectionForeground, #e8e8e8);
+  }
   /* Dim rows that aren't on the hovered branch line. */
   .crow.dim   { opacity: 0.4; }
 
@@ -559,7 +566,9 @@
   .cdate {
     flex-shrink: 0;
     font-size: var(--hg-font-xs);
-    color: var(--vscode-disabledForeground, #3a3a3a);
+    /* descriptionForeground, not disabledForeground — dates are info, not
+       disabled UI, and the old value was borderline-invisible (§4.14) */
+    color: var(--vscode-descriptionForeground, #8c8c8c);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

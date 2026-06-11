@@ -17,19 +17,27 @@ async function mainFrame(page: any) {
 }
 
 test.describe("Action rail", () => {
-  test("renders all nine rail buttons", async ({ mainWindow }) => {
+  test("renders the full rail button set", async ({ mainWindow }) => {
     const frame = await mainFrame(mainWindow);
     const btns = frame.locator("button.rail-btn");
-    await expect(btns).toHaveCount(9, { timeout: 8000 });
+    // sync, checkout, fetch, pull, push, new branch, merge, rebase, delete,
+    // stash, tag, worktree — mirror ActionRail.svelte
+    await expect(btns).toHaveCount(12, { timeout: 8000 });
   });
 
-  // fetch / pull / push hit the network-less local fixture; they flash a result
-  // (success or a benign "no remote" error) — either way the app responds.
-  for (const [idx, name] of [[0, "fetch"], [1, "pull"], [2, "push"]] as [number, string][]) {
-    test(`rail button #${idx} (${name}) responds with a flash`, async ({ mainWindow }) => {
+  // The fixture wires a local bare repo as `origin`, so fetch/pull/push run for
+  // real. Assert the SUCCESS flash — an error flash must fail the test.
+  for (const [name, success] of [
+    ["Fetch", "fetch done"],
+    ["Pull", "pull done"],
+    ["Push", "Pushed"],
+  ] as [string, string][]) {
+    test(`rail button ${name} succeeds against origin`, async ({ mainWindow }) => {
       const frame = await mainFrame(mainWindow);
-      await frame.locator("button.rail-btn").nth(idx).click();
-      await expect(frame.getByText("⚡", { exact: false }).first()).toBeVisible({ timeout: 8000 });
+      await frame.locator(`button.rail-btn[aria-label="${name}"]`).click();
+      await expect(
+        frame.getByText(`⚡ ${success}`, { exact: false }).first()
+      ).toBeVisible({ timeout: 8000 });
     });
   }
 });

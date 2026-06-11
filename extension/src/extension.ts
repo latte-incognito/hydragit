@@ -7,6 +7,7 @@ import {
   HydraSidebarProvider,
   HydraViewProvider,
   setActiveRepoRoot,
+  setKnownRepoRoots,
 } from './panel';
 import { HistoryPanelManager } from './historyPanel';
 import { HydraStatusService } from './HydraStatusService';
@@ -162,6 +163,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
     repoService.onDidChange(() => {
       const active = repoService.getActiveRoot();
       const repos = repoService.getRepos();
+      // Refresh the allowlist BEFORE the webviews learn the repo list, so the
+      // webview can never know a root the message gate doesn't.
+      setKnownRepoRoots(repos.map((r) => r.rootPath));
       updateRepoStatusItem();
       mainProvider.postRepoState(repos, active);
       sidebarProvider.postRepoState(repos, active);
@@ -173,6 +177,15 @@ export function activate(ctx: vscode.ExtensionContext): void {
       mainProvider.forceRefresh();
       sidebarProvider.forceRefresh();
       void statusService.refresh();
+      // rerere: record conflict resolutions and reuse them on repeated
+      // rebases/merges. Repo-local config, idempotent, best-effort.
+      if (vscode.workspace.getConfiguration('hydragit').get<boolean>('rerere.enabled', true)) {
+        for (const r of repos) {
+          goProcess!.send('rerere.enable', {}, r.rootPath).catch(() => {
+            /* non-fatal — e.g. a repo that vanished mid-flight */
+          });
+        }
+      }
     })
   );
 

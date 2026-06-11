@@ -59,7 +59,7 @@ func Status(repoPath string) (StatusResult, error) {
 			continue
 		}
 
-		xy := line[:2]  // two-character status code, e.g. "M ", " M", "??"
+		xy := line[:2] // two-character status code, e.g. "M ", " M", "??"
 
 		// Porcelain v1 format is always: XY<SP>path
 		// where XY is exactly 2 bytes and SP is exactly 1 space.

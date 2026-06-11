@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Working-tree snapshots — HydraGit Docs</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
+    <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Undo &amp; Safety<span class="sep">/</span>Working-tree snapshots</nav>
+    <div class="spacer"></div>
+    <span class="ver">v0.2.5</span>
+  </header>
+
+  <div class="page">
+    <aside class="toc">
+      <h4>On this page</h4>
+      <a href="#auto" class="head">Auto-capture</a>
+      <a href="#browse">Browse &amp; diff</a>
+      <a href="#restore">Restore</a>
+      <a href="#drop">Delete &amp; pruning</a>
+      <a href="#how">How it works</a>
+    </aside>
+
+    <article class="content">
+      <h1><span class="glyph">◷</span>Working-tree snapshots</h1>
+      <p class="lede">
+        A time machine for <b>uncommitted</b> work. Before every risky operation HydraGit captures
+        the full working tree — staged, unstaged and untracked files alike — without touching it.
+        Botch a merge, reset the wrong thing, lose a new file to a stray clean: the state from
+        right before is one click away.
+      </p>
+
+      <section class="feature" id="auto">
+        <h2>Auto-capture <span class="cmd amber">snapshot.save</span></h2>
+        <h3 class="lbl">When snapshots are taken</h3>
+        <ol class="flow">
+          <li>Automatically, right before: <span class="chip a">merge</span> <span class="chip a">rebase</span> (all variants) <span class="chip a">reset</span> <span class="chip a">pull</span> <span class="chip a">checkout</span> <span class="chip a">cherry-pick</span> <span class="chip a">revert</span> <span class="chip a">undo</span> <span class="chip a">stash pop/apply</span> — and before a snapshot <a href="#restore">restore</a> itself.</li>
+          <li>Inside the repo's operation lock, so the captured state is exactly what the operation saw.</li>
+          <li>A <b>clean tree skips silently</b> — nothing at risk, nothing saved. Capture failures never block the operation (best-effort by design).</li>
+        </ol>
+        <div class="note teal"><span class="ic">i</span><span>Unlike the <a href="reflog.html">reflog</a> (which tracks <b>committed</b> history) and the <a href="reflog.html#autostash">auto-stash net</a> (tracked files on hard reset), snapshots cover the whole tree — <b>including brand-new untracked files</b>, the exact thing a stray <code>git clean -fd</code> eats.</span></div>
+      </section>
+
+      <section class="feature" id="browse">
+        <h2>Browse &amp; diff <span class="cmd amber">snapshot.list</span></h2>
+        <h3 class="lbl">Entry point</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Branch pane</span><span class="what"><b>Snapshots</b> section (below Worktrees) — label, age, hover actions.</span></li>
+        </ul>
+        <ol class="flow">
+          <li>Each row shows the trigger label (e.g. <code>before reset</code>) and a relative age.</li>
+          <li><b>Click</b> a snapshot to see its diff in the detail pane — a snapshot is an ordinary commit, so the regular commit-diff plumbing renders what it captured.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="restore">
+        <h2>Restore <span class="cmd amber">snapshot.restore</span></h2>
+        <h3 class="lbl">Entry point</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Snapshot row</span><span class="what">Hover → <b>↺</b> (Restore working tree from this snapshot).</span></li>
+        </ul>
+        <ol class="flow">
+          <li>After a confirm, the snapshot's content is checked back out over the working tree (<code>git restore --source</code>).</li>
+          <li>Files that exist only in the snapshot come back; files created <i>after</i> it are left alone; current edits to snapshotted files are overwritten.</li>
+          <li>Restore is itself <b>undoable</b>: a snapshot of the pre-restore state is taken first.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="drop">
+        <h2>Delete &amp; pruning <span class="cmd amber">snapshot.drop</span></h2>
+        <ol class="flow">
+          <li>Hover → <b>×</b> deletes one snapshot (confirm required; the ref is removed, objects become GC-eligible).</li>
+          <li>Auto-pruning keeps the <b>newest 20</b> — old snapshots age out on their own, the section never becomes a junk drawer.</li>
+        </ol>
+      </section>
+
+      <section class="feature" id="how">
+        <h2>How it works</h2>
+        <ol class="flow">
+          <li>A throwaway index is built from <code>HEAD</code>, the full working tree is layered on with <code>add&nbsp;-A</code> (<code>.gitignore</code> respected), then <code>write-tree</code> + <code>commit-tree</code> produce an ordinary commit — the real index, the stash list and the working tree are never touched.</li>
+          <li>The commit is pinned under <code>refs/hydragit/snapshots/&lt;timestamp&gt;</code>, so GC can't collect it and <code>git stash list</code> stays clean.</li>
+          <li>If the resulting tree equals <code>HEAD</code>'s, nothing is recorded.</li>
+        </ol>
+        <div class="note"><span class="ic">i</span><span>Staging state is <b>not</b> preserved — a snapshot records <i>content</i>, which is what "never lose work" needs. Deliberately not <code>git stash create</code>: that ignores untracked files.</span></div>
+        <div class="related"><b>Related</b><a href="reflog.html">Reflog undo timeline</a><a href="undo-squash.html#undo">Undo last operation</a><a href="stash.html">Stash manager</a></div>
+      </section>
+
+      <div class="pager">
+        <a class="prev" href="reflog.html"><small>Prev</small> Reflog undo timeline</a>
+        <a class="next" href="undo-squash.html"><small>Next</small> Undo &amp; squash</a>
+      </div>
+    </article>
+  </div>
+
+  <footer>HydraGit · Working-tree snapshots</footer>
+</body>
+</html>

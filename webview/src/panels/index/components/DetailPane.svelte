@@ -1,5 +1,6 @@
 <script lang="ts">
   import { send } from '$shared/messageBus';
+  import { fullDate } from '$shared/dates';
   import type { Commit, DiffFile, DiffHunk } from '../types';
 
   // Active ref/range comparison header (branch/tag/commit "Compare…"); when set,
@@ -513,7 +514,7 @@
         <div class="dm-msg">{stash.msg ?? stash.message ?? ''}</div>
         <div class="dm-row"><span class="dm-label">Ref</span>stash@{'{'}{stash.index ?? 0}{'}'}</div>
         {#if stash.time ?? stash.date}
-          <div class="dm-row"><span class="dm-label">Date</span>{stash.time ?? stash.date}</div>
+          <div class="dm-row"><span class="dm-label">Date</span>{fullDate(stash.time ?? stash.date ?? '')}</div>
         {/if}
         <div class="dm-stats">
           <span class="stat-add">+{totalAdd}</span>
@@ -670,7 +671,7 @@
           <div class="dm-hash">{(commit.hash ?? '').slice(0, 8)}</div>
           <div class="dm-msg">{commit.message ?? commit.msg ?? ''}</div>
           <div class="dm-row"><span class="dm-label">Author</span>{commit.author ?? ''}</div>
-          <div class="dm-row"><span class="dm-label">Date</span>{commit.date ?? ''}</div>
+          <div class="dm-row"><span class="dm-label">Date</span>{fullDate(commit.date ?? '')}</div>
           {#if (commit.refs ?? []).length}
             <div class="dm-row"><span class="dm-label">Refs</span>{(commit.refs ?? []).join(', ')}</div>
           {/if}

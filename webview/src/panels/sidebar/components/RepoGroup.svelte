@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { on, send } from '$shared/messageBus';
+  import { uiConfirm } from '$shared/dialogs';
   import type { RepoInfo } from '$shared/repoStore';
   import type { GitFile, GitStatus } from '../types';
 
@@ -42,7 +43,10 @@
   let collapsed: Set<string> = $state(new Set());
   let commitError = $state('');
   let commitAreaRef: CommitArea = $state();
-  let loaded = false; // first successful load done — gates the loading spinner
+  let loaded = $state(false); // first successful load done — gates the loading spinner
+  // Clean repos collapse to a one-liner (§4.15); this opens the commit area
+  // anyway for the message-only amend path (§4.16).
+  let showCleanCommitArea = $state(false);
 
   // Every git call is scoped to THIS repo's root, so reading/committing here
   // never disturbs the focused repo.
@@ -177,9 +181,26 @@
   async function runCommit(cmd: 'commit' | 'commit.push' | 'commit.amend', msg: string) {
     commitError = '';
     try {
+      // Pre-commit safety net: warn (never block) on likely secrets, leftover
+      // conflict markers, huge files, protected branch. Which checks run comes
+      // from user settings, resolved by the extension host.
+      try {
+        const warnings = (await call('commit.precheck', { paths: [...stagedPaths] })) as
+          | { type: string; path: string; detail: string }[]
+          | null;
+        if (warnings?.length) {
+          const lines = warnings
+            .slice(0, 6)
+            .map((w) => `• ${w.path ? w.path + ' — ' : ''}${w.detail}`)
+            .join('\n');
+          const more = warnings.length > 6 ? `\n…and ${warnings.length - 6} more` : '';
+          if (!(await uiConfirm(`Safety check found:\n${lines}${more}\n\nCommit anyway?`))) return;
+        }
+      } catch { /* precheck unavailable — never block the commit on it */ }
       await call(cmd, { message: msg, paths: [...stagedPaths] });
       stagedPaths = new Set();
       commitAreaRef?.clearMessage();
+      showCleanCommitArea = false;
       await loadChanges();
     } catch (e: unknown) {
       commitError = e instanceof Error ? e.message : String(e);
@@ -194,6 +215,15 @@
   }
 
   let stagedCount = $derived(stagedPaths.size);
+
+  // Long branch names keep their informative tail (the leaf) — §4.21.
+  function middleTruncate(s: string, max: number): string {
+    if (s.length <= max) return s;
+    const half = Math.floor((max - 1) / 2);
+    return s.slice(0, half) + '…' + s.slice(-half);
+  }
+
+  let isClean = $derived(loaded && files.length === 0 && !conflicts.operation);
 </script>
 
 <section class="repo-group" class:focused={focused && showHeader}>
@@ -201,7 +231,7 @@
     <header class="repo-header" onclick={handleHeaderClick}>
       <span class="chevron" class:open={expanded} aria-hidden="true">▸</span>
       <span class="repo-name" title={repo.rootPath}>{repo.name}</span>
-      {#if branch}<span class="repo-branch">{branch}</span>{/if}
+      {#if branch}<span class="repo-branch" title={branch}>{middleTruncate(branch, 26)}</span>{/if}
       {#if files.length}<span class="repo-count">{files.length}</span>{/if}
     </header>
   {/if}
@@ -216,29 +246,43 @@
       />
     {/if}
 
-    <FileTree
-      {files}
-      {loading}
-      noRepo={false}
-      {stagedPaths}
-      {collapsed}
-      onToggleStage={handleToggleStage}
-      onToggleFolder={handleToggleFolder}
-      onStageFolder={handleStageFolder}
-      onOpenDiff={handleOpenDiff}
-    />
+    {#if isClean && !showCleanCommitArea}
+      <!-- Clean repo: one quiet line instead of ~400px of empty commit UI
+           (§4.15). Amend stays reachable for the message-only reword (§4.16). -->
+      <div class="clean-state">
+        <span class="clean-msg">No changes · working tree clean</span>
+        <button class="clean-amend" onclick={() => (showCleanCommitArea = true)}>
+          Amend last commit…
+        </button>
+      </div>
+    {:else}
+      {#if !isClean}
+        <FileTree
+          {files}
+          {loading}
+          noRepo={false}
+          {stagedPaths}
+          {collapsed}
+          onToggleStage={handleToggleStage}
+          onToggleFolder={handleToggleFolder}
+          onStageFolder={handleStageFolder}
+          onOpenDiff={handleOpenDiff}
+        />
+      {/if}
 
-    <CommitArea
-      bind:this={commitAreaRef}
-      hasFiles={files.length > 0}
-      {stagedCount}
-      {hasUpstream}
-      {branch}
-      error={commitError}
-      onCommit={(m) => runCommit('commit', m)}
-      onCommitPush={(m) => runCommit('commit.push', m)}
-      onAmend={(m) => runCommit('commit.amend', m)}
-    />
+      <CommitArea
+        bind:this={commitAreaRef}
+        hasFiles={files.length > 0}
+        {stagedCount}
+        {hasUpstream}
+        {branch}
+        error={commitError}
+        startAmend={isClean && showCleanCommitArea}
+        onCommit={(m) => runCommit('commit', m)}
+        onCommitPush={(m) => runCommit('commit.push', m)}
+        onAmend={(m) => runCommit('commit.amend', m)}
+      />
+    {/if}
   {/if}
 </section>
 
@@ -246,9 +290,42 @@
   .repo-group {
     border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.2));
   }
+  /* The active group is the one the main panel follows — make that state
+     explicit with a filled header, not just the (too subtle) edge line (§4.18). */
   .repo-group.focused {
     box-shadow: inset 2px 0 0 var(--vscode-focusBorder, #4ec94e);
   }
+  .repo-group.focused .repo-header {
+    background: var(--vscode-list-activeSelectionBackground, #094771);
+    color: var(--vscode-list-activeSelectionForeground, #ffffff);
+  }
+
+  .clean-state {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 5px 10px 6px;
+    font-size: var(--hg-font-xs, 11px);
+    color: var(--vscode-descriptionForeground, #8c8c8c);
+    min-width: 0;
+  }
+  .clean-msg {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .clean-amend {
+    margin-left: auto;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--vscode-textLink-foreground, #3794ff);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .clean-amend:hover { text-decoration: underline; }
   .repo-header {
     display: flex;
     align-items: center;
