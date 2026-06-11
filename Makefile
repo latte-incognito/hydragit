@@ -6,7 +6,7 @@ DIRTY := $(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo true |
 LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)
 BUILD_INFO_TS := extension/src/generated/buildInfo.ts
 
-.PHONY: gen-build-info build-go build-all build-extension build package publish build-webview webview-dev webview-check fmt fmt-go fmt-ts fmt-check test test-go test-ts clean-webview
+.PHONY: gen-build-info build-go build-all build-extension build package publish build-webview webview-dev webview-check fmt fmt-go fmt-ts fmt-check test test-go test-ts clean-webview release
 
 ## Build webview (production, minified)
 build-webview: clean-webview
@@ -44,6 +44,10 @@ publish: build
 
 install-local: test package
 	code --install-extension hydragit-*.vsix --force
+
+## Release: snapshot develop's tree onto master as one commit + tag vX.Y.Z (see docs/GITFLOW.md)
+release:
+	bash scripts/release.sh
 
 gen-build-info:
 	mkdir -p extension/src/generated
