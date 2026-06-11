@@ -25,21 +25,26 @@ git branch -d feature/my-thing
 
 ## Cutting a release
 
-1. On develop: bump `"version"` in `package.json`.
-2. Add a `## [X.Y.Z] — date` section to `CHANGELOG.md` (it becomes the release
-   commit's message body).
-3. Commit both, then:
+During development, log notable changes under a `## [Unreleased]` section at
+the top of `CHANGELOG.md` as they merge. Then:
+
+1. On develop: bump `"version"` in `package.json`, commit.
+2. Run:
 
 ```
 make release
 ```
 
 The script (`scripts/release.sh`) refuses to run unless: you're on develop, the
-tree is clean, the tag doesn't exist yet, local master == origin/master, and
-the changelog section is written. Then it:
+tree is clean, the `package.json` version is **strictly higher** than the
+latest `v*` tag, local master == origin/master, and `## [Unreleased]` exists
+with content. Then it:
 
+- renames `## [Unreleased]` to `## [X.Y.Z] — date`, inserts the GitHub compare
+  link, and commits that on develop;
 - creates one commit on master whose **tree is develop's tree, verbatim**
-  (`git commit-tree develop^{tree} -p master`) — no merge, no conflict possible;
+  (`git commit-tree develop^{tree} -p master`), with the changelog section as
+  the commit message — no merge, no conflict possible;
 - tags it `vX.Y.Z`;
 - pushes develop, master, and the tag.
 
@@ -69,7 +74,8 @@ changelog).
 
 - Version bumps happen **on develop only**. Never touch master directly —
   that is exactly what caused the old divergence.
-- One changelog section per version, written before `make release`.
+- Keep `## [Unreleased]` in `CHANGELOG.md` up to date as features merge —
+  `make release` turns it into the version section automatically.
 - Tags are published facts: never re-point a pushed tag (the 2026-06-11
   retro-tagging was a one-time history cleanup). If a release is broken,
   ship a new patch version instead.
