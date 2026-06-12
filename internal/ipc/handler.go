@@ -941,15 +941,16 @@ func handle(repoPath string, req Request) Response {
 
 	case "commit.precheck":
 		var p struct {
-			Paths  []string `json:"paths"`
-			Checks []string `json:"checks"` // enabled checks, injected by the host from settings; empty = all
+			Paths             []string `json:"paths"`
+			Checks            []string `json:"checks"`            // enabled checks, injected by the host from settings; empty = all
+			ProtectedBranches []string `json:"protectedBranches"` // custom protected list, injected by the host; empty = main/master
 		}
 		json.Unmarshal(req.Params, &p)
 		enabled := map[string]bool{}
 		for _, c := range p.Checks {
 			enabled[c] = true
 		}
-		return ok(id, git.CommitSafety(repoPath, p.Paths, enabled))
+		return ok(id, git.CommitSafety(repoPath, p.Paths, enabled, p.ProtectedBranches))
 
 	case "commit.fixup":
 		var p struct {

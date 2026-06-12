@@ -137,6 +137,13 @@ snapshots). Build nothing below before the Marketplace release; let real users
 re-rank it.
 
 First candidates after 1.0:
+- **Send report** — one-click crash/bug report: bundle the extension + git + OS
+  versions, the last N entries of the rotating JSON log (errors + failed IPC
+  round-trips, repo paths/names scrubbed), and any in-progress-op state into a
+  prefilled GitHub issue. Entry points: error toasts ("Report this…") + command
+  palette. Privacy rule: always show the exact payload before anything leaves
+  the machine — never auto-send. Highest value right after launch, when
+  marketplace users hit bugs we can't reproduce.
 - **Guided bisect** — good/bad buttons, auto-checkout midpoint, "N commits left".
 - **Move changes to another branch** — "oops, wrong branch" in one click.
 - **Hunk/line staging** — High effort; built-in SCM has the raw capability, this

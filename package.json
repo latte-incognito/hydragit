@@ -2,7 +2,7 @@
   "name": "hydragit",
   "displayName": "HydraGit",
   "description": "The git panel IntelliJ has, inside VS Code. No paywall.",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "publisher": "vkushnarenko",
   "license": "GPL-3.0-only",
   "icon": "images/icon.png",
@@ -126,7 +126,18 @@
         "hydragit.safety.protectedBranch": {
           "type": "boolean",
           "default": true,
-          "description": "Warn when committing directly to main/master."
+          "description": "Warn when committing directly to a protected branch (configure the list with hydragit.safety.protectedBranches)."
+        },
+        "hydragit.safety.protectedBranches": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "main",
+            "master"
+          ],
+          "description": "Branch names that count as protected for the protected-branch commit warning. Replaces the default list (so include main/master if you still want them)."
         },
         "hydragit.rerere.enabled": {
           "type": "boolean",
