@@ -41,6 +41,11 @@
     | { kind: 'ref'; ref: string; title: string }
     | { kind: 'range'; base: string; head: string; title: string };
   let compare: Compare | null = $state(null);
+  // Contextual undo: the last ORIG_HEAD-setting op done from this panel
+  // ("merge" | "rebase" | "reset" | "pull"). Empty = Undo button hidden.
+  // Only ops that set ORIG_HEAD belong here — undo rewinds to ORIG_HEAD, so
+  // advertising it after e.g. a cherry-pick would rewind to a stale target.
+  let undoableOp = $state('');
   // True while the repo is paused mid-rebase (conflict) — drives the
   // Continue/Skip/Abort bar. See commitMenuAction 'drop'.
   let rebaseInProgress = $state(false);
@@ -211,10 +216,11 @@
     selStashIdx = null;
     compare = null;
     headMode = false; // selecting a branch exits the undo timeline
+    allBranches = false; // picking a branch always means "view that branch"
     activeBranch = name;
     selCommitIdx = null; selFile = null; diffFiles = []; diffHunks = [];
     try {
-      commits = await send<Commit[]>('log', { branch: allBranches ? '' : name, limit: 0 });
+      commits = await send<Commit[]>('log', { branch: name, limit: 0 });
       reapplySearch();
     } catch (e: unknown) {
       flash('Log error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
@@ -528,6 +534,7 @@
         `Undone: ${res?.action ?? 'done'}${res?.stashed ? ' · changes stashed' : ''}`,
         '#4ec94e'
       );
+      undoableOp = '';
       loadAll();
     } catch (e: unknown) {
       flash('Undo failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
@@ -574,6 +581,7 @@
     try {
       await send(a);
       flash(a + ' done', '#4ec94e');
+      if (a === 'pull') undoableOp = 'pull';
       loadAll();
     } catch (e: unknown) {
       flash(a + ' failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
@@ -678,6 +686,9 @@
         if (plan.push) receipt.push(`pushed ${ahead}`);
         flash('Synced' + (receipt.length ? ' · ' + receipt.join(' · ') : ''), '#4ec94e');
       }
+      // Offer undo only for the un-pushed case: once commits are on the remote,
+      // rewinding the local branch to ORIG_HEAD would just re-diverge it.
+      if (plan.pull !== 'none' && !plan.push) undoableOp = 'pull';
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       flash('Sync failed: ' + msg + (plan.stash ? ' · your changes are safe in a stash' : ''), '#f07070');
@@ -763,7 +774,7 @@
       if (target) {
         if (!(await confirmMerge(target))) return;
         flash(`Merging ${target}…`);
-        try { await send('merge', { branch: target }); flash(`Merged ${target}`, '#4ec94e'); loadAll(); }
+        try { await send('merge', { branch: target }); flash(`Merged ${target}`, '#4ec94e'); undoableOp = 'merge'; loadAll(); }
         catch (e: unknown) { flash('Merge failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
       }
       return;
@@ -772,7 +783,7 @@
       const onto = await uiPrompt('Rebase onto branch:');
       if (onto) {
         flash(`Rebasing onto ${onto}…`);
-        try { await send('rebase', { onto }); flash('Rebased', '#4ec94e'); loadAll(); }
+        try { await send('rebase', { onto }); flash('Rebased', '#4ec94e'); undoableOp = 'rebase'; loadAll(); }
         catch (e: unknown) { flash('Rebase failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
       }
       return;
@@ -867,6 +878,7 @@
           flash('Autosquash paused on a conflict — resolve, then Continue', '#e0a030');
         } else {
           flash('Fixups squashed', '#4ec94e');
+          undoableOp = 'rebase';
         }
         loadAll();
       },
@@ -916,6 +928,7 @@
           flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
         } else {
           flash('Commit message updated', '#4ec94e');
+          undoableOp = 'rebase';
         }
         loadAll();
       },
@@ -930,6 +943,7 @@
           flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
         } else {
           flash(`Dropped ${hash.slice(0, 7)}`, '#4ec94e');
+          undoableOp = 'rebase';
         }
         loadAll();
       },
@@ -951,6 +965,7 @@
             flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
           } else {
             flash(`Squashed ${hash.slice(0, 7)} into its parent`, '#4ec94e');
+            undoableOp = 'rebase';
           }
         } catch (e: unknown) {
           flash('Squash failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
@@ -987,6 +1002,7 @@
             : `Reset (${mode}) to ${hash.slice(0, 7)}`,
           res?.stashed ? '#e0a030' : '#4ec94e'
         );
+        undoableOp = 'reset';
         loadAll();
       },
     };
@@ -1014,6 +1030,7 @@
         flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
       } else {
         flash('Interactive rebase complete', '#4ec94e');
+        undoableOp = 'rebase';
       }
       loadAll();
     } catch (e: unknown) {
@@ -1049,6 +1066,7 @@
         ? `${mode} reset to ${hash.slice(0, 7)} — changes auto-stashed`
         : `${mode} reset to ${hash.slice(0, 7)}`;
       flash(msg, res?.stashed ? '#e0a030' : mode === 'hard' ? '#f07070' : '#4ec94e');
+      undoableOp = 'reset';
       headMode = false;
       loadAll();
     } catch (e: unknown) {
@@ -1066,6 +1084,7 @@
       } else {
         const res = await send<{ conflict: boolean }>(`rebase.${kind}`);
         rebaseInProgress = !!res?.conflict;
+        if (!res?.conflict) undoableOp = 'rebase'; // finished — ORIG_HEAD rewind available
         flash(res?.conflict ? 'Still conflicting — resolve, then Continue' : 'Rebase complete',
           res?.conflict ? '#e0a030' : '#4ec94e');
       }
@@ -1568,6 +1587,7 @@
     onSelectBranch={selectBranch}
     {statusOpen}
     onToggleStatus={() => (statusOpen = !statusOpen)}
+    undoLabel={rebaseInProgress ? 'rebase' : undoableOp}
   />
 
   {#if statusOpen || flashMsg}

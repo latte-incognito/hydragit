@@ -192,7 +192,8 @@ test('#24 file menu "Revert Selected Changes" creates a revert commit', async ({
 test('#24 file menu "Cherry-Pick Selected Changes" lands the commit on HEAD', async ({ mainWindow }) => {
   const f = await main(mainWindow);
   // "feat: cross y" lives on cross/y — switch the log to all branches first
-  await f.getByText("This branch", { exact: true }).click();
+  await f.locator(".branch-pill").click();
+  await f.locator(".bd-item--all").click();
   await openFileCtx(f, "feat: cross y", "Cherry-Pick Selected Changes");
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
   await expect(() => {

@@ -120,7 +120,9 @@ Main panel UI:
    overflow. *(pill markup pass)*
 5. Detail action row: add checkout-at-commit, create branch/tag, View on
    GitHub; separate Revert from Copy hash.   
-6. Search mode switching discoverability. *(needs a UX look)*
+6. Token-search polish (smart detection): paste 7–40 hex chars → "jump to
+   commit" suggestion; `@` → author autocomplete from loaded commits;
+   multi-line paste → offer code search. *(follow-up to the toolbar redesign)*
 
 ---
 
