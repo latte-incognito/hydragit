@@ -805,6 +805,31 @@
     await tbAction(a);
   }
 
+  // ── Section creators (branch pane hover +) ─────────────────────────────────
+  async function newStash() {
+    const message = await uiPrompt('Stash message (optional):');
+    if (message === null) return; // cancelled
+    try {
+      await send('stash.save', message ? { message } : {});
+      flash('Stashed working tree', '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      flash('Stash failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  async function newSnapshot() {
+    const label = await uiPrompt('Snapshot label:', 'manual snapshot');
+    if (label === null) return; // cancelled
+    try {
+      await send('snapshot.save', { label });
+      flash('Snapshot taken', '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      flash('Snapshot failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
   // ── Commit actions ────────────────────────────────────────────────────────
   async function commitAction(action: string, hash: string) {
     if (action === 'copy') { flash('Copied: ' + hash, '#4ec94e'); return; }
@@ -1654,10 +1679,15 @@
         {selStashIdx}
         onSelectBranch={selectBranch}
         onHead={enterHeadMode}
+        headActive={headMode}
         onFolderCtx={handleFolderCtx}
         onSelectStash={selectStash}
         onStashAction={stashAction}
         onNewBranch={() => railAction('branch.new')}
+        onNewTag={() => railAction('tag')}
+        onNewStash={newStash}
+        onNewWorktree={() => railAction('worktree.new')}
+        onNewSnapshot={newSnapshot}
         onBranchCtx={showBranchCtx}
         onStashCtx={showStashCtx}
         onTagCtx={showTagCtx}

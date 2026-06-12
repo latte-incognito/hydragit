@@ -12,10 +12,15 @@
     selStashIdx?: number | null;
     onSelectBranch?: (name: string, remote: boolean) => void;
     onHead?: () => void;
+    headActive?: boolean;
     onFolderCtx?: (e: MouseEvent, prefix: string) => void;
     onSelectStash?: (i: number) => void;
     onStashAction?: (a: string) => void;
     onNewBranch?: () => void;
+    onNewTag?: () => void;
+    onNewStash?: () => void;
+    onNewWorktree?: () => void;
+    onNewSnapshot?: () => void;
     onBranchCtx?: (e: MouseEvent, name: string, isCurrent: boolean) => void;
     onStashCtx?: (e: MouseEvent, i: number) => void;
     onTagCtx?: (e: MouseEvent, name: string) => void;
@@ -36,10 +41,15 @@
     selStashIdx = null,
     onSelectBranch = () => {},
     onHead = () => {},
+    headActive = false,
     onFolderCtx = () => {},
     onSelectStash = () => {},
     onStashAction = () => {},
     onNewBranch = () => {},
+    onNewTag = () => {},
+    onNewStash = () => {},
+    onNewWorktree = () => {},
+    onNewSnapshot = () => {},
     onBranchCtx = () => {},
     onStashCtx = () => {},
     onTagCtx = () => {},
@@ -69,21 +79,39 @@
   }
   type TreeNode = FolderNode | LeafNode;
 
+  // ── Filter ────────────────────────────────────────────────────────────────────
+  // Type-to-filter across every section. While filtering, sections render open
+  // and branch folders auto-expand so matches are never hidden.
+  let filterOpen = $state(false);
+  let filterText = $state('');
+  let filterInputEl: HTMLInputElement = $state();
+  let filtering = $derived(filterText.trim().length > 0);
+
+  function matches(s: string): boolean {
+    return s.toLowerCase().includes(filterText.trim().toLowerCase());
+  }
+
+  function openFilter() {
+    filterOpen = true;
+    setTimeout(() => filterInputEl?.focus(), 10);
+  }
+  function closeFilter() {
+    filterOpen = false;
+    filterText = '';
+  }
+
   // ── Derived ───────────────────────────────────────────────────────────────────
 
-  let local = $derived(branches.filter((b) => !b.isRemote));
-  let remote = $derived(branches.filter((b) => b.isRemote));
+  let local = $derived(branches.filter((b) => !b.isRemote && (!filtering || matches(b.name))));
+  let remote = $derived(branches.filter((b) => b.isRemote && (!filtering || matches(b.name))));
 
-  // The ⭐ marks ONLY the default branch (master/main) — a single, consistent
-  // meaning. It used to also mark the current branch's upstream on remote
-  // branches, which made the star appear in two places with two meanings (BUG
-  // #21). The current branch is shown prominently in the HEAD row at the top.
-  let defaultBranchName = $derived((() => {
-    for (const name of ['master', 'main']) {
-      if (local.some((b) => b.name === name)) return name;
-    }
-    return '';
-  })());
+  let filteredTags      = $derived(filtering ? tags.filter((t) => matches(t.name)) : tags);
+  let filteredStashes   = $derived(filtering ? stashes.filter((s) => matches(s.msg ?? s.message ?? '')) : stashes);
+  let filteredWorktrees = $derived(filtering ? worktrees.filter((w) => matches(worktreeLabel(w))) : worktrees);
+  let filteredSnapshots = $derived(filtering ? snapshots.filter((s) => matches(s.label)) : snapshots);
+
+  // The default branch (shield marker) comes from origin/HEAD via the Go side
+  // (Branch.isDefault) — never guessed from names like "master"/"main".
 
   // Remote: group by first path segment (the remote name, e.g. "origin")
   let remoteByOrigin = $derived(remote.reduce(
@@ -166,10 +194,21 @@
   let localTree:   TreeNode[] = $state([]);
   let remoteTrees: Record<string, TreeNode[]> = $state({});
 
+  // While filtering, every folder is forced open so matches are visible.
+  function openAll(nodes: TreeNode[]) {
+    for (const n of nodes) {
+      if (n.kind === 'folder') {
+        n.open = true;
+        openAll(n.children);
+      }
+    }
+  }
+
   // $effect.pre so the trees are computed before paint (no empty-tree flash).
   $effect.pre(() => {
     const next = sortTree(buildTree(local.map((b) => ({ name: b.name, branch: b }))));
     mergeOpen(localOpenCache, next);
+    if (filtering) openAll(next);
     localOpenCache = next;
     localTree = next;
   });
@@ -185,6 +224,7 @@
       }));
       const built = sortTree(buildTree(treeItems));
       if (remoteOpenCache[origin]) mergeOpen(remoteOpenCache[origin], built);
+      if (filtering) openAll(built);
       next[origin] = built;
     }
     remoteOpenCache = next;
@@ -226,42 +266,104 @@
   }
 </script>
 
+{#snippet branchIcon(current: boolean)}
+  <!-- One hydra head = one branch. Gradient head for the checked-out branch. -->
+  <svg class="bicon" width="13" height="13" viewBox="0 0 14 14" fill="none">
+    <path d="M4.2 12.5C4.2 8.6 9.3 9.2 9.3 5.4"
+          stroke={current ? 'url(#hydra-head-grad)' : 'currentColor'}
+          stroke-width="1.5" stroke-linecap="round" fill="none"/>
+    <circle cx="9.3" cy="3.4" r="1.7" fill={current ? 'url(#hydra-head-grad)' : 'currentColor'}/>
+  </svg>
+{/snippet}
+
+{#snippet defaultMark()}
+  <span class="shield-wrap" title="Default branch (origin/HEAD)">
+    <svg width="9" height="10" viewBox="0 0 10 11" fill="none">
+      <path d="M5 .8 9 2.2v3.1c0 2.6-1.7 4.2-4 5-2.3-.8-4-2.4-4-5V2.2L5 .8z"
+            stroke="currentColor" stroke-width="1"/>
+    </svg>
+  </span>
+{/snippet}
+
+{#snippet trackBadge(b: import('../types').Branch)}
+  {#if b.gone}
+    <span class="track gone">gone</span>
+  {:else if b.ahead || b.behind}
+    <span class="tkwrap">
+      {#if b.ahead}<span class="tk tk-ahead">↑{b.ahead}</span>{/if}
+      {#if b.behind}<span class="tk tk-behind">↓{b.behind}</span>{/if}
+    </span>
+  {/if}
+{/snippet}
+
+{#snippet sectionHdr(label: string, count: number, open: boolean, toggle: () => void, add: (() => void) | null, addTitle: string)}
+  <div class="tgroup-hdr" onclick={toggle} role="button" tabindex="0">
+    <span class="tgroup-arrow" class:closed={!open && !filtering}>▾</span>
+    <span class="tgroup-label">{label}</span>
+    <span class="tgroup-count">{count}</span>
+    {#if add}
+      <button class="tgroup-add" title={addTitle}
+              onclick={(e) => { e.stopPropagation(); add(); }}>+</button>
+    {/if}
+  </div>
+{/snippet}
+
 <div class="pane-branches">
+  <!-- Gradient shared by every current-branch hydra head below -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="hydra-head-grad" x1="0" y1="0" x2="14" y2="14" gradientUnits="userSpaceOnUse">
+        <stop offset="0%"   stop-color="#2fbdb3"/>
+        <stop offset="55%"  stop-color="#1e8f8f"/>
+        <stop offset="100%" stop-color="#c0c8cc"/>
+      </linearGradient>
+    </defs>
+  </svg>
+
   <div class="pane-hdr">
-    <span>Branches</span>
-    <span
-      class="pane-hdr-btn"
-      title="New branch"
-      onclick={onNewBranch}
-      role="button"
-      tabindex="0"
-      onkeydown={(e) => e.key === 'Enter' && onNewBranch()}>+</span
-    >
+    {#if filterOpen}
+      <input
+        bind:this={filterInputEl}
+        class="pane-filter"
+        placeholder="Filter refs…"
+        bind:value={filterText}
+        onkeydown={(e) => e.key === 'Escape' && closeFilter()}
+      />
+      <button class="pane-hdr-btn" title="Close filter" onclick={closeFilter}>×</button>
+    {:else}
+      <span>Branches</span>
+      <button class="pane-hdr-btn" title="Filter branches, tags, stashes…" onclick={openFilter}>
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+          <circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M8 8l2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    {/if}
   </div>
 
   <div class="tree-scroll">
 
-    <!-- HEAD — opens the undo timeline (reflog). The current branch lives in
-         LOCAL below; this row is HEAD's movement history, not a branch select. -->
+    <!-- Undo timeline — the door to reflog mode. Labelled by function: it is a
+         mode switch, not a branch (it used to masquerade as "HEAD · branch"). -->
     <div
-      class="titem active current head"
+      class="titem timeline"
+      class:active={headActive}
       onclick={onHead}
-      title="Open the HEAD undo timeline (reflog)"
+      title="Browse HEAD history — reset to any point"
       role="option"
-      aria-selected="true"
+      aria-selected={headActive}
       tabindex="0"
     >
-      <span class="titem-icon">◎</span>
-      <span class="titem-name">HEAD{activeBranch ? ` · ${activeBranch}` : ''}</span>
+      <svg class="timeline-icon" width="12" height="12" viewBox="0 0 13 13" fill="none">
+        <path d="M4 3L1.5 5.5 4 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M1.5 5.5H8a3.5 3.5 0 010 7H5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      <span class="titem-name">Undo timeline</span>
     </div>
 
     <!-- ── LOCAL ──────────────────────────────────────────────────────────── -->
-    <div class="tgroup-hdr" onclick={() => (localOpen = !localOpen)} role="button" tabindex="0">
-      <span class="tgroup-arrow" class:closed={!localOpen}>▾</span>
-      <span class="tgroup-label">Local</span>
-      <span class="tgroup-count">{local.length}</span>
-    </div>
-    {#if localOpen}
+    {@render sectionHdr('Local', local.length, localOpen, () => (localOpen = !localOpen), onNewBranch, 'New branch')}
+    {#if localOpen || filtering}
       {#each localTree as node}
         {#if node.kind === 'folder'}
           <div
@@ -306,10 +408,10 @@
                         oncontextmenu={(e) => onBranchCtx(e, b.name, b.isCurrent)}
                         role="option" aria-selected={b.name === activeBranch} tabindex="0"
                       >
-                        <span class="titem-icon">{b.name === defaultBranchName ? '⭐' : '⎇'}</span>
+                        <span class="titem-icon">{@render branchIcon(b.isCurrent)}</span>
                         <span class="titem-name">{b.name.split('/').pop()}</span>
-                        {#if b.gone}<span class="track gone">gone</span>
-                        {:else if b.trackShort}<span class="track">{b.trackShort}</span>{/if}
+                        {#if b.isDefault}{@render defaultMark()}{/if}
+                        {@render trackBadge(b)}
                       </div>
                     {/if}
                   {/each}
@@ -327,10 +429,10 @@
                   oncontextmenu={(e) => onBranchCtx(e, b.name, b.isCurrent)}
                   role="option" aria-selected={b.name === activeBranch} tabindex="0"
                 >
-                  <span class="titem-icon">{b.name === defaultBranchName ? '⭐' : '⎇'}</span>
+                  <span class="titem-icon">{@render branchIcon(b.isCurrent)}</span>
                   <span class="titem-name">{b.name.split('/').pop()}</span>
-                  {#if b.gone}<span class="track gone">gone</span>
-                  {:else if b.trackShort}<span class="track">{b.trackShort}</span>{/if}
+                  {#if b.isDefault}{@render defaultMark()}{/if}
+                  {@render trackBadge(b)}
                 </div>
               {/if}
             {/each}
@@ -347,22 +449,18 @@
             oncontextmenu={(e) => onBranchCtx(e, b.name, b.isCurrent)}
             role="option" aria-selected={b.name === activeBranch} tabindex="0"
           >
-            <span class="titem-icon">{b.name === defaultBranchName ? '⭐' : '⎇'}</span>
+            <span class="titem-icon">{@render branchIcon(b.isCurrent)}</span>
             <span class="titem-name">{b.name}</span>
-            {#if b.gone}<span class="track gone">gone</span>
-            {:else if b.trackShort}<span class="track">{b.trackShort}</span>{/if}
+            {#if b.isDefault}{@render defaultMark()}{/if}
+            {@render trackBadge(b)}
           </div>
         {/if}
       {/each}
     {/if}
 
     <!-- ── REMOTE ───────────────────────────────────────────────────────────── -->
-    <div class="tgroup-hdr" onclick={() => (remoteOpen = !remoteOpen)} role="button" tabindex="0">
-      <span class="tgroup-arrow" class:closed={!remoteOpen}>▾</span>
-      <span class="tgroup-label">Remote</span>
-      <span class="tgroup-count">{remote.length}</span>
-    </div>
-    {#if remoteOpen}
+    {@render sectionHdr('Remote', remote.length, remoteOpen, () => (remoteOpen = !remoteOpen), null, '')}
+    {#if remoteOpen || filtering}
       {#each Object.entries(remoteByOrigin) as [origin]}
         <!-- Origin subgroup header -->
         <div
@@ -399,7 +497,7 @@
                       oncontextmenu={(e) => onBranchCtx(e, full, false)}
                       role="option" aria-selected={full === activeBranch} tabindex="0"
                     >
-                      <span class="titem-icon">⎇</span>
+                      <span class="titem-icon">{@render branchIcon(false)}</span>
                       <span class="titem-name">{child.displayName ?? child.branch.name.split('/').pop()}</span>
                       {#if child.branch.gone}<span class="track gone">gone</span>{/if}
                     </div>
@@ -417,7 +515,7 @@
                 oncontextmenu={(e) => onBranchCtx(e, full, false)}
                 role="option" aria-selected={full === activeBranch} tabindex="0"
               >
-                <span class="titem-icon">⎇</span>
+                <span class="titem-icon">{@render branchIcon(false)}</span>
                 <span class="titem-name">{node.displayName ?? node.branch.name.split('/').pop()}</span>
                 {#if node.branch.gone}<span class="track gone">gone</span>{/if}
               </div>
@@ -428,16 +526,12 @@
     {/if}
 
     <!-- ── TAGS ─────────────────────────────────────────────────────────────── -->
-    <div class="tgroup-hdr" onclick={() => (tagsOpen = !tagsOpen)} role="button" tabindex="0">
-      <span class="tgroup-arrow" class:closed={!tagsOpen}>▾</span>
-      <span class="tgroup-label">Tags</span>
-      <span class="tgroup-count">{tags.length}</span>
-    </div>
-    {#if tagsOpen}
-      {#if tags.length === 0}
+    {@render sectionHdr('Tags', filteredTags.length, tagsOpen, () => (tagsOpen = !tagsOpen), onNewTag, 'New tag at HEAD')}
+    {#if tagsOpen || filtering}
+      {#if filteredTags.length === 0}
         <div class="stash-empty">No tags</div>
       {:else}
-        {#each tags as tag}
+        {#each filteredTags as tag}
           <!-- No click handler — double-click intentionally does nothing.
                Right-click opens context menu via onTagCtx prop. -->
           <div
@@ -457,16 +551,13 @@
     {/if}
 
     <!-- ── STASHES ───────────────────────────────────────────────────────────── -->
-    <div class="tgroup-hdr" onclick={() => (stashOpen = !stashOpen)} role="button" tabindex="0">
-      <span class="tgroup-arrow" class:closed={!stashOpen}>▾</span>
-      <span class="tgroup-label">Stashes</span>
-      <span class="tgroup-count">{stashes.length}</span>
-    </div>
-    {#if stashOpen}
-      {#if stashes.length === 0}
+    {@render sectionHdr('Stashes', filteredStashes.length, stashOpen, () => (stashOpen = !stashOpen), onNewStash, 'Stash working tree')}
+    {#if stashOpen || filtering}
+      {#if filteredStashes.length === 0}
         <div class="stash-empty">No stashes</div>
       {:else}
-        {#each stashes as s, i}
+        {#each filteredStashes as s}
+          {@const i = stashes.indexOf(s)}
           <div
             class="titem stash"
             class:active={selStashIdx === i}
@@ -493,16 +584,12 @@
     {/if}
 
     <!-- ── WORKTREES ─────────────────────────────────────────────────────────── -->
-    <div class="tgroup-hdr" onclick={() => (worktreesOpen = !worktreesOpen)} role="button" tabindex="0">
-      <span class="tgroup-arrow" class:closed={!worktreesOpen}>▾</span>
-      <span class="tgroup-label">Worktrees</span>
-      <span class="tgroup-count">{worktrees.length}</span>
-    </div>
-    {#if worktreesOpen}
-      {#if worktrees.length === 0}
+    {@render sectionHdr('Worktrees', filteredWorktrees.length, worktreesOpen, () => (worktreesOpen = !worktreesOpen), onNewWorktree, 'Add worktree')}
+    {#if worktreesOpen || filtering}
+      {#if filteredWorktrees.length === 0}
         <div class="stash-empty">No worktrees</div>
       {:else}
-        {#each worktrees as wt}
+        {#each filteredWorktrees as wt}
           <div
             class="titem worktree"
             class:current={wt.isMain}
@@ -524,16 +611,12 @@
     {/if}
 
     <!-- ── SNAPSHOTS — working-tree time machine ─────────────────────────────── -->
-    <div class="tgroup-hdr" onclick={() => (snapshotsOpen = !snapshotsOpen)} role="button" tabindex="0">
-      <span class="tgroup-arrow" class:closed={!snapshotsOpen}>▾</span>
-      <span class="tgroup-label">Snapshots</span>
-      <span class="tgroup-count">{snapshots.length}</span>
-    </div>
-    {#if snapshotsOpen}
-      {#if snapshots.length === 0}
+    {@render sectionHdr('Snapshots', filteredSnapshots.length, snapshotsOpen, () => (snapshotsOpen = !snapshotsOpen), onNewSnapshot, 'Take a snapshot now')}
+    {#if snapshotsOpen || filtering}
+      {#if filteredSnapshots.length === 0}
         <div class="stash-empty">No snapshots — taken automatically before risky operations</div>
       {:else}
-        {#each snapshots as snap (snap.ref)}
+        {#each filteredSnapshots as snap (snap.ref)}
           <div
             class="titem snapshot"
             onclick={() => onSnapshotSelect(snap)}
@@ -603,12 +686,28 @@
     justify-content: space-between;
   }
   .pane-hdr-btn {
-    font-size: var(--hg-font-lg);
+    background: none;
+    border: none;
+    padding: 1px 2px;
+    display: flex;
+    align-items: center;
     color: var(--vscode-disabledForeground, #444);
     cursor: pointer;
     line-height: 1;
+    font-size: var(--hg-font-xs);
   }
   .pane-hdr-btn:hover { color: var(--vscode-foreground, #ccc); }
+  .pane-filter {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--vscode-input-foreground, #ccc);
+    font-size: var(--hg-font-xs);
+    font-family: var(--hg-font-family);
+  }
+  .pane-filter::placeholder { color: var(--vscode-disabledForeground, #444); }
 
   .tree-scroll {
     flex: 1;
@@ -638,16 +737,34 @@
   }
   .tgroup-arrow.closed { transform: rotate(-90deg); }
 
+  /* De-shouted (Linear-style): rows louder than headers — no caps, no weight. */
   .tgroup-label {
-    font-weight: 500;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    font-size: var(--hg-font-xxs);
+    font-weight: 400;
+    font-size: var(--hg-font-xs);
   }
   .tgroup-count {
     font-size: var(--hg-font-xxs);
     color: var(--vscode-disabledForeground, #3a3a3a);
     margin-left: auto;
+  }
+  /* Per-section create action — appears on header hover only (Discord style). */
+  .tgroup-add {
+    visibility: hidden;
+    background: none;
+    border: none;
+    padding: 0 3px;
+    margin-left: 2px;
+    border-radius: 3px;
+    color: var(--vscode-descriptionForeground, #888);
+    font-size: var(--hg-font-sm);
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .tgroup-hdr:hover .tgroup-add { visibility: visible; }
+  .tgroup-add:hover {
+    color: var(--vscode-foreground, #fff);
+    background: var(--vscode-toolbar-hoverBackground, #3a3a3a);
   }
   /* ── Worktree rows ───────────────────────────────────────────────────────── */
   .titem.worktree { font-size: var(--hg-font-xs); }
@@ -666,7 +783,19 @@
     white-space: nowrap;
     overflow: hidden;
   }
-  .titem.head { padding-left: 10px; margin-bottom: 2px; }
+  /* ── Undo timeline row (door to reflog mode) ─────────────────────────────── */
+  .titem.timeline {
+    padding-left: 10px;
+    margin-bottom: 2px;
+    color: var(--vscode-descriptionForeground, #888);
+  }
+  .titem.timeline .timeline-icon { color: #e0a030; opacity: 0.75; flex-shrink: 0; }
+  .titem.timeline:hover .timeline-icon { opacity: 1; }
+  .titem.timeline.active {
+    background: rgba(224,160,48,0.08);
+    border-left-color: #e0a030;
+    color: var(--vscode-foreground, #ccc);
+  }
   .titem:hover {
     background: var(--vscode-list-hoverBackground, #2a2d2e);
     color: var(--vscode-foreground, #ccc);
@@ -743,6 +872,28 @@
   }
   .track.gone { color: #f07070; opacity: 1; }
   .titem.gone .titem-name { opacity: 0.45; text-decoration: line-through; }
+
+  /* Ahead/behind (Fork/Tower style) — in-sync branches show nothing at all. */
+  .tkwrap {
+    margin-left: auto;
+    display: flex;
+    gap: 3px;
+    flex-shrink: 0;
+    font-size: var(--hg-font-xxs);
+  }
+  .tk-ahead  { color: #e0a030; }
+  .tk-behind { color: #56c8e8; }
+
+  /* Branch icon (hydra head) + default-branch shield */
+  .bicon { display: block; color: var(--vscode-descriptionForeground, #777); }
+  .titem.current .bicon, .titem.active .bicon { color: var(--vscode-foreground, #ccc); }
+  .shield-wrap {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    color: var(--vscode-descriptionForeground, #8c8c8c);
+    opacity: 0.8;
+  }
 
   /* ── Stash rows ──────────────────────────────────────────────────────────── */
   .titem.stash {

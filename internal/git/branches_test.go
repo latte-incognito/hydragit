@@ -694,3 +694,102 @@ func TestRenameBranch_localOnlyKeepsOldUpstream(t *testing.T) {
 		t.Fatalf("expected local-only rename to still track origin/feature, got %q", up)
 	}
 }
+
+func TestParseTrack(t *testing.T) {
+	cases := []struct {
+		in     string
+		ahead  int
+		behind int
+		gone   bool
+	}{
+		{"", 0, 0, false},
+		{"[ahead 2]", 2, 0, false},
+		{"[behind 3]", 0, 3, false},
+		{"[ahead 2, behind 3]", 2, 3, false},
+		{"[gone]", 0, 0, true},
+	}
+	for _, c := range cases {
+		ahead, behind, gone := parseTrack(c.in)
+		if ahead != c.ahead || behind != c.behind || gone != c.gone {
+			t.Errorf("parseTrack(%q) = (%d,%d,%v), want (%d,%d,%v)",
+				c.in, ahead, behind, gone, c.ahead, c.behind, c.gone)
+		}
+	}
+}
+
+// A real clone: origin/HEAD is set by git itself, and a local commit makes the
+// clone ahead — covers IsDefault and Ahead/Behind end to end.
+func TestBranchesDefaultAndAhead(t *testing.T) {
+	origin := t.TempDir()
+	for _, c := range [][]string{
+		{"git", "-C", origin, "init", "-b", "trunk"},
+		{"git", "-C", origin, "config", "user.email", "test@test.com"},
+		{"git", "-C", origin, "config", "user.name", "Test"},
+		{"git", "-C", origin, "commit", "--allow-empty", "-m", "init"},
+	} {
+		exec.Command(c[0], c[1:]...).Run()
+	}
+
+	clone := filepath.Join(t.TempDir(), "clone")
+	if out, err := exec.Command("git", "clone", origin, clone).CombinedOutput(); err != nil {
+		t.Fatalf("clone failed: %v\n%s", err, out)
+	}
+	exec.Command("git", "-C", clone, "config", "user.email", "test@test.com").Run()
+	exec.Command("git", "-C", clone, "config", "user.name", "Test").Run()
+	exec.Command("git", "-C", clone, "commit", "--allow-empty", "-m", "local work").Run()
+
+	branches, err := Branches(clone)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var local *Branch
+	for i := range branches {
+		if !branches[i].IsRemote && branches[i].Name == "trunk" {
+			local = &branches[i]
+		}
+	}
+	if local == nil {
+		t.Fatal("local trunk branch not found")
+	}
+	if !local.IsDefault {
+		t.Error("the branch origin/HEAD points to must be flagged IsDefault")
+	}
+	if local.Ahead != 1 || local.Behind != 0 {
+		t.Errorf("expected ahead=1 behind=0, got ahead=%d behind=%d", local.Ahead, local.Behind)
+	}
+
+	// A branch origin/HEAD does NOT point to must not be flagged.
+	exec.Command("git", "-C", clone, "branch", "side").Run()
+	branches, _ = Branches(clone)
+	for _, b := range branches {
+		if b.Name == "side" && b.IsDefault {
+			t.Error("side branch wrongly flagged as default")
+		}
+	}
+}
+
+// No remote at all → no branch may claim to be the default (never guess by name).
+func TestBranchesNoRemoteNoDefault(t *testing.T) {
+	dir := t.TempDir()
+	for _, c := range [][]string{
+		{"git", "-C", dir, "init"},
+		{"git", "-C", dir, "config", "user.email", "test@test.com"},
+		{"git", "-C", dir, "config", "user.name", "Test"},
+		{"git", "-C", dir, "commit", "--allow-empty", "-m", "init"},
+		{"git", "-C", dir, "branch", "master"},
+		{"git", "-C", dir, "branch", "main"},
+	} {
+		exec.Command(c[0], c[1:]...).Run()
+	}
+
+	branches, err := Branches(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range branches {
+		if b.IsDefault {
+			t.Errorf("branch %q flagged default in a repo with no remote", b.Name)
+		}
+	}
+}

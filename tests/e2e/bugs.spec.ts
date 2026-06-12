@@ -218,7 +218,7 @@ for (const label of ["Compare with", "Show Diff with Working Tree"]) {
     const f = await main(mainWindow);
     // expand a branch folder and use a leaf row — folder/HEAD rows have no menu
     await f.locator(".titem.folder-row", { hasText: "feature" }).first().click();
-    await f.locator(".titem:not(.folder-row):not(.head)", { hasText: "auth" }).first()
+    await f.locator(".titem:not(.folder-row):not(.timeline)", { hasText: "auth" }).first()
       .click({ button: "right" });
     await f.locator(".ctx").getByText(label, { exact: false }).first().click();
     // compare renders in the detail pane (no flash): a file list or hunks appear

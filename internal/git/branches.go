@@ -2,6 +2,7 @@ package git
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -9,16 +10,49 @@ type Branch struct {
 	Name       string `json:"name"`
 	IsCurrent  bool   `json:"isCurrent"`
 	IsRemote   bool   `json:"isRemote"`
+	IsDefault  bool   `json:"isDefault,omitempty"` // the branch origin/HEAD points to
 	Upstream   string `json:"upstream,omitempty"`
-	TrackShort string `json:"trackShort,omitempty"` // "[ahead 2]", "[behind 1]", "[gone]"
+	TrackShort string `json:"trackShort,omitempty"` // "=", ">", "<", "<>" (upstream:trackshort)
+	Ahead      int    `json:"ahead,omitempty"`
+	Behind     int    `json:"behind,omitempty"`
 	Gone       bool   `json:"gone,omitempty"`
+}
+
+// parseTrack parses %(upstream:track) — "", "[ahead 2]", "[behind 1]",
+// "[ahead 2, behind 1]" or "[gone]" — into counts.
+func parseTrack(track string) (ahead, behind int, gone bool) {
+	track = strings.Trim(strings.TrimSpace(track), "[]")
+	if track == "gone" {
+		return 0, 0, true
+	}
+	for _, part := range strings.Split(track, ",") {
+		part = strings.TrimSpace(part)
+		if n, ok := strings.CutPrefix(part, "ahead "); ok {
+			ahead, _ = strconv.Atoi(n)
+		}
+		if n, ok := strings.CutPrefix(part, "behind "); ok {
+			behind, _ = strconv.Atoi(n)
+		}
+	}
+	return ahead, behind, false
+}
+
+// defaultBranch resolves what origin/HEAD points to ("develop" for
+// refs/remotes/origin/develop). Empty when there is no remote HEAD — callers
+// must treat that as "unknown", never guess by name.
+func defaultBranch(repoPath string) string {
+	out, err := run(repoPath, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimPrefix(strings.TrimSpace(out), "origin/")
 }
 
 func Branches(repoPath string) ([]Branch, error) {
 	out, err := run(
 		repoPath,
 		"for-each-ref",
-		"--format=%(refname)\t%(HEAD)\t%(upstream:short)\t%(upstream:trackshort)\t%(objecttype)",
+		"--format=%(refname)\t%(HEAD)\t%(upstream:short)\t%(upstream:trackshort)\t%(objecttype)\t%(upstream:track)",
 		"refs/heads/",
 		"refs/remotes/",
 	)
@@ -26,25 +60,30 @@ func Branches(repoPath string) ([]Branch, error) {
 		return nil, err
 	}
 
+	defName := defaultBranch(repoPath)
+
 	var branches []Branch
 
 	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
+		// TrimRight only — the last field (%(upstream:track)) is empty for any
+		// branch without an upstream, so the line ends in a tab that TrimSpace
+		// would eat, collapsing the field count.
+		line = strings.TrimRight(line, "\r\n")
 		if line == "" {
 			continue
 		}
 
-		parts := strings.SplitN(line, "\t", 5)
-		if len(parts) < 5 {
+		parts := strings.SplitN(line, "\t", 6)
+		if len(parts) < 6 {
 			continue
 		}
 
 		ref := parts[0]
 		isCurrent := parts[1] == "*"
 		upstream := parts[2]
-		trackShort := parts[3] // e.g. "[ahead 1]", "[behind 3]", ""
-		gone := trackShort == "[gone]"
+		trackShort := parts[3] // "=", ">", "<", "<>"
 		objType := parts[4]
+		ahead, behind, gone := parseTrack(parts[5])
 
 		// skip tag objects that sneak into the range, and symbolic refs (HEAD pointers)
 		if objType == "tag" {
@@ -73,12 +112,18 @@ func Branches(repoPath string) ([]Branch, error) {
 			continue
 		}
 
+		isDefault := defName != "" &&
+			((!isRemote && name == defName) || (isRemote && name == "origin/"+defName))
+
 		branches = append(branches, Branch{
 			Name:       name,
 			IsCurrent:  isCurrent,
 			IsRemote:   isRemote,
+			IsDefault:  isDefault,
 			Upstream:   upstream,
 			TrackShort: trackShort,
+			Ahead:      ahead,
+			Behind:     behind,
 			Gone:       gone,
 		})
 	}
@@ -315,8 +360,14 @@ func PushForce(repoPath, branch string) error {
 // Fetch updates all remotes and prunes remote-tracking refs whose branches
 // were deleted on the remote — otherwise they linger in the branch pane forever.
 func Fetch(repoPath string) error {
-	_, err := run(repoPath, "fetch", "--all", "--prune")
-	return err
+	if _, err := run(repoPath, "fetch", "--all", "--prune"); err != nil {
+		return err
+	}
+	// origin/HEAD is a clone-time snapshot and goes stale when the remote's
+	// default branch changes; it drives the default-branch marker in the
+	// branch pane, so refresh it. Best-effort — a repo without origin is fine.
+	_, _ = run(repoPath, "remote", "set-head", "origin", "--auto")
+	return nil
 }
 
 func Pull(repoPath string) error {

@@ -11,6 +11,19 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
+## [Unreleased]
+
+### Fixed
+- **The ⭐ default-branch marker was guessed by name** (first of `master`/`main` found locally) and could land on the wrong branch. It's now real data: the Go side resolves what **origin/HEAD** points to (`Branch.isDefault`; never guessed when there's no remote), and `fetch` refreshes origin/HEAD (`git remote set-head origin --auto`) so a default-branch change on the remote heals itself.
+
+### Changed
+- **Branch pane redesigned** (Discord/Linear style):
+  - The ambiguous global `+` is gone — each section header (Local / Tags / Stashes / Worktrees / Snapshots) reveals its own `+` on hover: new branch, tag at HEAD, stash, worktree, or manual snapshot (the last two got first-class UI entry points for the first time).
+  - The `HEAD · <branch>` row stopped masquerading as a branch — it's now labelled by function: **↺ Undo timeline** (amber, highlighted while reflog mode is active). Same position, same one-click access.
+  - **One hydra head = one branch**: branch rows use a single-head hydra icon matching the logo, gradient on the checked-out branch; the ⭐ emoji is replaced by an SVG shield on the default branch (tooltip "Default branch (origin/HEAD)").
+  - **Ahead/behind counts** (`↑2 ↓1`, amber/cyan) replace the cryptic `=` trackshort glyph — in-sync branches show nothing. Backed by new `Branch.ahead`/`behind` parsed from `%(upstream:track)`.
+  - Section headers de-shouted (no more ALL-CAPS), and a **type-to-filter** (⌕ in the pane header) filters every section at once, auto-expanding matches.
+
 ## [0.2.7] — 2026-06-11
 
 ### Fixed
