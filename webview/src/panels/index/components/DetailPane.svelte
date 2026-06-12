@@ -67,7 +67,21 @@
   }
 
   // ⋯ overflow — the rarer/destructive actions, same handler as the log menu.
+  // The dropdown is position:fixed and anchored to the button's viewport rect:
+  // .detail-meta scrolls (overflow-y:auto), which clips absolutely-positioned
+  // children, so an absolute dropdown would render cut off under the pane.
   let moreOpen = $state(false);
+  let moreRight = $state(0);
+  let moreBottom = $state(0);
+  function toggleMore(e: MouseEvent) {
+    hideTip();
+    if (!moreOpen) {
+      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      moreRight = window.innerWidth - r.right;
+      moreBottom = window.innerHeight - r.top + 4;
+    }
+    moreOpen = !moreOpen;
+  }
   const MORE_ITEMS: { id: string; label: string; danger?: boolean }[] = [
     { id: 'checkout',     label: 'Checkout at commit (detached)' },
     { id: 'copy-message', label: 'Copy commit message' },
@@ -175,9 +189,13 @@
   let collapsed = $state(new Set<string>());
 
   function toggleFolder(key: string) {
-    if (collapsed.has(key)) collapsed.delete(key);
-    else collapsed.add(key);
-    collapsed = collapsed; // trigger reactivity
+    // Reassign a fresh Set — Svelte 5 $state doesn't proxy Set mutations, and
+    // self-assignment is dropped by the equality check, so .add/.delete alone
+    // never re-renders (folder clicks silently did nothing).
+    const next = new Set(collapsed);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    collapsed = next;
   }
 
   function expandAll() {
@@ -760,16 +778,32 @@
             </div>
           {/if}
           <div class="dm-actions">
-            <button class="action-btn" onclick={() => commit && onCommitMenuAction('cherry-pick', commit)}>Cherry-pick</button>
-            <button class="action-btn" onclick={() => commit && onCommitMenuAction('new-branch', commit)}>Branch here</button>
-            <button class="action-btn" onclick={() => commit && onCommitMenuAction('new-tag', commit)}>Tag</button>
-            <button class="action-btn" title="View on remote (GitHub/GitLab…)"
-                    onclick={() => commit && onCommitMenuAction('view-in-browser', commit)}>↗</button>
+            <button class="action-btn"
+                    onmouseenter={e => showTip(e, 'Apply this commit onto the current branch')}
+                    onmouseleave={hideTip}
+                    onclick={() => commit && onCommitMenuAction('cherry-pick', commit)}>Cherry-pick</button>
+            <button class="action-btn"
+                    onmouseenter={e => showTip(e, 'Create a new branch at this commit')}
+                    onmouseleave={hideTip}
+                    onclick={() => commit && onCommitMenuAction('new-branch', commit)}>Branch here</button>
+            <button class="action-btn"
+                    onmouseenter={e => showTip(e, 'Create a tag at this commit')}
+                    onmouseleave={hideTip}
+                    onclick={() => commit && onCommitMenuAction('new-tag', commit)}>Tag</button>
+            {#if !commit.unpushed}
+              <!-- Only for pushed commits — a local-only commit has no remote URL. -->
+              <button class="action-btn" aria-label="View on remote"
+                      onmouseenter={e => showTip(e, 'View this commit on the remote (GitHub, GitLab…)')}
+                      onmouseleave={hideTip}
+                      onclick={() => commit && onCommitMenuAction('view-in-browser', commit)}>↗</button>
+            {/if}
             <span class="dm-more-wrap">
-              <button class="action-btn" title="More actions" aria-haspopup="menu" aria-expanded={moreOpen}
-                      onclick={() => (moreOpen = !moreOpen)}>⋯</button>
+              <button class="action-btn" aria-label="More actions" aria-haspopup="menu" aria-expanded={moreOpen}
+                      onmouseenter={e => showTip(e, 'More actions')}
+                      onmouseleave={hideTip}
+                      onclick={toggleMore}>⋯</button>
               {#if moreOpen}
-                <div class="dm-more" role="menu">
+                <div class="dm-more" role="menu" style="right:{moreRight}px;bottom:{moreBottom}px">
                   {#each MORE_ITEMS as item}
                     {#if item.danger}<div class="dm-more-sep"></div>{/if}
                     <button class="dm-more-item" class:danger={item.danger} role="menuitem"
@@ -1133,10 +1167,10 @@
 
   /* ── ⋯ overflow menu (same handler as the log's right-click menu) ── */
   .dm-more-wrap { position: relative; }
+  /* Fixed, viewport-anchored (right/bottom set inline from the button rect):
+     .detail-meta's overflow-y clips absolutely-positioned descendants. */
   .dm-more {
-    position: absolute;
-    bottom: calc(100% + 4px);
-    right: 0;
+    position: fixed;
     z-index: 120;
     min-width: 200px;
     background: var(--vscode-menu-background, #252526);

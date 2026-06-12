@@ -14,6 +14,11 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 ## [Unreleased]
 
 ### Fixed
+- **Detail-pane redesign follow-ups** (ROADMAP item 5.1–5.4):
+  - The **⋯ overflow menu rendered clipped under the commit card** — the card scrolls (`overflow-y: auto`), which clips absolutely-positioned children. The dropdown is now viewport-anchored (`position: fixed` off the button rect) and opens fully above the button.
+  - **Folder rows in the file tree didn't collapse/expand on click** — a Svelte 5 runes regression: `Set` mutations aren't tracked and self-assignment is dropped by the equality check. Toggling now reassigns a fresh `Set`.
+  - **Action chips had no hover hints** — Cherry-pick, Branch here, Tag, ↗ and ⋯ now show the pane's styled tooltip explaining what each does.
+  - **↗ View on remote now appears only on pushed commits** (detail action row *and* the log's right-click menu) — a local-only commit has no remote URL to open. Backed by a new per-commit `unpushed` flag from Go: one `git rev-list --all --not --remotes` pass marks commits not reachable from any remote-tracking ref (cost scales with the unpushed frontier, not history size).
 - **The ⭐ default-branch marker was guessed by name** (first of `master`/`main` found locally) and could land on the wrong branch. It's now real data: the Go side resolves what **origin/HEAD** points to (`Branch.isDefault`; never guessed when there's no remote), and `fetch` refreshes origin/HEAD (`git remote set-head origin --auto`) so a default-branch change on the remote heals itself.
 
 ### Changed

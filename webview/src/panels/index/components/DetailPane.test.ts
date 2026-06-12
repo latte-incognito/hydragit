@@ -209,6 +209,32 @@ describe('DetailPane — action row', () => {
     const { queryByText } = render(DetailPane, { commit, files });
     expect(queryByText('Copy hash')).toBeNull();
   });
+
+  it('hides the view-on-remote button for unpushed commits', () => {
+    const { queryByText } = render(DetailPane, { commit: { ...commit, unpushed: true }, files });
+    expect(queryByText('↗')).toBeNull();
+  });
+
+  it('shows the view-on-remote button for pushed commits', () => {
+    const { getByText } = render(DetailPane, { commit, files });
+    expect(getByText('↗')).toBeTruthy();
+  });
+});
+
+// ── folder collapse/expand ────────────────────────────────────────────────────
+
+describe('DetailPane — folder toggle', () => {
+  it('clicking a folder row collapses and re-expands its files', async () => {
+    const { getByText, queryByText } = render(DetailPane, { commit, files });
+    // src/main.ts renders under the "src" folder, expanded by default
+    expect(getByText('main.ts')).toBeTruthy();
+
+    await fireEvent.click(getByText('src'));
+    expect(queryByText('main.ts')).toBeNull();
+
+    await fireEvent.click(getByText('src'));
+    expect(getByText('main.ts')).toBeTruthy();
+  });
 });
 
 // ── file tree root ────────────────────────────────────────────────────────────

@@ -34,6 +34,7 @@ export interface Commit {
   date: string;
   refs: string[];
   parents: string[];
+  unpushed?: boolean; // not reachable from any remote-tracking ref (local-only)
   lane?: number;
   seg?: number;
   color?: string;

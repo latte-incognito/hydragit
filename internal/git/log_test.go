@@ -271,3 +271,55 @@ func TestFileHistoryScopedToRef(t *testing.T) {
 		t.Fatalf("feature: expected 2 commits, got %d", len(feat))
 	}
 }
+
+// Pushed commits must not carry Unpushed; commits past the remote frontier must.
+func TestLog_marksUnpushed(t *testing.T) {
+	dir := initRepo(t)
+	branch := currentBranch(t, dir)
+
+	// Bare "remote" + push the initial commit → it is reachable from a remote ref.
+	remote := t.TempDir()
+	exec.Command("git", "init", "--bare", remote).Run()
+	exec.Command("git", "-C", dir, "remote", "add", "origin", remote).Run()
+	if out, err := exec.Command("git", "-C", dir, "push", "origin", branch).CombinedOutput(); err != nil {
+		t.Fatalf("push: %v\n%s", err, out)
+	}
+
+	commitFile(t, dir, "local.txt", "local\n", "local-only commit")
+
+	commits, err := Log(dir, "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commits) != 2 {
+		t.Fatalf("expected 2 commits, got %d", len(commits))
+	}
+	byMsg := map[string]Commit{}
+	for _, c := range commits {
+		byMsg[c.Message] = c
+	}
+	if !byMsg["local-only commit"].Unpushed {
+		t.Fatal("a commit not on any remote must be marked unpushed")
+	}
+	if byMsg["init"].Unpushed {
+		t.Fatal("a pushed commit must not be marked unpushed")
+	}
+}
+
+// Without any remote every commit is local-only — all marked unpushed.
+func TestLog_marksUnpushed_noRemote(t *testing.T) {
+	dir := initRepo(t)
+
+	commits, err := Log(dir, "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commits) == 0 {
+		t.Fatal("expected at least the init commit")
+	}
+	for _, c := range commits {
+		if !c.Unpushed {
+			t.Fatalf("commit %q: with no remotes every commit is unpushed", c.Message)
+		}
+	}
+}
