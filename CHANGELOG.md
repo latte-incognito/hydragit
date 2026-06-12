@@ -17,6 +17,13 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 - **The ⭐ default-branch marker was guessed by name** (first of `master`/`main` found locally) and could land on the wrong branch. It's now real data: the Go side resolves what **origin/HEAD** points to (`Branch.isDefault`; never guessed when there's no remote), and `fetch` refreshes origin/HEAD (`git remote set-head origin --auto`) so a default-branch change on the remote heals itself.
 
 ### Changed
+- **Detail pane (commit card + file tree) redesigned**:
+  - The synthetic repo-root tree node ("HydraGit · 13") is gone — it was always present, always expanded, and cost one indent level for every row (both commit and stash views).
+  - File status letters use **VS Code's own SCM colors** (`gitDecoration.*` theme tokens: M amber, A green, D red, R/C teal) as bare letters — the boxy chips around identical Ms were noise.
+  - **+/− totals moved up** into the tree toolbar next to the file count.
+  - **Click the hash to copy it** (GitHub style, ✓ feedback); the Copy-hash button is deleted. Author/date became one line with a smart relative date (full date on hover). Refs render as **pills** (`HEAD -> develop` splits into HEAD + branch pills; tags amber) instead of raw text.
+  - **Action row reworked** (ROADMAP item 5): visible chips are Cherry-pick · Branch here · Tag · ↗ View on remote, plus a **⋯ overflow** holding Checkout at commit (detached), Copy commit message, Save as patch, and Revert (red, separated — no longer adjacent to a harmless button). Every action routes through the *same* handler as the log's right-click menu (`commitMenuAction`, which gained `copy-message`); the old separate `commitAction` path was deleted.
+
 - **Branch pane redesigned** (Discord/Linear style):
   - The ambiguous global `+` is gone — each section header (Local / Tags / Stashes / Worktrees / Snapshots) reveals its own `+` on hover: new branch, tag at HEAD, stash, worktree, or manual snapshot (the last two got first-class UI entry points for the first time).
   - The `HEAD · <branch>` row stopped masquerading as a branch — it's now labelled by function: **↺ Undo timeline** (amber, highlighted while reflog mode is active). Same position, same one-click access.

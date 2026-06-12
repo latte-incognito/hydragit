@@ -18,14 +18,14 @@ beforeEach(() => sendMock.mockClear());
 
 async function openFileCtx(overrides: Record<string, unknown> = {}) {
   const onSelectFile = vi.fn();
-  const onCommitAction = vi.fn();
+  const onCommitMenuAction = vi.fn();
   const onStashAction = vi.fn();
   const { container, getByText } = render(DetailPane, {
-    commit, files, onSelectFile, onCommitAction, onStashAction, ...overrides,
+    commit, files, onSelectFile, onCommitMenuAction, onStashAction, ...overrides,
   });
   const row = getByText('a.txt').closest('.tree-row--file') as HTMLElement;
   await fireEvent.contextMenu(row);
-  return { container, getByText, onSelectFile, onCommitAction, onStashAction };
+  return { container, getByText, onSelectFile, onCommitMenuAction, onStashAction };
 }
 
 describe('DetailPane file context menu — wired items', () => {
@@ -61,12 +61,12 @@ const DEAD_BUT_ENABLED = [
 describe('DetailPane file context menu — enabled items must do something (BUG hunt)', () => {
   DEAD_BUT_ENABLED.forEach((label) => {
     it(`"${label}" should trigger an action`, async () => {
-      const { getByText, onSelectFile, onCommitAction, onStashAction } = await openFileCtx();
+      const { getByText, onSelectFile, onCommitMenuAction, onStashAction } = await openFileCtx();
       await fireEvent.click(getByText(label));
       const fired =
         sendMock.mock.calls.length +
         onSelectFile.mock.calls.length +
-        onCommitAction.mock.calls.length +
+        onCommitMenuAction.mock.calls.length +
         onStashAction.mock.calls.length;
       expect(fired).toBeGreaterThan(0);
     });

@@ -830,21 +830,7 @@
     }
   }
 
-  // ── Commit actions ────────────────────────────────────────────────────────
-  async function commitAction(action: string, hash: string) {
-    if (action === 'copy') { flash('Copied: ' + hash, '#4ec94e'); return; }
-    flash(`${action}: ${hash}`);
-    const cmdMap: Record<string, string> = { 'cherry-pick': 'cherrypick', revert: 'revert' };
-    try {
-      await send(cmdMap[action] ?? action, { commit: hash });
-      flash(action + ' done', '#4ec94e');
-      loadAll();
-    } catch (e: unknown) {
-      flash(action + ' failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
-    }
-  }
-
-  // ── Commit context menu (LogPane) ────────────────────────────────────────
+  // ── Commit context menu (LogPane + DetailPane action row) ────────────────
   // Dry-run the merge (`git merge-tree`, object-db only) and fold the verdict
   // into the confirm dialog. Preview unavailable (git < 2.38) → plain confirm.
   async function confirmMerge(target: string): Promise<boolean> {
@@ -868,6 +854,10 @@
       'copy-hash': async () => {
         await navigator.clipboard.writeText(hash);
         flash(`Copied: ${hash.slice(0, 7)}`, '#4ec94e');
+      },
+      'copy-message': async () => {
+        await navigator.clipboard.writeText(commit.message ?? commit.msg ?? '');
+        flash('Copied commit message', '#4ec94e');
       },
       'cherry-pick': async () => {
         await send('cherrypick', { commit: hash });
@@ -1744,7 +1734,7 @@
           loading={detailLoading}
           {iconUri}
           onSelectFile={selectDiffFile}
-          onCommitAction={commitAction}
+          onCommitMenuAction={commitMenuAction}
           onStashAction={stashAction}
         />
       </div>

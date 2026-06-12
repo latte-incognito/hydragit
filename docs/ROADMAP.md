@@ -119,7 +119,12 @@ Main panel UI:
 4. Ref pills eat the subject — `HEAD →` as icon, middle-truncate, `+N`
    overflow. *(pill markup pass)*
 5. Detail action row: add checkout-at-commit, create branch/tag, View on
-   GitHub; separate Revert from Copy hash.   
+   GitHub; separate Revert from Copy hash.   :
+    5.1 context menu ... opens the menu under the comit pane, 
+    5.2 no hints on buttons, 
+    5.3 githab nutton probably shouls be on commits that are  pushed 
+    5,4 click on folder shoud open close it  nothing. atm \
+    5.5 is chety pick workingg 
 6. Token-search polish (smart detection): paste 7–40 hex chars → "jump to
    commit" suggestion; `@` → author autocomplete from loaded commits;
    multi-line paste → offer code search. *(follow-up to the toolbar redesign)*
