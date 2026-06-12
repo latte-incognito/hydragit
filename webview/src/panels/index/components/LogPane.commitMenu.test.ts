@@ -48,6 +48,18 @@ describe('Commit context menu — wired items emit onCommitAction', () => {
   });
 });
 
+describe('Commit context menu — view in browser gating', () => {
+  it('hides "View in browser" for unpushed commits', async () => {
+    const cs = commits();
+    (cs[0] as { unpushed?: boolean }).unpushed = true;
+    const { container, queryByText } = render(LogPane, {
+      commits: cs, selectedIdx: null, onCommitAction: vi.fn(), onSelect: vi.fn(),
+    });
+    await fireEvent.contextMenu(container.querySelectorAll('.crow')[0]);
+    expect(queryByText('View in browser')).toBeNull();
+  });
+});
+
 describe('Commit context menu — navigation items', () => {
   it('"Go to Parent Commit" selects the parent row', async () => {
     // right-click the child (row 0); its parent is c1 (row 1)

@@ -13,6 +13,30 @@ type Commit struct {
 	Date    string   `json:"date"`
 	Message string   `json:"message"`
 	Refs    []string `json:"refs"`
+	// Unpushed marks a commit not reachable from any remote-tracking ref —
+	// it exists only locally. The webview hides "view on remote" for these.
+	Unpushed bool `json:"unpushed,omitempty"`
+}
+
+// markUnpushed sets Unpushed on every commit not reachable from any
+// remote-tracking ref. A single rev-list walks the local refs and stops at the
+// remote frontier, so the cost scales with the number of unpushed commits,
+// not history size. With no remotes every commit is (correctly) unpushed.
+// Best-effort: on error commits stay marked as pushed.
+func markUnpushed(repoPath string, commits []Commit) {
+	out, err := run(repoPath, "rev-list", "--all", "--not", "--remotes")
+	if err != nil || out == "" {
+		return
+	}
+	unpushed := make(map[string]bool)
+	for _, h := range strings.Fields(out) {
+		unpushed[h] = true
+	}
+	for i := range commits {
+		if unpushed[commits[i].Hash] {
+			commits[i].Unpushed = true
+		}
+	}
 }
 
 // commitSep is the field separator used in our --format strings. ASCII unit
@@ -104,7 +128,9 @@ func LogFile(repoPath, filePath string) ([]Commit, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parseCommitLines(out), nil
+	commits := parseCommitLines(out)
+	markUnpushed(repoPath, commits)
+	return commits, nil
 }
 
 // FileHistory returns the commits reachable from ref that touched filePath,
@@ -220,7 +246,9 @@ func LogWith(repoPath string, opt LogOptions) ([]Commit, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parseCommitLines(out), nil
+	commits := parseCommitLines(out)
+	markUnpushed(repoPath, commits)
+	return commits, nil
 }
 
 // Log is the unfiltered convenience wrapper around LogWith.
