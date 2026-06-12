@@ -13,6 +13,8 @@
     onToggleFolder?: (key: string) => void;
     onStageFolder?: (paths: string[], stage: boolean) => void;
     onOpenDiff?: (path: string) => void;
+    onOpenFile?: (path: string) => void;
+    onDiscard?: (paths: string[]) => void;
   }
 
   let {
@@ -24,7 +26,9 @@
     onToggleStage = () => {},
     onToggleFolder = () => {},
     onStageFolder = () => {},
-    onOpenDiff = () => {}
+    onOpenDiff = () => {},
+    onOpenFile = () => {},
+    onDiscard = () => {}
   }: Props = $props();
 
   // ── Types ─────────────────────────────────────────────────────────────────
@@ -187,7 +191,122 @@
       update(v: boolean) { node.indeterminate = v; }
     };
   }
+
+  // ── Context menu (right-click on a file row) ──────────────────────────────
+  let ctxVisible = $state(false);
+  let ctxX = $state(0);
+  let ctxY = $state(0);
+  let ctxFile: GitFile | null = $state(null);
+
+  function showCtx(e: MouseEvent, file: GitFile) {
+    e.preventDefault();
+    e.stopPropagation();
+    ctxFile = file;
+    ctxX = e.clientX;
+    ctxY = e.clientY;
+    ctxVisible = true;
+  }
+
+  function closeCtx() {
+    ctxVisible = false;
+  }
+
+  function fitMenu(node: HTMLElement) {
+    requestAnimationFrame(() => {
+      const rect = node.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+      if (rect.right > vw) node.style.left = Math.max(0, vw - rect.width - 4) + 'px';
+      if (rect.bottom > vh) node.style.top = Math.max(0, parseFloat(node.style.top) - (rect.bottom - vh) - 4) + 'px';
+    });
+  }
+
+  function ctxShowDiff() {
+    closeCtx();
+    if (ctxFile) onOpenDiff(ctxFile.path);
+  }
+
+  function ctxOpenFile() {
+    closeCtx();
+    if (ctxFile) onOpenFile(ctxFile.path);
+  }
+
+  function ctxCopyPath() {
+    closeCtx();
+    if (ctxFile) navigator.clipboard?.writeText(ctxFile.path);
+  }
+
+  function ctxDiscard() {
+    closeCtx();
+    if (ctxFile && !isConflict(ctxFile)) onDiscard([ctxFile.path]);
+  }
+
+  function isConflict(f: GitFile): boolean {
+    return f.status === '!';
+  }
+
+  // Bulk discards skip conflicted files — the backend refuses a batch that
+  // contains one, and conflicts have their own resolution flow (the banner).
+  let fileByPath = $derived(new Map(files.map((f) => [f.path, f])));
+  function discardable(paths: string[]): string[] {
+    return paths.filter((p) => fileByPath.get(p)?.status !== '!');
+  }
+
+  // A deleted file has no working-tree copy to open or edit.
+  function isDeleted(f: GitFile): boolean {
+    return f.status?.toUpperCase() === 'D';
+  }
 </script>
+
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') closeCtx(); }} />
+
+{#if ctxVisible && ctxFile}
+  {@const conflicted = isConflict(ctxFile)}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="ctx-overlay" onclick={closeCtx} oncontextmenu={(e) => { e.preventDefault(); closeCtx(); }}></div>
+  <div class="ctx-menu" style="left:{ctxX}px;top:{ctxY}px" use:fitMenu>
+    <div class="ctx-item" onclick={ctxShowDiff}>
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M3 4 L 7 4 M7 4 L 5 2 M7 4 L 5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3 10 L 7 10 M7 10 L 5 8 M7 10 L 5 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">{conflicted ? 'Open Merge Editor' : 'Show Diff'}</span>
+    </div>
+    {#if !isDeleted(ctxFile)}
+      <div class="ctx-item" onclick={ctxOpenFile}>
+        <span class="ci-icon">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M2 12 L 5 11 L 11 5 L 9 3 L 3 9 Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" fill="none"/>
+            <line x1="8" y1="4" x2="10" y2="6" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+        </span>
+        <span class="ci-text">Open File</span>
+      </div>
+    {/if}
+    <div class="ctx-item" onclick={ctxCopyPath}>
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <rect x="4.5" y="4.5" width="7" height="8" rx="1" stroke="currentColor" stroke-width="1.1"/>
+          <path d="M9.5 4.5 V 3 a 1 1 0 0 0 -1 -1 H 3.5 a 1 1 0 0 0 -1 1 v 6.5 a 1 1 0 0 0 1 1 H 4.5" stroke="currentColor" stroke-width="1.1"/>
+        </svg>
+      </span>
+      <span class="ci-text">Copy Path</span>
+    </div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item" class:ctx-item--dim={conflicted} onclick={ctxDiscard}
+         title={conflicted ? 'Resolve or abort the conflict instead' : ''}>
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M3 6 L 6 3 M3 6 L 6 9 M3 6 H 9 a 3 3 0 0 1 0 6 H 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">Discard Changes</span>
+    </div>
+  </div>
+{/if}
 
 <div class="tree-wrap" role="listbox" aria-label="Changed files">
   {#if noRepo}
@@ -231,6 +350,16 @@
           </svg>
           <span class="folder-label">{node.label}</span>
           <span class="folder-count">{countFiles(node)}</span>
+          <button
+            class="row-act row-act--discard"
+            title="Discard all changes in {node.label} (snapshot saved first)"
+            aria-label="Discard all in {node.label}"
+            onclick={(e) => { e.stopPropagation(); onDiscard(discardable(folderPaths)); }}
+          >
+            <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+              <path d="M3 6 L 6 3 M3 6 L 6 9 M3 6 H 9 a 3 3 0 0 1 0 6 H 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
           <!-- Folder checkbox: stages/unstages all files in folder -->
           <input
             type="checkbox"
@@ -267,6 +396,7 @@
               class:staged
               style="padding-left:{indent}px"
               onclick={() => onOpenDiff(f.path)}
+              oncontextmenu={(e) => showCtx(e, f)}
               role="option"
               aria-selected={staged}
               data-status={f.status}
@@ -283,6 +413,32 @@
                 <span class="fname {s.nameClass}"
                       class:fname-d-strike={f.status?.toUpperCase() === 'D'}
                       title={f.path}>{fname}</span>
+              {/if}
+
+              {#if !isConflict(f)}
+                {#if !isDeleted(f)}
+                  <button
+                    class="row-act"
+                    title="Open file"
+                    aria-label="Open {fname}"
+                    onclick={(e) => { e.stopPropagation(); onOpenFile(f.path); }}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 12 L 5 11 L 11 5 L 9 3 L 3 9 Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" fill="none"/>
+                      <line x1="8" y1="4" x2="10" y2="6" stroke="currentColor" stroke-width="1.1"/>
+                    </svg>
+                  </button>
+                {/if}
+                <button
+                  class="row-act row-act--discard"
+                  title="Discard changes (snapshot saved first)"
+                  aria-label="Discard changes in {fname}"
+                  onclick={(e) => { e.stopPropagation(); onDiscard([f.path]); }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+                    <path d="M3 6 L 6 3 M3 6 L 6 9 M3 6 H 9 a 3 3 0 0 1 0 6 H 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
               {/if}
 
               <input
@@ -303,6 +459,16 @@
       <div class="group-header">
         <span class="group-label">Staged Changes</span>
         <button
+          class="group-action group-action--discard"
+          title="Discard all staged changes (snapshot saved first)"
+          aria-label="Discard all staged changes"
+          onclick={() => onDiscard(discardable(stagedFiles.map((f) => f.path)))}
+        >
+          <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+            <path d="M3 6 L 6 3 M3 6 L 6 9 M3 6 H 9 a 3 3 0 0 1 0 6 H 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button
           class="group-action"
           title="Unstage all"
           onclick={() => onStageFolder(stagedFiles.map((f) => f.path), false)}
@@ -318,6 +484,16 @@
     {#if changesFiles.length > 0}
       <div class="group-header">
         <span class="group-label">Changes</span>
+        <button
+          class="group-action group-action--discard"
+          title="Discard all changes (snapshot saved first)"
+          aria-label="Discard all changes"
+          onclick={() => onDiscard(discardable(changesFiles.map((f) => f.path)))}
+        >
+          <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+            <path d="M3 6 L 6 3 M3 6 L 6 9 M3 6 H 9 a 3 3 0 0 1 0 6 H 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button
           class="group-action"
           title="Stage all"
@@ -518,6 +694,99 @@
     color: var(--vscode-descriptionForeground, #666);
     font-size: var(--hg-font-xxs);
     flex-shrink: 0;
+  }
+
+  /* ── Row hover actions (discard / open file) ── */
+  .row-act {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--vscode-descriptionForeground, #999);
+    cursor: pointer;
+    opacity: 0;
+    flex-shrink: 0;
+    transition: opacity 0.1s, background 0.1s, color 0.1s;
+  }
+  .file-row:hover .row-act,
+  .folder-row:hover .row-act,
+  .row-act:focus-visible {
+    opacity: 1;
+  }
+  .row-act:hover {
+    background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.25));
+    color: var(--vscode-foreground, #ccc);
+  }
+  .row-act--discard:hover {
+    color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+  }
+
+  .group-action--discard:hover {
+    background: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+    border-color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+    color: #ffffff;
+  }
+
+  /* ── Context menu (same look as the detail pane's) ── */
+  .ctx-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+  }
+  .ctx-menu {
+    position: fixed;
+    z-index: 100;
+    background: var(--vscode-menu-background, #252526);
+    border: 0.5px solid var(--vscode-menu-border, #3a3a3a);
+    border-radius: 5px;
+    padding: 4px 0;
+    min-width: 200px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    font-family: var(--hg-font-family);
+    font-size: var(--hg-font-xs);
+  }
+  .ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 14px 5px 10px;
+    cursor: default;
+    color: var(--vscode-menu-foreground, #ccc);
+    white-space: nowrap;
+  }
+  .ctx-item:hover {
+    background: var(--vscode-menu-selectionBackground, #094771);
+    color: var(--vscode-menu-selectionForeground, #fff);
+  }
+  .ctx-item--dim {
+    color: var(--vscode-disabledForeground, #555);
+  }
+  .ctx-item--dim:hover {
+    background: transparent;
+    color: var(--vscode-disabledForeground, #555);
+  }
+  .ci-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+  }
+  .ci-text {
+    flex: 1;
+  }
+  .ctx-divider {
+    height: 0.5px;
+    background: var(--vscode-panel-border, #3a3a3a);
+    margin: 4px 0;
   }
 
   /* ── Checkbox ── */

@@ -166,6 +166,39 @@
     stagedPaths = next;
   }
 
+  // ── Discard ──────────────────────────────────────────────────────────────
+  // The handler auto-snapshots before `discard` (refs/hydragit/snapshots), so
+  // every discard — including deleted untracked files — is recoverable from
+  // the branch pane's Snapshots section. The confirm names the repo when more
+  // than one is visible: in a multi-repo sidebar, "which repo?" is the whole
+  // safety question.
+  async function handleDiscard(paths: string[]) {
+    if (paths.length === 0) return;
+    const where = showHeader ? ` in ${repo.name}` : '';
+    let msg: string;
+    if (paths.length === 1) {
+      const f = files.find((x) => x.path === paths[0]);
+      const name = paths[0].split('/').pop() ?? paths[0];
+      msg = f?.status === 'U'
+        ? `Delete ${name}${where}? The file is untracked — it will be removed from disk. A snapshot is saved first.`
+        : `Discard changes in ${name}${where}? A snapshot is saved first.`;
+    } else {
+      msg = `Discard changes in ${paths.length} files${where}? A snapshot is saved first — restorable from the branch pane.`;
+    }
+    if (!(await uiConfirm(msg))) return;
+    try {
+      await call('discard', { paths });
+      await loadChanges();
+    } catch (e: unknown) {
+      commitError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  function handleOpenFile(path: string) {
+    onFocus(repo.rootPath);
+    send('openFile', { file: path }, repo.rootPath);
+  }
+
   // ── Diff ───────────────────────────────────────────────────────────────────
   function handleOpenDiff(path: string) {
     onFocus(repo.rootPath); // viewing a file focuses its repo
@@ -267,6 +300,8 @@
           onToggleFolder={handleToggleFolder}
           onStageFolder={handleStageFolder}
           onOpenDiff={handleOpenDiff}
+          onOpenFile={handleOpenFile}
+          onDiscard={handleDiscard}
         />
       {/if}
 

@@ -13,6 +13,9 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 
 ## [Unreleased]
 
+### Added
+- **Discard changes — at every level of the sidebar tree** (a long-missing core action): hover any file row for ↶ Discard and an Open-file pencil (VS Code SCM style), hover a folder row or the Staged Changes / Changes section headers for their scoped ↶, or use the new **right-click menu** on file rows (Show Diff · Open File · Copy Path · Discard Changes — IntelliJ style, matching the detail pane's menus). Safety: a **working-tree snapshot is auto-saved before every discard** (server-side, inside the repo lock), so even deleting an untracked file is recoverable from the branch pane's Snapshots section; confirms name the repo in multi-repo workspaces ("Discard 13 files in HydraGit?"); conflicted files are refused (the conflict banner owns those) and bulk discards skip them. New Go `Discard()` (`internal/git/discard.go`) restores tracked paths from HEAD and removes untracked/added/rename-target paths, handling staged renames (source restored, target removed) and copies; new `discard` IPC cmd (mutating + auto-snapshot).
+
 ### Fixed
 - **The ⭐ default-branch marker was guessed by name** (first of `master`/`main` found locally) and could land on the wrong branch. It's now real data: the Go side resolves what **origin/HEAD** points to (`Branch.isDefault`; never guessed when there's no remote), and `fetch` refreshes origin/HEAD (`git remote set-head origin --auto`) so a default-branch change on the remote heals itself.
 

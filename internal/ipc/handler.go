@@ -140,6 +140,7 @@ var mutatingCmds = map[string]bool{
 	"snapshot.save":         true,
 	"snapshot.restore":      true,
 	"snapshot.drop":         true,
+	"discard":               true,
 }
 
 // autoSnapshotCmds trigger a working-tree snapshot (refs/hydragit/snapshots)
@@ -163,6 +164,7 @@ var autoSnapshotCmds = map[string]bool{
 	"stash.pop":          true,
 	"stash.apply":        true,
 	"snapshot.restore":   true,
+	"discard":            true,
 }
 
 func Handle(repoPath string, req Request) Response {
@@ -884,6 +886,19 @@ func handle(repoPath string, req Request) Response {
 			return *r
 		}
 		if err := git.CherryPick(repoPath, p.Commit); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "discard":
+		var p struct {
+			Paths []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if len(p.Paths) == 0 {
+			return fail(id, fmt.Errorf("missing required parameter: paths"))
+		}
+		if err := git.Discard(repoPath, p.Paths); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)

@@ -258,6 +258,137 @@ describe('FileTree — collapse state', () => {
   });
 });
 
+// ── hover actions (discard / open file) ──────────────────────────────────────
+
+describe('FileTree — row hover actions', () => {
+  it('discard button on a file row calls onDiscard with that path', async () => {
+    const onDiscard = vi.fn();
+    const { getByText } = render(FileTree, { files, onDiscard });
+
+    const row = getByText('main.ts').closest('.file-row') as HTMLElement;
+    const btn = row.querySelector('.row-act--discard') as HTMLElement;
+    await fireEvent.click(btn);
+    expect(onDiscard).toHaveBeenCalledWith(['src/main.ts']);
+  });
+
+  it('open-file button on a file row calls onOpenFile, not onOpenDiff', async () => {
+    const onOpenFile = vi.fn();
+    const onOpenDiff = vi.fn();
+    const { getByText } = render(FileTree, { files, onOpenFile, onOpenDiff });
+
+    const row = getByText('main.ts').closest('.file-row') as HTMLElement;
+    const btn = row.querySelector('.row-act:not(.row-act--discard)') as HTMLElement;
+    await fireEvent.click(btn);
+    expect(onOpenFile).toHaveBeenCalledWith('src/main.ts');
+    expect(onOpenDiff).not.toHaveBeenCalled();
+  });
+
+  it('deleted files keep discard (restores them) but lose open-file', () => {
+    const { getByText } = render(FileTree, { files });
+    const row = getByText('deleted.txt').closest('.file-row') as HTMLElement;
+    expect(row.querySelector('.row-act--discard')).toBeTruthy();
+    expect(row.querySelector('.row-act:not(.row-act--discard)')).toBeNull();
+  });
+
+  it('conflicted files get no hover actions at all', () => {
+    const conflictFiles = [{ path: 'clash.txt', status: '!' }];
+    const { getByText } = render(FileTree, { files: conflictFiles });
+    const row = getByText('clash.txt').closest('.file-row') as HTMLElement;
+    expect(row.querySelector('.row-act')).toBeNull();
+  });
+
+  it('folder discard button passes every file in the folder', async () => {
+    const onDiscard = vi.fn();
+    const { getByText } = render(FileTree, { files, onDiscard });
+
+    const row = getByText('src').closest('.folder-row') as HTMLElement;
+    await fireEvent.click(row.querySelector('.row-act--discard') as HTMLElement);
+    expect(onDiscard).toHaveBeenCalledWith(
+      expect.arrayContaining(['src/main.ts', 'src/components/App.svelte'])
+    );
+  });
+
+  it('section "discard all" passes all paths but skips conflicted files', async () => {
+    const onDiscard = vi.fn();
+    const withConflict = [...files, { path: 'clash.txt', status: '!' }];
+    const { getByLabelText } = render(FileTree, { files: withConflict, onDiscard });
+
+    await fireEvent.click(getByLabelText('Discard all changes'));
+    const paths = onDiscard.mock.calls[0][0] as string[];
+    expect(paths).toContain('src/main.ts');
+    expect(paths).not.toContain('clash.txt');
+  });
+
+  it('staged section gets its own discard-all scoped to staged files', async () => {
+    const onDiscard = vi.fn();
+    const staged = new Set(['src/main.ts']);
+    const { getByLabelText } = render(FileTree, { files, stagedPaths: staged, onDiscard });
+
+    await fireEvent.click(getByLabelText('Discard all staged changes'));
+    expect(onDiscard).toHaveBeenCalledWith(['src/main.ts']);
+  });
+});
+
+// ── context menu ──────────────────────────────────────────────────────────────
+
+describe('FileTree — file context menu', () => {
+  async function openCtx(fileLabel: string, props: Record<string, unknown> = {}) {
+    const utils = render(FileTree, { files, ...props });
+    const row = utils.getByText(fileLabel).closest('.file-row') as HTMLElement;
+    await fireEvent.contextMenu(row);
+    return utils;
+  }
+
+  it('right-click opens the menu with the expected items', async () => {
+    const { getByText } = await openCtx('main.ts');
+    expect(getByText('Show Diff')).toBeTruthy();
+    expect(getByText('Open File')).toBeTruthy();
+    expect(getByText('Copy Path')).toBeTruthy();
+    expect(getByText('Discard Changes')).toBeTruthy();
+  });
+
+  it('"Show Diff" routes through onOpenDiff and closes the menu', async () => {
+    const onOpenDiff = vi.fn();
+    const { getByText, queryByText } = await openCtx('main.ts', { onOpenDiff });
+    await fireEvent.click(getByText('Show Diff'));
+    expect(onOpenDiff).toHaveBeenCalledWith('src/main.ts');
+    expect(queryByText('Copy Path')).toBeNull();
+  });
+
+  it('"Discard Changes" routes through onDiscard', async () => {
+    const onDiscard = vi.fn();
+    const { getByText } = await openCtx('main.ts', { onDiscard });
+    await fireEvent.click(getByText('Discard Changes'));
+    expect(onDiscard).toHaveBeenCalledWith(['src/main.ts']);
+  });
+
+  it('"Copy Path" writes the full path to the clipboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    // navigator.clipboard is getter-only in happy-dom — defineProperty, not assign.
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const { getByText } = await openCtx('main.ts');
+    await fireEvent.click(getByText('Copy Path'));
+    expect(writeText).toHaveBeenCalledWith('src/main.ts');
+  });
+
+  it('conflicted file: diff item becomes "Open Merge Editor" and discard is inert', async () => {
+    const onDiscard = vi.fn();
+    const conflictFiles = [{ path: 'clash.txt', status: '!' }];
+    const utils = render(FileTree, { files: conflictFiles, onDiscard });
+    const row = utils.getByText('clash.txt').closest('.file-row') as HTMLElement;
+    await fireEvent.contextMenu(row);
+
+    expect(utils.getByText('Open Merge Editor')).toBeTruthy();
+    await fireEvent.click(utils.getByText('Discard Changes'));
+    expect(onDiscard).not.toHaveBeenCalled();
+  });
+
+  it('deleted file has no "Open File" item', async () => {
+    const { queryByText } = await openCtx('deleted.txt');
+    expect(queryByText('Open File')).toBeNull();
+  });
+});
+
 // ── rename ────────────────────────────────────────────────────────────────────
 
 describe('FileTree — renamed files', () => {
