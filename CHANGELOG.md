@@ -26,6 +26,11 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 - **The ⭐ default-branch marker was guessed by name** (first of `master`/`main` found locally) and could land on the wrong branch. It's now real data: the Go side resolves what **origin/HEAD** points to (`Branch.isDefault`; never guessed when there's no remote), and `fetch` refreshes origin/HEAD (`git remote set-head origin --auto`) so a default-branch change on the remote heals itself.
 
 ### Changed
+- **Staging is real now** (VS Code SCM semantics) — the sidebar checkboxes were a client-side "include in next commit" list (`git add` only happened at commit time); they now drive the index directly: check = `git add`, uncheck = `git restore --staged` (new `stage`/`unstage` cmds, `internal/git/stage.go`; unborn-branch unstage falls back to `rm --cached`). What this buys:
+  - **Edit a staged file and the new edits appear as a second row** under Changes while the frozen snapshot stays under Staged Changes (porcelain `MM` → the new `FileStatus.indexStatus`/`workStatus` split; renames carry `oldPath` for the `old → new` display).
+  - **Commit takes the frozen snapshot**, not whatever the file looks like at commit time — `commit` with no paths now commits the index as-is (the old stage-paths-then-commit contract still works when paths are passed).
+  - Staging survives reloads and is shared with the terminal/other git tools (it's the real index); folder/section checkboxes stage/unstage their subtree; conflicted rows lost their checkbox (the conflict banner owns resolution); the indeterminate folder state is gone — a folder row is simply checked in Staged Changes and unchecked in Changes.
+
 - **Detail pane (commit card + file tree) redesigned**:
   - The synthetic repo-root tree node ("HydraGit · 13") is gone — it was always present, always expanded, and cost one indent level for every row (both commit and stash views).
   - File status letters use **VS Code's own SCM colors** (`gitDecoration.*` theme tokens: M amber, A green, D red, R/C teal) as bare letters — the boxy chips around identical Ms were noise.

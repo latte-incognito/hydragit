@@ -168,9 +168,11 @@ func TestCommit_emptyMessage(t *testing.T) {
 func TestCommit_emptyPaths(t *testing.T) {
 	repo := initRepo(t)
 
+	// Empty paths now means "commit the index" (real staging) — on a clean
+	// index that's git's own nothing-to-commit error, so this still refuses.
 	_, err := git.CreateCommit(repo, "msg", []string{})
 	if err == nil {
-		t.Error("expected error for empty paths")
+		t.Error("expected error committing an empty index")
 	}
 }
 

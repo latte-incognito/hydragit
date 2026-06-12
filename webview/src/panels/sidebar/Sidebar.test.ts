@@ -13,9 +13,11 @@ vi.mock('$shared/messageBus', () => ({ send, on }));
 import Sidebar from './Sidebar.svelte';
 import { repoState } from '$shared/repoStore';
 
+// Real-index model: rows render from the index/worktree split, so each file
+// needs its side set (workStatus here — both are working-tree changes).
 const files = [
-  { path: 'src/app.ts', status: 'M' },
-  { path: 'conflict.txt', status: '!' }, // unmerged — must open the merge resolver
+  { path: 'src/app.ts', status: 'M', workStatus: 'M' },
+  { path: 'conflict.txt', status: '!', workStatus: '!' }, // unmerged — must open the merge resolver
 ];
 
 // One repo → the group renders flat (no header). RepoGroup fetches status via

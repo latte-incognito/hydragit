@@ -11,23 +11,21 @@ type CommitResult struct {
 	Message string `json:"message"`
 }
 
-// CreateCommit stages the given paths and creates a new commit with the
-// provided message. Returns the hash and subject of the new commit.
-//
-// If paths is empty the function returns an error rather than accidentally
-// committing everything.
+// CreateCommit creates a new commit with the provided message. With paths it
+// stages exactly those first (the pre-real-staging contract, kept for callers
+// and tests); with no paths it commits the index as-is — the sidebar stages
+// via the `stage`/`unstage` cmds and the index is the source of truth. An
+// empty index is git's own "nothing to commit" error, propagated as-is.
 func CreateCommit(repoPath, message string, paths []string) (*CommitResult, error) {
 	if strings.TrimSpace(message) == "" {
 		return nil, errors.New("commit message cannot be empty")
 	}
-	if len(paths) == 0 {
-		return nil, errors.New("no files staged for commit")
-	}
 
-	// Stage exactly the requested paths — nothing more.
-	addArgs := append([]string{"add", "--"}, paths...)
-	if _, err := run(repoPath, addArgs...); err != nil {
-		return nil, err
+	if len(paths) > 0 {
+		addArgs := append([]string{"add", "--"}, paths...)
+		if _, err := run(repoPath, addArgs...); err != nil {
+			return nil, err
+		}
 	}
 
 	// Create the commit.

@@ -26,10 +26,12 @@ func gitIn(t *testing.T, dir string, args ...string) string {
 	return string(out)
 }
 
-// porcelain returns `git status --porcelain -u` for assertions.
+// porcelain returns `git status --porcelain -u` for assertions. Only trailing
+// whitespace is trimmed — the leading space of codes like " M" is the X column
+// and must survive.
 func porcelain(t *testing.T, dir string) string {
 	t.Helper()
-	return strings.TrimSpace(gitIn(t, dir, "status", "--porcelain", "-u"))
+	return strings.TrimRight(gitIn(t, dir, "status", "--porcelain", "-u"), "\n")
 }
 
 func TestDiscard_modifiedRestoresContent(t *testing.T) {

@@ -5,11 +5,10 @@
 
   interface Props {
     files?: GitFile[];
-    stagedPaths?: Set<string>;
     loading?: boolean;
     noRepo?: boolean;
     collapsed?: Set<string>; // persisted by parent
-    onToggleStage?: (path: string) => void;
+    onToggleStage?: (path: string, stage: boolean) => void;
     onToggleFolder?: (key: string) => void;
     onStageFolder?: (paths: string[], stage: boolean) => void;
     onOpenDiff?: (path: string) => void;
@@ -19,7 +18,6 @@
 
   let {
     files = [],
-    stagedPaths = new Set(),
     loading = false,
     noRepo = false,
     collapsed = new Set(),
@@ -116,10 +114,13 @@
     return root;
   }
 
-  // Two sections: staged files (in stagedPaths) and the rest. Each gets its own
-  // folder tree; clicking a file's checkbox moves it between sections.
-  let stagedFiles  = $derived(files.filter((f) => stagedPaths.has(f.path)));
-  let changesFiles = $derived(files.filter((f) => !stagedPaths.has(f.path)));
+  // Real-index model (VS Code SCM semantics): the sections come from git's own
+  // index/worktree split, not a client-side set. A file edited after staging
+  // ("MM") appears in BOTH trees — the staged row shows the frozen snapshot's
+  // letter, the changes row the newer edits'. Each copy carries its side's
+  // letter as `status` so badges/colors render per-section.
+  let stagedFiles  = $derived(files.filter((f) => f.indexStatus).map((f) => ({ ...f, status: f.indexStatus! })));
+  let changesFiles = $derived(files.filter((f) => f.workStatus).map((f) => ({ ...f, status: f.workStatus! })));
   let stagedTree   = $derived(buildTree(stagedFiles));
   let changesTree  = $derived(buildTree(changesFiles));
 
@@ -134,14 +135,6 @@
     }
     walk(node);
     return paths;
-  }
-
-  function folderStagedState(node: TreeFolder): 'all' | 'some' | 'none' {
-    const paths = allFilesInFolder(node);
-    const stagedCount = paths.filter(p => stagedPaths.has(p)).length;
-    if (stagedCount === 0) return 'none';
-    if (stagedCount === paths.length) return 'all';
-    return 'some';
   }
 
   function countFiles(node: TreeFolder): number {
@@ -182,14 +175,6 @@
       };
     }
     return { oldName: null, newName: file.path.split('/').pop() ?? file.path };
-  }
-
-  // ── Checkbox bind:indeterminate helper via action ─────────────────────────
-  function indeterminateAction(node: HTMLInputElement, value: boolean) {
-    node.indeterminate = value;
-    return {
-      update(v: boolean) { node.indeterminate = v; }
-    };
   }
 
   // ── Context menu (right-click on a file row) ──────────────────────────────
@@ -325,11 +310,8 @@
     </div>
   {:else}
 
-    {#snippet renderFolder(node: TreeFolder, depth: number)}
+    {#snippet renderFolder(node: TreeFolder, depth: number, inStaged: boolean)}
       {#if node.fullPath !== '__root__'}
-        {@const state = folderStagedState(node)}
-        {@const isIndeterminate = state === 'some'}
-        {@const isChecked = state === 'all'}
         {@const folderPaths = allFilesInFolder(node)}
 
         <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -364,12 +346,11 @@
           <input
             type="checkbox"
             class="hg-checkbox"
-            checked={isChecked}
-            use:indeterminateAction={isIndeterminate}
-            aria-label="Stage all in {node.label}"
+            checked={inStaged}
+            aria-label="{inStaged ? 'Unstage' : 'Stage'} all in {node.label}"
             onchange={(e) => {
               e.stopPropagation();
-              onStageFolder(folderPaths, (e.target as HTMLInputElement).checked);
+              onStageFolder(folderPaths, !inStaged);
             }}
             onclick={(e) => e.stopPropagation()}
           />
@@ -379,14 +360,14 @@
       {#if node.fullPath === '__root__' || !collapsed.has(node.fullPath)}
         {#each node.children as child}
           {#if child.kind === 'folder'}
-            {@render renderFolder(child, node.fullPath === '__root__' ? 0 : depth + 1)}
+            {@render renderFolder(child, node.fullPath === '__root__' ? 0 : depth + 1, inStaged)}
           {:else}
             {@const f = child.file}
             {@const s = cfg(f.status)}
             {@const isRename = f.status?.toUpperCase() === 'R'}
             {@const parsed = isRename ? parseRename(f) : null}
             {@const fname = f.path.split('/').pop() ?? f.path}
-            {@const staged = stagedPaths.has(f.path)}
+            {@const staged = inStaged}
             {@const indent = 8 + (node.fullPath === '__root__' ? 0 : depth + 1) * 14}
 
             <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -441,14 +422,16 @@
                 </button>
               {/if}
 
-              <input
-                type="checkbox"
-                class="hg-checkbox"
-                checked={staged}
-                aria-label="Stage {fname}"
-                onchange={(e) => { e.stopPropagation(); onToggleStage(f.path); }}
-                onclick={(e) => e.stopPropagation()}
-              />
+              {#if !isConflict(f)}
+                <input
+                  type="checkbox"
+                  class="hg-checkbox"
+                  checked={staged}
+                  aria-label="{staged ? 'Unstage' : 'Stage'} {fname}"
+                  onchange={(e) => { e.stopPropagation(); onToggleStage(f.path, !staged); }}
+                  onclick={(e) => e.stopPropagation()}
+                />
+              {/if}
             </div>
           {/if}
         {/each}
@@ -478,7 +461,7 @@
           </svg>
         </button>
       </div>
-      {@render renderFolder(stagedTree, 0)}
+      {@render renderFolder(stagedTree, 0, true)}
     {/if}
 
     {#if changesFiles.length > 0}
@@ -504,7 +487,7 @@
           </svg>
         </button>
       </div>
-      {@render renderFolder(changesTree, 0)}
+      {@render renderFolder(changesTree, 0, false)}
     {/if}
   {/if}
 </div>
@@ -804,8 +787,7 @@
     transition: background 0.1s, border-color 0.1s;
     margin-left: auto;
   }
-  .hg-checkbox:checked,
-  .hg-checkbox:indeterminate {
+  .hg-checkbox:checked {
     background: var(--vscode-checkbox-selectBackground, #0078d4);
     border-color: var(--vscode-checkbox-selectBackground, #0078d4);
   }
@@ -817,14 +799,6 @@
     border: 1.5px solid #fff;
     border-top: none; border-left: none;
     transform: rotate(45deg) scaleY(0.85);
-  }
-  .hg-checkbox:indeterminate::after {
-    content: '';
-    position: absolute;
-    left: 2px; top: 5px;
-    width: 7px; height: 1.5px;
-    background: #fff;
-    border: none; transform: none;
   }
   .hg-checkbox:focus-visible {
     outline: 1px solid var(--vscode-focusBorder, #007fd4);

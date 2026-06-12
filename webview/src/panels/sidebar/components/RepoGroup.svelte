@@ -39,7 +39,6 @@
   let hasUpstream = $state(false);
   let loading = $state(true);
   let conflicts: { operation: string; files: string[] } = $state({ operation: '', files: [] });
-  let stagedPaths: Set<string> = $state(new Set());
   let collapsed: Set<string> = $state(new Set());
   let commitError = $state('');
   let commitAreaRef: CommitArea = $state();
@@ -56,7 +55,12 @@
   function sameFiles(a: GitFile[], b: GitFile[]): boolean {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
-      if (a[i].path !== b[i].path || a[i].status !== b[i].status) return false;
+      if (
+        a[i].path !== b[i].path ||
+        a[i].status !== b[i].status ||
+        a[i].indexStatus !== b[i].indexStatus ||
+        a[i].workStatus !== b[i].workStatus
+      ) return false;
     }
     return true;
   }
@@ -72,8 +76,6 @@
       return;
     }
 
-    const nextPaths = new Set(nextFiles.map((f) => f.path));
-    stagedPaths = new Set([...stagedPaths].filter((p) => nextPaths.has(p)));
     hasUpstream = nextUpstream;
     branch = nextBranch;
     files = nextFiles;
@@ -150,20 +152,25 @@
     }
   }
 
-  // ── Staging ──────────────────────────────────────────────────────────────────
+  // ── Staging (real index: checkbox = git add / restore --staged) ────────────
   function handleToggleFolder(key: string) {
     collapsed.has(key) ? collapsed.delete(key) : collapsed.add(key);
     collapsed = collapsed;
   }
-  function handleToggleStage(path: string) {
-    const next = new Set(stagedPaths);
-    next.has(path) ? next.delete(path) : next.add(path);
-    stagedPaths = next;
+  async function stagePaths(paths: string[], stage: boolean) {
+    if (paths.length === 0) return;
+    try {
+      await call(stage ? 'stage' : 'unstage', { paths });
+      await loadChanges();
+    } catch (e: unknown) {
+      commitError = e instanceof Error ? e.message : String(e);
+    }
+  }
+  function handleToggleStage(path: string, stage: boolean) {
+    void stagePaths([path], stage);
   }
   function handleStageFolder(paths: string[], stage: boolean) {
-    const next = new Set(stagedPaths);
-    for (const p of paths) stage ? next.add(p) : next.delete(p);
-    stagedPaths = next;
+    void stagePaths(paths, stage);
   }
 
   // ── Discard ──────────────────────────────────────────────────────────────
@@ -218,7 +225,7 @@
       // conflict markers, huge files, protected branch. Which checks run comes
       // from user settings, resolved by the extension host.
       try {
-        const warnings = (await call('commit.precheck', { paths: [...stagedPaths] })) as
+        const warnings = (await call('commit.precheck', { paths: stagedPathList })) as
           | { type: string; path: string; detail: string }[]
           | null;
         if (warnings?.length) {
@@ -230,8 +237,10 @@
           if (!(await uiConfirm(`Safety check found:\n${lines}${more}\n\nCommit anyway?`))) return;
         }
       } catch { /* precheck unavailable — never block the commit on it */ }
-      await call(cmd, { message: msg, paths: [...stagedPaths] });
-      stagedPaths = new Set();
+      // No paths — the index is already staged for real; Go commits it as-is,
+      // which is what preserves the frozen snapshot for files edited after
+      // staging (re-adding paths here would silently absorb the newer edits).
+      await call(cmd, { message: msg, paths: [] });
       commitAreaRef?.clearMessage();
       showCleanCommitArea = false;
       await loadChanges();
@@ -247,7 +256,8 @@
     onFocus(repo.rootPath);
   }
 
-  let stagedCount = $derived(stagedPaths.size);
+  let stagedPathList = $derived(files.filter((f) => f.indexStatus).map((f) => f.path));
+  let stagedCount = $derived(stagedPathList.length);
 
   // Long branch names keep their informative tail (the leaf) — §4.21.
   function middleTruncate(s: string, max: number): string {
@@ -294,7 +304,6 @@
           {files}
           {loading}
           noRepo={false}
-          {stagedPaths}
           {collapsed}
           onToggleStage={handleToggleStage}
           onToggleFolder={handleToggleFolder}

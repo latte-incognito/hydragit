@@ -141,6 +141,8 @@ var mutatingCmds = map[string]bool{
 	"snapshot.restore":      true,
 	"snapshot.drop":         true,
 	"discard":               true,
+	"stage":                 true,
+	"unstage":               true,
 }
 
 // autoSnapshotCmds trigger a working-tree snapshot (refs/hydragit/snapshots)
@@ -899,6 +901,23 @@ func handle(repoPath string, req Request) Response {
 			return fail(id, fmt.Errorf("missing required parameter: paths"))
 		}
 		if err := git.Discard(repoPath, p.Paths); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "stage", "unstage":
+		var p struct {
+			Paths []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if len(p.Paths) == 0 {
+			return fail(id, fmt.Errorf("missing required parameter: paths"))
+		}
+		fn := git.Stage
+		if req.Cmd == "unstage" {
+			fn = git.Unstage
+		}
+		if err := fn(repoPath, p.Paths); err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)

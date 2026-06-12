@@ -21,8 +21,8 @@ const status = {
   branch: 'main',
   hasUpstream: true,
   files: [
-    { path: 'src/mod.ts', status: 'M' },
-    { path: 'new.txt', status: 'U' },
+    { path: 'src/mod.ts', status: 'M', workStatus: 'M' },
+    { path: 'new.txt', status: 'U', workStatus: 'U' },
   ],
 };
 

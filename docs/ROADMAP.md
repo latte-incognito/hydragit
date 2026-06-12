@@ -146,9 +146,12 @@ First candidates after 1.0:
   marketplace users hit bugs we can't reproduce.
 - **Guided bisect** — good/bad buttons, auto-checkout midpoint, "N commits left".
 - **Move changes to another branch** — "oops, wrong branch" in one click.
-- **Hunk/line staging** — High effort; built-in SCM has the raw capability, this
-  is in-panel cohesion. Then **patch-from-commit** (lazygit-style, shares the
-  patch plumbing).
+- **Hunk/line staging** — the index side is unblocked since staging went
+  real-index (2026-06-12): `DiffFile` already parses hunks, and staging one is
+  `git apply --cached` of a single-hunk patch via the existing `runStdin`. The
+  remaining (real) work is the UI surface — per-hunk rows/gutter actions in a
+  diff view the sidebar doesn't have yet. Then **patch-from-commit**
+  (lazygit-style, shares the patch plumbing).
 - **True "edit" step in interactive rebase** — pause-to-amend, reuses the
   conflict-pause machinery.
 - Small: stash→branch, apply patch (`git am`), blame `.git-blame-ignore-revs`.
