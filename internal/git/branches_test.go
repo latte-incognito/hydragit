@@ -381,6 +381,34 @@ func TestFetch(t *testing.T) {
 	}
 }
 
+func TestFetch_prunesDeletedRemoteBranch(t *testing.T) {
+	local := makeRepoWithRemote(t)
+
+	// publish a second branch, fetch so the tracking ref exists locally
+	exec.Command("git", "-C", local, "branch", "doomed").Run()
+	exec.Command("git", "-C", local, "push", "origin", "doomed").Run()
+	if err := Fetch(local); err != nil {
+		t.Fatalf("Fetch failed: %v", err)
+	}
+	if err := exec.Command("git", "-C", local, "rev-parse", "--verify", "refs/remotes/origin/doomed").Run(); err != nil {
+		t.Fatal("expected tracking ref origin/doomed after push+fetch")
+	}
+
+	// delete it on the remote; a Fetch must prune the stale tracking ref
+	exec.Command("git", "-C", local, "push", "origin", "--delete", "doomed").Run()
+	if err := Fetch(local); err != nil {
+		t.Fatalf("Fetch after remote delete failed: %v", err)
+	}
+	if err := exec.Command("git", "-C", local, "rev-parse", "--verify", "refs/remotes/origin/doomed").Run(); err == nil {
+		t.Fatal("stale tracking ref origin/doomed must be pruned by Fetch")
+	}
+
+	// the local branch of the same name must survive pruning
+	if err := exec.Command("git", "-C", local, "rev-parse", "--verify", "refs/heads/doomed").Run(); err != nil {
+		t.Fatal("pruning must not touch the local branch")
+	}
+}
+
 func TestPushForce_afterHistoryRewrite(t *testing.T) {
 	local := makeRepoWithRemote(t)
 	branchOut, _ := exec.Command("git", "-C", local, "rev-parse", "--abbrev-ref", "HEAD").Output()

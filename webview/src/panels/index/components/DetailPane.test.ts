@@ -88,6 +88,7 @@ describe('DetailPane — file list', () => {
         parent: 'parent123',
         file: 'src/main.ts',
         newTab: false,
+        snippet: '',
       },
     });
   });
@@ -104,6 +105,24 @@ describe('DetailPane — file list', () => {
         parent: 'parent123',
         file: 'src/main.ts',
         newTab: true,
+        snippet: '',
+      },
+    });
+  });
+
+  it('includes the active code-search snippet in openDiff', async () => {
+    const { getByText } = render(DetailPane, { commit, files, searchSnippet: 'const x = 1;' });
+
+    await fireEvent.click(getByText('main.ts'));
+
+    expect(mockPostMessage).toHaveBeenCalledWith({
+      cmd: 'openDiff',
+      params: {
+        commit: commit.hash,
+        parent: 'parent123',
+        file: 'src/main.ts',
+        newTab: false,
+        snippet: 'const x = 1;',
       },
     });
   });

@@ -68,6 +68,7 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 - **No `Co-authored-by: Claude` in commit messages**
 - **Never run tests** — the user runs them. Write/change tests if asked, but do not execute them; suggest the command for the user to run instead.
 - **Never read binaries, assets, or raw logs** — never Read/cat the `hydragit-server` binary, image assets (e.g. `docs/HydraGitLogo.png`), `package-lock.json`, or raw log files. They flood context with noise. To inspect logs, grep/filter for a specific `id` or time range; for deps, read `package.json`.
+- **Register all work in `CHANGELOG.md` → `## [Unreleased]`** — every feature, fix, or docs change lands there as part of the same commit/PR. `make release` turns the section into the version entry. Before a release the user will ask to update `documentation/` from the accumulated Unreleased entries — don't update the HTML docs per-change.
 - **Don't build yourself i can do it from terminal
 ---
 
@@ -96,7 +97,7 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 
 ## Feature → cmd map
 
-> Name index: `IMPLEMENTED_FEATURES.md`. Per-feature HTML docs (UI entry point →
+> Name index: `CHANGELOG.md` → Feature index. Per-feature HTML docs (UI entry point →
 > what happens next): `documentation/index.html`. Quick map below.
 
 | Feature | cmd |
@@ -134,7 +135,7 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 |---|---|
 | `docs/PROJECT_CONTEXT.md` | Full architecture, data types, IPC reference, concurrency + security model |
 | `docs/ROADMAP.md` | Everything actionable: release checklist, testing (incl. Windows), bugs/polish queue, frozen backlog, security TODOs |
-| `IMPLEMENTED_FEATURES.md` | Authoritative name index of what ships — links into `documentation/` |
+| `CHANGELOG.md` | Per-version history + authoritative feature index (bottom) — links into `documentation/` |
 | `documentation/index.html` | Per-feature HTML docs: UI entry point → what happens next (browsable) |
 
 ---

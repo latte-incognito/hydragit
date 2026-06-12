@@ -9,7 +9,26 @@ linear history with exactly one commit per version, created retroactively on
 2026-06-11; each commit's diff is precisely that version's changes.
 
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
-the full current feature list by topic lives in [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md).
+the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
+
+## [0.2.7] — 2026-06-11
+
+### Fixed
+- Stale remote branches lingered in the branch pane forever — `fetch`/`pull` now run with `--prune`, so branches deleted on the remote disappear from the tree.
+- Remote origin groups in the branch pane wouldn't collapse/expand on click — a Svelte 5 runes-migration regression (`remoteOriginOpen` missed `$state` in the 0.2.4 port).
+- Clicking a [snapshot](documentation/features/snapshots.html) did nothing (it looked the commit up in the log, but snapshot commits are on no branch). It now shows **what the snapshot captured** — the dirty files at the moment it was taken, i.e. exactly what ↺ Restore writes back — in the detail pane, titled with the label, branch, and capture time.
+- Snapshot rows were indistinguishable ("before checkout · 11h" ×9): they now show the **branch they were taken on** (recorded in the snapshot commit; older snapshots render without it) and a real date (`Today 3:00 pm` / `Jun 10`) instead of a bare relative age.
+
+### Changed
+- **Main-panel toolbar redesigned around token search** (Slack/Gmail style) — the five icon mode-tabs are gone. One search input: focusing it opens a scope dropdown (Author / File / Hash / Code with example syntax), typing a prefix (`author:`, `file:`, `hash:`, `code:`, or `@` for author) converts it into a removable colored chip inside the input; Backspace on an empty input removes the chip, ↑↓ + Enter pick a scope from the dropdown. Fixes the search-mode discoverability complaint — the dropdown teaches the syntax by showing it.
+- **"This branch / All branches" toggle removed** — it set the same `branch:` log parameter as the branch pill, so the pill absorbed it: the branch dropdown now has a pinned **All branches** first entry, and the pill label reflects the active view. Picking a branch always returns to single-branch view.
+- **Undo is now contextual** — the permanently visible toolbar Undo is gone; an amber "Undo merge / rebase / reset / pull" button slides in only when something is actually undoable (op paused mid-rebase, or after a completed merge / rebase (incl. reword / drop / squash / autosquash / interactive) / reset / pull / un-pushed sync) and disappears after undoing. Ops that don't set `ORIG_HEAD` (e.g. cherry-pick) deliberately never advertise it — undo rewinds to `ORIG_HEAD`, which would be a stale target. Reflog mode remains the deep-history recovery tool.
+- **Code search (pickaxe) got its own expanded input** — selecting the Code mode opens a full-width monospace snippet box below the toolbar (auto-grows to 6 lines, paste-friendly, multi-line snippets supported since `git log -S` takes the literal string). Search now runs only on Enter / the Search button instead of debounced-per-keystroke — pickaxe scans every diff in history and was far too expensive to run live. Result count is flashed (`N commits add or remove this snippet`); Shift+Enter inserts a newline; clearing the box restores the full log. The Code mode also finally got its accent colour (rose) — active tab, border, and hint chip were unstyled.
+- **Code search results now show *why* a commit matched** — selecting a commit from code-search results restricts the detail pane's file list to the files where the snippet count actually changed (`diff-tree -S`, new optional `pickaxe` param on the `diff` cmd; `DiffCommitPickaxe` in `internal/git/diff.go`), labelled "· snippet matches". Previously a search like `version` surfaced commits whose subjects looked unrelated (any `package.json` version bump) with no clue which file matched. Falls back to the full file list if the restricted set is empty (e.g. merge commits). Opening a file's diff during a code search additionally **highlights every occurrence of the snippet** in the native diff editor (find-match-style `TextEditorDecorationType`, theme tokens, both sides decorated; CRLF-tolerant for multi-line snippets) — the webview can't paint inside `vscode.diff`, so the extension host applies the decorations and clears them when a diff is reopened after the search ends.
+- **In-panel status bar moved to the top and made collapsible** — it duplicated VS Code's own status bar (where HydraGit already shows repo · branch). Hidden by default; a teal/silver gradient hydra icon in the toolbar (before the branch pill) slides it in/out with an animation (glow on hover only — no idle motion), and it auto-peeks while a transient ⚡ message is showing.
+- **Errors now raise native VS Code error toasts** in addition to the in-panel ⚡ flash — a collapsed status bar can no longer swallow a failure (`ui.notify` gained an `error` severity).
+- `IMPLEMENTED_FEATURES.md` merged into this file as the [Feature index](#feature-index) (bottom) and dropped — one inventory, two views: by version above, by topic below.
+- `docs/ROADMAP.md` bug queue now holds open items only; fixed bugs move here instead of being struck through.
 
 ## [0.2.6] — 2026-06-11
 
@@ -132,6 +151,45 @@ The MVP was replaced with the real foundation in this range (~8 400 insertions).
 ## [0.1.0] — 2026-03-25 (tag v0.0.1-mvp covers this era)
 
 - Initial build: extension scaffolding, first Go binary wiring, project documentation, repository setup.
+
+---
+
+## Feature index
+
+Everything HydraGit ships today, by topic. Each entry links to its full
+documentation (UI entry point → what happens next) in
+[0.2.7]: https://github.com/latte-incognito/hydragit/compare/v0.2.6...v0.2.7
+[`documentation/`](documentation/index.html).
+
+**Views & layout** — [main panel](documentation/features/main-panel.html) · [sidebar (staging view)](documentation/features/sidebar.html) · [multi-repo workspaces](documentation/features/multi-repo.html) · [status, status bar & badge](documentation/features/status.html) · [visual file history](documentation/features/history.html#filehistory) · [selection / line history](documentation/features/history.html#linehistory) · [inline line blame](documentation/features/history.html#blame)
+
+**Branches** — [tree & list](documentation/features/branches.html#list) · [checkout / switch](documentation/features/branches.html#checkout) · [create](documentation/features/branches.html#create) · [rename local / remote / folder](documentation/features/branches.html#rename) · [delete local](documentation/features/branches.html#delete) / [remote](documentation/features/remotes.html#remote-delete) · [branches containing a commit](documentation/features/branches.html#containing)
+
+**Commit log & graph** — [log](documentation/features/commit-log-graph.html#log) · [lane graph](documentation/features/commit-log-graph.html#graph) · [hover-highlight](documentation/features/commit-log-graph.html#hover) · [detail pane](documentation/features/commit-log-graph.html#detail) · [columns & virtualization](documentation/features/commit-log-graph.html#columns)
+
+**Search & filter** — [message](documentation/features/search-filter.html#message) · [hash prefix jump](documentation/features/search-filter.html#hash) · [file](documentation/features/search-filter.html#file) · [author](documentation/features/search-filter.html#author) · [pickaxe / code search](documentation/features/search-filter.html#pickaxe) · [branch scope](documentation/features/search-filter.html#scope)
+
+**Diff & compare** — [commit diff](documentation/features/diff.html) · [branch / ref compare](documentation/features/compare.html#range) · [ref vs working tree](documentation/features/compare.html#ref) · [file vs local](documentation/features/compare.html#file)
+
+**Commit & staging** — [stage & commit](documentation/features/commit.html#commit) · [commit & push](documentation/features/commit.html#push) · [amend](documentation/features/commit.html#amend) · [pre-commit safety checks](documentation/features/commit.html#safety)
+
+**History rewriting** — [interactive rebase editor](documentation/features/interactive-rebase.html#editor) · [pause on conflict](documentation/features/interactive-rebase.html#pause) · [squash with parent](documentation/features/interactive-rebase.html#squash) · [drop](documentation/features/interactive-rebase.html#drop) · [reword](documentation/features/interactive-rebase.html#reword) · [create patch](documentation/features/interactive-rebase.html#patch) · [push up to a commit](documentation/features/interactive-rebase.html#pushupto) · [fixup + autosquash](documentation/features/interactive-rebase.html#fixup)
+
+**Integrate & resolve** — [merge](documentation/features/merge-rebase-reset.html#merge) · [merge conflict preview](documentation/features/merge-rebase-reset.html#preview) · [rerere](documentation/features/conflicts.html#rerere) · [rebase](documentation/features/merge-rebase-reset.html#rebase) · [reset](documentation/features/merge-rebase-reset.html#reset) · [cherry-pick](documentation/features/cherrypick-revert.html#cherrypick) · [revert](documentation/features/cherrypick-revert.html#revert) · [conflict resolution](documentation/features/conflicts.html)
+
+**Remotes & sync** — [sync (fetch + integrate)](documentation/features/remotes.html#sync) · [fetch](documentation/features/remotes.html#fetch) · [pull + pull mode](documentation/features/remotes.html#pull) · [push](documentation/features/remotes.html#push) · [safe force-push](documentation/features/remotes.html#force) · [auto-set upstream](documentation/features/remotes.html#upstream) · [remote branch delete](documentation/features/remotes.html#remote-delete) · [network-op timeout](documentation/features/remotes.html#timeout)
+
+**Undo & safety** — [working-tree snapshots](documentation/features/snapshots.html) · [HEAD undo timeline (reflog)](documentation/features/reflog.html) · [reset to any point](documentation/features/reflog.html#reset) · [auto-stash safety net](documentation/features/reflog.html#autostash) · [live reflog refresh](documentation/features/reflog.html#live) · [undo last operation](documentation/features/undo-squash.html#undo) · [detached-HEAD banner](documentation/features/health-banners.html#detached) · [git identity setup](documentation/features/health-banners.html#identity) · [critical-error reload](documentation/features/health-banners.html#reload)
+
+**Stash** — [list](documentation/features/stash.html#list) · [save](documentation/features/stash.html#save) · [apply / pop / unstash](documentation/features/stash.html#applypop) · [drop / clear](documentation/features/stash.html#dropclear) · [show diff & files](documentation/features/stash.html#show)
+
+**Tags** — [list](documentation/features/tags.html#list) · [create](documentation/features/tags.html#create) · [delete](documentation/features/tags.html#delete) · [checkout · diff · merge · push](documentation/features/tags.html#more)
+
+**Worktrees** — [list](documentation/features/worktrees.html#list) · [add](documentation/features/worktrees.html#add) · [open in new window](documentation/features/worktrees.html#open) · [lock / unlock](documentation/features/worktrees.html#lock) · [move](documentation/features/worktrees.html#move) · [remove](documentation/features/worktrees.html#remove) · [prune stale](documentation/features/worktrees.html#prune)
+
+**Context menus & tooling** — [commit](documentation/features/context-menus.html#commit) / [branch](documentation/features/context-menus.html#branch) / [stash](documentation/features/context-menus.html#stash) / [tag](documentation/features/context-menus.html#tag) context menus · [logging & diagnostics](documentation/features/logging.html) · [version info](documentation/features/logging.html#version) · [force refresh](documentation/features/logging.html#refresh)
+
+> Backlog / not-yet-built features live in [`docs/ROADMAP.md`](docs/ROADMAP.md) §5.
 
 [0.2.6]: https://github.com/latte-incognito/hydragit/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/latte-incognito/hydragit/compare/v0.2.4...v0.2.5

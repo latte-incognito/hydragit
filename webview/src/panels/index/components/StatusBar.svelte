@@ -58,7 +58,7 @@
     font-size: var(--hg-font-xs);
     color: var(--vscode-statusBar-foreground, #7abdd4);
     gap: 8px;
-    border-top: 0.5px solid var(--vscode-statusBar-border, var(--vscode-panel-border, #0a3a5a));
+    border-bottom: 0.5px solid var(--vscode-statusBar-border, var(--vscode-panel-border, #0a3a5a));
     flex-shrink: 0;
     overflow: hidden;
   }

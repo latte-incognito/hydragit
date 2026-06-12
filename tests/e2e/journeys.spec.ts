@@ -129,7 +129,8 @@ test("S12 cherry-pick a commit lands it on HEAD", async ({ mainWindow }) => {
   const f = await main(mainWindow);
   // "feat: cross y" is not in the default branch's history → clean cherry-pick.
   // It lives on cross/y, so switch the log to all branches first.
-  await f.getByText("This branch", { exact: true }).click();
+  await f.locator(".branch-pill").click();
+  await f.locator(".bd-item--all").click();
   await f.locator(".crow", { hasText: "feat: cross y" }).first().click({ button: "right" });
   await f.locator(".ctx-menu").getByText("Cherry-Pick").click();
   await expect(flash(f)).toBeVisible({ timeout: 8000 });

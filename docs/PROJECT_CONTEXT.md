@@ -11,7 +11,7 @@ force-push, amend/reword/squash/drop, and local+remote/folder branch rename.
 
 > **Browsable feature docs:** [`documentation/index.html`](../documentation/index.html)
 > documents every feature from the UI (entry point → what happens next).
-> Authoritative name index: [`IMPLEMENTED_FEATURES.md`](../IMPLEMENTED_FEATURES.md).
+> Authoritative name index: [`CHANGELOG.md`](../CHANGELOG.md) → Feature index.
 
 ---
 
@@ -537,7 +537,7 @@ Mono:           monospace
 - Graph lane assignment (AssignLanes), per-branch-line color, hover highlight
 - Tests: Go `_test.go` per package + scenarios, Vitest component tests, Playwright e2e
 
-See `IMPLEMENTED_FEATURES.md` for the full, current inventory.
+See `CHANGELOG.md` → Feature index for the full, current inventory.
 
 ---
 

@@ -179,8 +179,61 @@ async function openCommitUrl(params: { commit: string }, root?: string): Promise
   }
 }
 
+// ── Code-search snippet highlighting ────────────────────────────────────────
+// Diffs open in VS Code's native diff editor, where the webview can't paint
+// anything — so during a code search (`git log -S`) the host decorates every
+// occurrence of the searched snippet in the opened diff, find-match style.
+let snippetDeco: vscode.TextEditorDecorationType | undefined;
+
+function snippetDecoType(): vscode.TextEditorDecorationType {
+  if (!snippetDeco) {
+    snippetDeco = vscode.window.createTextEditorDecorationType({
+      backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
+      overviewRulerColor: new vscode.ThemeColor('editorOverviewRuler.findMatchForeground'),
+      overviewRulerLane: vscode.OverviewRulerLane.Center,
+    });
+  }
+  return snippetDeco;
+}
+
+function snippetRanges(doc: vscode.TextDocument, snippet: string): vscode.Range[] {
+  const scan = (needle: string): vscode.Range[] => {
+    const text = doc.getText();
+    const ranges: vscode.Range[] = [];
+    let i = 0;
+    while ((i = text.indexOf(needle, i)) !== -1) {
+      ranges.push(new vscode.Range(doc.positionAt(i), doc.positionAt(i + needle.length)));
+      i += needle.length;
+    }
+    return ranges;
+  };
+  let ranges = scan(snippet);
+  // Multi-line snippets come from the webview with \n; the document may be CRLF.
+  if (ranges.length === 0 && snippet.includes('\n')) {
+    ranges = scan(snippet.replace(/\n/g, '\r\n'));
+  }
+  return ranges;
+}
+
+function highlightSnippet(uris: vscode.Uri[], snippet: string | undefined): void {
+  const keys = new Set(uris.map((u) => u.toString()));
+  const apply = () => {
+    for (const ed of vscode.window.visibleTextEditors) {
+      if (!keys.has(ed.document.uri.toString())) continue;
+      ed.setDecorations(snippetDecoType(), snippet ? snippetRanges(ed.document, snippet) : []);
+    }
+  };
+  apply();
+  // git: virtual documents fill in asynchronously — re-apply once they settle
+  // (second pass for large files that take longer to materialize).
+  if (snippet) {
+    setTimeout(apply, 400);
+    setTimeout(apply, 1500);
+  }
+}
+
 export async function openDiff(
-  params: { commit: string; parent: string; file: string; newTab?: boolean },
+  params: { commit: string; parent: string; file: string; newTab?: boolean; snippet?: string },
   opts?: { viewColumn?: vscode.ViewColumn; preserveFocus?: boolean; root?: string }
 ): Promise<void> {
   const { commit, parent, file } = params;
@@ -235,15 +288,18 @@ export async function openDiff(
 
   if (!existsInParent) {
     await vscode.commands.executeCommand('vscode.open', gitUri(commit), show, title);
+    highlightSnippet([gitUri(commit)], params.snippet);
     return;
   }
 
   if (!existsInCommit) {
     await vscode.commands.executeCommand('vscode.open', gitUri(parent), show, `${title} (deleted)`);
+    highlightSnippet([gitUri(parent)], params.snippet);
     return;
   }
 
   await vscode.commands.executeCommand('vscode.diff', gitUri(parent), gitUri(commit), title, show);
+  highlightSnippet([gitUri(parent), gitUri(commit)], params.snippet);
 }
 
 // openMergeEditor opens VS Code's built-in 3-way merge resolver for a conflicted
@@ -397,8 +453,15 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
         return;
       }
       if (msg.cmd === 'ui.notify') {
-        // Non-modal, persistent info toast (fire-and-forget reminder).
-        void vscode.window.showInformationMessage(msg.params?.message ?? '');
+        // Non-modal, persistent toast (fire-and-forget). Errors use the red
+        // variant — the in-panel status bar is collapsible, so it can't be
+        // the only place a failure shows up.
+        const text = msg.params?.message ?? '';
+        if (msg.params?.severity === 'error') {
+          void vscode.window.showErrorMessage(text);
+        } else {
+          void vscode.window.showInformationMessage(text);
+        }
         return;
       }
       if (msg.cmd === 'ui.pick') {

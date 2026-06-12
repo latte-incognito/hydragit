@@ -2,6 +2,15 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import Toolbar from './Toolbar.svelte';
 
+const branches = [
+  { name: 'develop', isRemote: false, isCurrent: true },
+  { name: 'feature/x', isRemote: false, isCurrent: false },
+] as any[];
+
+function searchInput(): HTMLInputElement {
+  return document.querySelector('.search-inner input') as HTMLInputElement;
+}
+
 // ── rendering ─────────────────────────────────────────────────────────────────
 
 describe('Toolbar — rendering', () => {
@@ -15,149 +24,322 @@ describe('Toolbar — rendering', () => {
     expect(getByText('my-project')).toBeTruthy();
   });
 
-  it('renders search input with default message placeholder', () => {
-    const { getByPlaceholderText } = render(Toolbar, {});
-    expect(getByPlaceholderText('Search commit messages…')).toBeTruthy();
-  });
-
-  it('renders four mode tab buttons', () => {
-    const { getAllByRole } = render(Toolbar, {});
-    // mode tabs + clear btn (hidden) + filter-pill = several buttons
-    // specifically check we have msg/hash/file/author tabs by title
-    const buttons = getAllByRole('button');
-    const titles = buttons.map(b => b.getAttribute('title')).filter(Boolean);
-    expect(titles).toContain('Message');
-    expect(titles).toContain('Hash');
-    expect(titles).toContain('File');
-    expect(titles).toContain('Author');
-  });
-
-  it('renders all-branches filter pill defaulting to "This branch"', () => {
-    const { getByText } = render(Toolbar, {});
-    expect(getByText('This branch')).toBeTruthy();
-  });
-
-  it('renders "All branches" when allBranches prop is true', () => {
-    const { getByText } = render(Toolbar, { allBranches: true });
+  it('shows "All branches" in the pill when allBranches is on', () => {
+    const { getByText } = render(Toolbar, { activeBranch: 'develop', allBranches: true });
     expect(getByText('All branches')).toBeTruthy();
   });
 
-  it('does not render clear button when searchQuery is empty', () => {
-    const { queryByTitle } = render(Toolbar, { searchQuery: '' });
-    // clear button has no title — check it's not visible by querying the svg path
-    // easiest: check input has no value
-    const input = document.querySelector('input');
-    expect(input?.value ?? '').toBe('');
+  it('renders the single search input with the unscoped placeholder', () => {
+    const { getByPlaceholderText } = render(Toolbar, {});
+    expect(getByPlaceholderText('Search commits — or pick a scope…')).toBeTruthy();
+  });
+
+  it('renders no scope chip while unscoped', () => {
+    render(Toolbar, {});
+    expect(document.querySelector('.scope-chip')).toBeNull();
   });
 });
 
-// ── search mode switching ─────────────────────────────────────────────────────
+// ── scope dropdown ────────────────────────────────────────────────────────────
 
-describe('Toolbar — search modes', () => {
-  it('switching to hash mode calls onModeChange and changes placeholder', async () => {
-    const onModeChange = vi.fn();
-    const { getByTitle, getByPlaceholderText } = render(Toolbar, { onModeChange });
+describe('Toolbar — scope dropdown', () => {
+  it('opens on focus while unscoped and lists the four scopes', async () => {
+    const { getByText } = render(Toolbar, {});
+    await fireEvent.focus(searchInput());
 
-    await fireEvent.click(getByTitle('Hash'));
-
-    expect(onModeChange).toHaveBeenCalledWith('hash');
-    expect(getByPlaceholderText('Enter hash prefix (e.g. a0c103)…')).toBeTruthy();
+    expect(document.querySelector('.scope-dropdown')).toBeTruthy();
+    expect(getByText('Author')).toBeTruthy();
+    expect(getByText('File')).toBeTruthy();
+    expect(getByText('Hash')).toBeTruthy();
+    expect(getByText('Code')).toBeTruthy();
   });
 
-  it('switching to file mode calls onModeChange and changes placeholder', async () => {
+  it('clicking a scope activates it as a chip and calls onModeChange', async () => {
     const onModeChange = vi.fn();
-    const { getByTitle, getByPlaceholderText } = render(Toolbar, { onModeChange });
+    const { getByText } = render(Toolbar, { onModeChange });
 
-    await fireEvent.click(getByTitle('File'));
-
-    expect(onModeChange).toHaveBeenCalledWith('file');
-    expect(getByPlaceholderText('File name or path…')).toBeTruthy();
-  });
-
-  it('switching to author mode calls onModeChange and changes placeholder', async () => {
-    const onModeChange = vi.fn();
-    const { getByTitle, getByPlaceholderText } = render(Toolbar, { onModeChange });
-
-    await fireEvent.click(getByTitle('Author'));
+    await fireEvent.focus(searchInput());
+    await fireEvent.mouseDown(getByText('Author'));
 
     expect(onModeChange).toHaveBeenCalledWith('author');
-    expect(getByPlaceholderText('Author name or email…')).toBeTruthy();
+    expect(document.querySelector('.scope-chip-author')).toBeTruthy();
+    expect(document.querySelector('.scope-dropdown')).toBeNull();
   });
 
-  it('switching mode clears search query and calls onSearch with empty string', async () => {
+  it('ArrowDown + Enter selects the highlighted scope', async () => {
+    const onModeChange = vi.fn();
+    render(Toolbar, { onModeChange });
+
+    const input = searchInput();
+    await fireEvent.focus(input);
+    await fireEvent.keyDown(input, { key: 'ArrowDown' }); // → Author (first pickable)
+    await fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(onModeChange).toHaveBeenCalledWith('author');
+  });
+
+  it('Escape closes the dropdown', async () => {
+    render(Toolbar, {});
+    const input = searchInput();
+    await fireEvent.focus(input);
+    await fireEvent.keyDown(input, { key: 'Escape' });
+    expect(document.querySelector('.scope-dropdown')).toBeNull();
+  });
+});
+
+// ── prefix → chip conversion ──────────────────────────────────────────────────
+
+describe('Toolbar — prefix tokens', () => {
+  it('typing "author:" converts to an author chip, keeping the rest as query', async () => {
+    const onModeChange = vi.fn();
     const onSearch = vi.fn();
-    const { getByTitle, getByPlaceholderText } = render(Toolbar, {
-      searchMode: 'msg',
-      searchQuery: 'some query',
-      onSearch,
-    });
+    render(Toolbar, { onModeChange, onSearch });
 
-    await fireEvent.click(getByTitle('Hash'));
+    await fireEvent.input(searchInput(), { target: { value: 'author:vlad' } });
 
+    expect(onModeChange).toHaveBeenCalledWith('author');
+    expect(onSearch).toHaveBeenCalledWith('vlad');
+    expect(document.querySelector('.scope-chip-author')).toBeTruthy();
+  });
+
+  it('typing "@" at the start is an author shortcut', async () => {
+    const onModeChange = vi.fn();
+    render(Toolbar, { onModeChange });
+
+    await fireEvent.input(searchInput(), { target: { value: '@' } });
+
+    expect(onModeChange).toHaveBeenCalledWith('author');
+  });
+
+  it('typing "file:" activates the file scope', async () => {
+    const onModeChange = vi.fn();
+    render(Toolbar, { onModeChange });
+
+    await fireEvent.input(searchInput(), { target: { value: 'file:panel.ts' } });
+
+    expect(onModeChange).toHaveBeenCalledWith('file');
+  });
+
+  it('typing "code:" opens the snippet box', async () => {
+    const onModeChange = vi.fn();
+    render(Toolbar, { onModeChange });
+
+    await fireEvent.input(searchInput(), { target: { value: 'code:' } });
+
+    expect(onModeChange).toHaveBeenCalledWith('code');
+    expect(document.querySelector('textarea.code-box')).toBeTruthy();
+  });
+
+  it('prefixes do not convert while already scoped', async () => {
+    const onModeChange = vi.fn();
+    render(Toolbar, { searchMode: 'author', onModeChange });
+
+    await fireEvent.input(searchInput(), { target: { value: 'file:x' } });
+
+    expect(onModeChange).not.toHaveBeenCalled();
+  });
+});
+
+// ── chip removal ──────────────────────────────────────────────────────────────
+
+describe('Toolbar — chip removal', () => {
+  it('chip × returns to message search and clears the query', async () => {
+    const onModeChange = vi.fn();
+    const onSearch = vi.fn();
+    render(Toolbar, { searchMode: 'author', searchQuery: 'vlad', onModeChange, onSearch });
+
+    await fireEvent.click(document.querySelector('.chip-x')!);
+
+    expect(onModeChange).toHaveBeenCalledWith('msg');
     expect(onSearch).toHaveBeenCalledWith('');
+    expect(document.querySelector('.scope-chip')).toBeNull();
+  });
+
+  it('Backspace on an empty scoped input removes the chip', async () => {
+    const onModeChange = vi.fn();
+    render(Toolbar, { searchMode: 'file', searchQuery: '', onModeChange });
+
+    await fireEvent.keyDown(searchInput(), { key: 'Backspace' });
+
+    expect(onModeChange).toHaveBeenCalledWith('msg');
+  });
+
+  it('Backspace with text in the input does not remove the chip', async () => {
+    const onModeChange = vi.fn();
+    render(Toolbar, { searchMode: 'file', searchQuery: 'pan', onModeChange });
+
+    await fireEvent.keyDown(searchInput(), { key: 'Backspace' });
+
+    expect(onModeChange).not.toHaveBeenCalled();
   });
 });
 
 // ── search input ──────────────────────────────────────────────────────────────
 
 describe('Toolbar — search input', () => {
-  it('calls onSearch with typed value in msg mode', async () => {
+  it('calls onSearch with typed value in message scope', async () => {
     const onSearch = vi.fn();
-    const { getByPlaceholderText } = render(Toolbar, { onSearch });
+    render(Toolbar, { onSearch });
 
-    const input = getByPlaceholderText('Search commit messages…');
-    await fireEvent.input(input, { target: { value: 'fix:' } });
+    await fireEvent.input(searchInput(), { target: { value: 'fix:' } });
 
+    // "fix:" is not a scope prefix — plain message search
     expect(onSearch).toHaveBeenCalledWith('fix:');
   });
 
-  it('calls onSearch with empty string when input is cleared', async () => {
+  it('calls onSearch with empty string when cleared', async () => {
     const onSearch = vi.fn();
-    const { getByPlaceholderText } = render(Toolbar, { onSearch });
+    render(Toolbar, { searchQuery: 'something', onSearch });
 
-    const input = getByPlaceholderText('Search commit messages…');
-    await fireEvent.input(input, { target: { value: '' } });
-
-    expect(onSearch).toHaveBeenCalledWith('');
-  });
-
-  it('calls onSearch with empty string when clear button is clicked', async () => {
-    const onSearch = vi.fn();
-    const { getByPlaceholderText, getAllByRole } = render(Toolbar, {
-      searchQuery: 'something',
-      onSearch,
-    });
-
-    // clear button is the last button rendered when searchQuery is non-empty
-    const buttons = getAllByRole('button');
-    const clearBtn = buttons.find(b => !b.getAttribute('title') && !b.getAttribute('aria-label'));
-    if (clearBtn) await fireEvent.click(clearBtn);
+    await fireEvent.input(searchInput(), { target: { value: '' } });
 
     expect(onSearch).toHaveBeenCalledWith('');
   });
 });
 
-// ── all-branches toggle ───────────────────────────────────────────────────────
+// ── code search (pickaxe) ─────────────────────────────────────────────────────
 
-describe('Toolbar — all-branches filter', () => {
-  it('calls onAllBranches with true when toggled on', async () => {
+describe('Toolbar — code search', () => {
+  async function enterCodeScope() {
+    await fireEvent.input(searchInput(), { target: { value: 'code:' } });
+    return document.querySelector('textarea.code-box')!;
+  }
+
+  it('Enter submits the snippet: onSearch with value, then onSearchSubmit', async () => {
+    const onSearch = vi.fn();
+    const onSearchSubmit = vi.fn();
+    render(Toolbar, { onSearch, onSearchSubmit });
+
+    const box = await enterCodeScope();
+    onSearch.mockClear();
+
+    await fireEvent.input(box, { target: { value: 'const x = 1;' } });
+    expect(onSearch).not.toHaveBeenCalled(); // no live search while typing
+
+    await fireEvent.keyDown(box, { key: 'Enter' });
+    expect(onSearch).toHaveBeenCalledWith('const x = 1;');
+    expect(onSearchSubmit).toHaveBeenCalledOnce();
+  });
+
+  it('Shift+Enter does not submit (newline instead)', async () => {
+    const onSearchSubmit = vi.fn();
+    render(Toolbar, { onSearchSubmit });
+
+    const box = await enterCodeScope();
+    await fireEvent.input(box, { target: { value: 'line one' } });
+    await fireEvent.keyDown(box, { key: 'Enter', shiftKey: true });
+
+    expect(onSearchSubmit).not.toHaveBeenCalled();
+  });
+
+  it('Enter on an empty box does not submit', async () => {
+    const onSearchSubmit = vi.fn();
+    render(Toolbar, { onSearchSubmit });
+
+    const box = await enterCodeScope();
+    await fireEvent.keyDown(box, { key: 'Enter' });
+
+    expect(onSearchSubmit).not.toHaveBeenCalled();
+  });
+
+  it('clearing the box calls onSearch with empty string (restores the log)', async () => {
+    const onSearch = vi.fn();
+    render(Toolbar, { onSearch });
+
+    const box = await enterCodeScope();
+    await fireEvent.input(box, { target: { value: 'snippet' } });
+    onSearch.mockClear();
+
+    await fireEvent.input(box, { target: { value: '' } });
+    expect(onSearch).toHaveBeenCalledWith('');
+  });
+
+  it('Search button is disabled while the box is empty', async () => {
+    const { getByText } = render(Toolbar, {});
+
+    const box = await enterCodeScope();
+    const run = getByText('Search') as HTMLButtonElement;
+    expect(run.disabled).toBe(true);
+
+    await fireEvent.input(box, { target: { value: 'x' } });
+    expect(run.disabled).toBe(false);
+  });
+});
+
+// ── branch view picker (All branches folded in) ───────────────────────────────
+
+describe('Toolbar — branch view picker', () => {
+  it('dropdown offers "All branches" as the pinned first entry', async () => {
+    const { getByTitle, getByText } = render(Toolbar, { activeBranch: 'develop', branches });
+
+    await fireEvent.click(getByTitle('Choose which branches the log shows'));
+
+    expect(document.querySelector('.bd-item--all')).toBeTruthy();
+    expect(getByText('All branches')).toBeTruthy();
+  });
+
+  it('clicking "All branches" calls onAllBranches(true)', async () => {
     const onAllBranches = vi.fn();
-    const { getByText } = render(Toolbar, { allBranches: false, onAllBranches });
+    const { getByTitle, getByText } = render(Toolbar, { activeBranch: 'develop', branches, onAllBranches });
 
-    await fireEvent.click(getByText('This branch'));
+    await fireEvent.click(getByTitle('Choose which branches the log shows'));
+    await fireEvent.click(getByText('All branches'));
 
     expect(onAllBranches).toHaveBeenCalledWith(true);
   });
 
-  it('calls onAllBranches with false when toggled off', async () => {
+  it('clicking a branch calls onSelectBranch (and not onAllBranches)', async () => {
+    const onSelectBranch = vi.fn();
     const onAllBranches = vi.fn();
-    const { getByText } = render(Toolbar, { allBranches: true, onAllBranches });
+    const { getByTitle, getByText } = render(Toolbar, {
+      activeBranch: 'develop', branches, allBranches: true, onSelectBranch, onAllBranches,
+    });
 
-    await fireEvent.click(getByText('All branches'));
+    await fireEvent.click(getByTitle('Choose which branches the log shows'));
+    await fireEvent.click(getByText('feature/x'));
 
-    expect(onAllBranches).toHaveBeenCalledWith(false);
+    expect(onSelectBranch).toHaveBeenCalledWith('feature/x', false);
+    expect(onAllBranches).not.toHaveBeenCalled();
+  });
+});
+
+// ── contextual undo ───────────────────────────────────────────────────────────
+
+describe('Toolbar — contextual undo', () => {
+  it('is hidden when there is nothing to undo', () => {
+    const { queryByText } = render(Toolbar, { undoLabel: '' });
+    expect(queryByText(/Undo/)).toBeNull();
+  });
+
+  it('shows the op it would undo and fires onAction("undo")', async () => {
+    const onAction = vi.fn();
+    const { getByText } = render(Toolbar, { undoLabel: 'merge', onAction });
+
+    const btn = getByText('Undo merge');
+    await fireEvent.click(btn);
+
+    expect(onAction).toHaveBeenCalledWith('undo');
   });
 });
 
 // Refresh moved out of the toolbar to the `HydraGit: Force Refresh` command
 // (extension host), so there's no toolbar refresh button to test here.
+
+// ── status bar toggle ────────────────────────────────────────────────────────
+
+describe('Toolbar — status toggle', () => {
+  it('calls onToggleStatus when the status icon is clicked', async () => {
+    const onToggleStatus = vi.fn();
+    const { getByTitle } = render(Toolbar, { statusOpen: false, onToggleStatus });
+
+    await fireEvent.click(getByTitle('Show repository status'));
+    expect(onToggleStatus).toHaveBeenCalledOnce();
+  });
+
+  it('reflects open state in title and aria-expanded', () => {
+    const { getByTitle } = render(Toolbar, { statusOpen: true });
+
+    const btn = getByTitle('Hide repository status');
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+  });
+});

@@ -87,8 +87,9 @@ export interface Tag {
 export interface Snapshot {
   ref: string;
   hash: string;
-  date: string;  // RFC3339
-  label: string; // e.g. "before reset"
+  date: string;    // RFC3339
+  label: string;   // e.g. "before reset"
+  branch?: string; // branch at capture time; absent on older snapshots
 }
 
 export interface Worktree {

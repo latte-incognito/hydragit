@@ -27,10 +27,11 @@ const snapshotKeep = 20
 
 // Snapshot is one saved working-tree state.
 type Snapshot struct {
-	Ref   string `json:"ref"`   // full ref name — the handle for drop
-	Hash  string `json:"hash"`  // snapshot-commit sha — diffable via the existing `diff` cmd, handle for restore
-	Date  string `json:"date"`  // RFC3339 creation time
-	Label string `json:"label"` // commit subject, e.g. `before reset`
+	Ref    string `json:"ref"`    // full ref name — the handle for drop
+	Hash   string `json:"hash"`   // snapshot-commit sha — diffable via the existing `diff` cmd, handle for restore
+	Date   string `json:"date"`   // RFC3339 creation time
+	Label  string `json:"label"`  // commit subject, e.g. `before reset`
+	Branch string `json:"branch"` // branch at capture time, "(detached)" off-branch; "" for pre-branch-recording snapshots
 }
 
 // SnapshotCreate captures the current working tree without modifying it.
@@ -72,7 +73,14 @@ func SnapshotCreate(repoPath, label string) (*Snapshot, error) {
 		return nil, nil // clean tree — nothing to lose, nothing to save
 	}
 
-	sha, err := run(repoPath, "commit-tree", tree, "-p", head, "-m", label)
+	// Record where the snapshot was taken — rows named "before checkout" are
+	// indistinguishable without the branch.
+	branch, err := run(repoPath, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil || branch == "HEAD" {
+		branch = "(detached)"
+	}
+
+	sha, err := run(repoPath, "commit-tree", tree, "-p", head, "-m", label, "-m", "branch: "+branch)
 	if err != nil {
 		return nil, err
 	}
@@ -84,32 +92,44 @@ func SnapshotCreate(repoPath, label string) (*Snapshot, error) {
 	prune(repoPath)
 
 	return &Snapshot{
-		Ref:   ref,
-		Hash:  sha,
-		Date:  time.Now().UTC().Format(time.RFC3339),
-		Label: label,
+		Ref:    ref,
+		Hash:   sha,
+		Date:   time.Now().UTC().Format(time.RFC3339),
+		Label:  label,
+		Branch: branch,
 	}, nil
 }
 
 // SnapshotList returns all snapshots, newest first.
 func SnapshotList(repoPath string) ([]Snapshot, error) {
+	// %1E separates records (bodies are multi-line, so newline can't),
+	// %1F separates fields within one record.
 	out, err := run(repoPath,
 		"for-each-ref", strings.TrimSuffix(snapshotRefPrefix, "/"),
 		"--sort=-refname",
-		"--format=%(refname)%1F%(objectname)%1F%(creatordate:iso-strict)%1F%(subject)")
+		"--format=%(refname)%1F%(objectname)%1F%(creatordate:iso-strict)%1F%(subject)%1F%(body)%1E")
 	if err != nil {
 		return nil, err
 	}
 	snaps := []Snapshot{}
-	for line := range strings.SplitSeq(out, "\n") {
+	for rec := range strings.SplitSeq(out, "\x1e") {
+		line := strings.TrimSpace(rec)
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\x1f", 4)
+		parts := strings.SplitN(line, "\x1f", 5)
 		if len(parts) < 4 {
 			continue
 		}
 		s := Snapshot{Ref: parts[0], Hash: parts[1], Date: parts[2], Label: parts[3]}
+		if len(parts) == 5 {
+			for bodyLine := range strings.SplitSeq(parts[4], "\n") {
+				if b, ok := strings.CutPrefix(strings.TrimSpace(bodyLine), "branch: "); ok {
+					s.Branch = b
+					break
+				}
+			}
+		}
 		if t, err := time.Parse(time.RFC3339, parts[2]); err == nil {
 			s.Date = t.UTC().Format(time.RFC3339)
 		}

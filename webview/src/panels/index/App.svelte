@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { slide } from 'svelte/transition';
   import { on, send } from '$shared/messageBus';
   import { uiPrompt, uiConfirm, uiPick, uiNotify } from '$shared/dialogs';
   import { repoState, requestRepoState, openRepoPicker } from '$shared/repoStore';
+  import { fullDate } from '$shared/dates';
   import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Snapshot, Tag, Worktree } from './types';
   import { planSync } from './syncPlan';
 
@@ -30,6 +32,8 @@
   let selStashIdx:  number | null = $state(null);
   let selFile:      string | null = $state(null);
   let diffFiles:    DiffFile[]    = $state([]);
+  // True when diffFiles holds only the pickaxe-matching subset (code search).
+  let diffFilesSnippetOnly = $state(false);
   let diffHunks:    DiffHunk[]    = $state([]);
   // Active ref/range comparison shown in the detail pane (branch/tag/commit
   // "Compare…" / "Show Diff with Working Tree"); null when viewing a commit/stash.
@@ -37,6 +41,11 @@
     | { kind: 'ref'; ref: string; title: string }
     | { kind: 'range'; base: string; head: string; title: string };
   let compare: Compare | null = $state(null);
+  // Contextual undo: the last ORIG_HEAD-setting op done from this panel
+  // ("merge" | "rebase" | "reset" | "pull"). Empty = Undo button hidden.
+  // Only ops that set ORIG_HEAD belong here — undo rewinds to ORIG_HEAD, so
+  // advertising it after e.g. a cherry-pick would rewind to a stale target.
+  let undoableOp = $state('');
   // True while the repo is paused mid-rebase (conflict) — drives the
   // Continue/Skip/Abort bar. See commitMenuAction 'drop'.
   let rebaseInProgress = $state(false);
@@ -99,8 +108,14 @@
 
   // ── Flash bar ────────────────────────────────────────────────────────────
   let flashMsg   = $state('');
+  // Status bar lives at the top, collapsed by default (the real VS Code status
+  // bar already shows repo·branch). Flashes force it visible so they land.
+  let statusOpen = $state(false);
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
-  function flash(msg: string, _color = '#febc2e') {
+  // Call sites tag errors with '#f07070' — those also get a native VS Code
+  // error toast, since the in-panel bar is collapsible and easy to miss.
+  function flash(msg: string, color = '#febc2e') {
+    if (color === '#f07070') uiNotify(msg, 'error');
     flashMsg = msg;
     if (flashTimer) clearTimeout(flashTimer);
     flashTimer = setTimeout(() => { flashMsg = ''; }, 2200);
@@ -201,10 +216,11 @@
     selStashIdx = null;
     compare = null;
     headMode = false; // selecting a branch exits the undo timeline
+    allBranches = false; // picking a branch always means "view that branch"
     activeBranch = name;
     selCommitIdx = null; selFile = null; diffFiles = []; diffHunks = [];
     try {
-      commits = await send<Commit[]>('log', { branch: allBranches ? '' : name, limit: 0 });
+      commits = await send<Commit[]>('log', { branch: name, limit: 0 });
       reapplySearch();
     } catch (e: unknown) {
       flash('Log error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
@@ -229,20 +245,23 @@
   // the Go side recomputes lane layout over the matching commits. A client-side
   // row filter would desync the graph (lanes are laid out over the full set).
   let filterTimer: ReturnType<typeof setTimeout>;
-  async function runServerFilter() {
-    const q = searchQuery.trim();
-    if (!q) { filtered = [...commits]; selCommitIdx = null; return; }
+  async function runServerFilter(): Promise<boolean> {
+    const q = searchMode === 'code' ? searchQuery.replace(/\s+$/, '') : searchQuery.trim();
+    if (!q) { filtered = [...commits]; selCommitIdx = null; return true; }
     const params: Record<string, unknown> = { branch: allBranches ? '' : activeBranch, limit: 0 };
     if (searchMode === 'msg')    params.grep = q;
     if (searchMode === 'author') params.author = q;
     // Pickaxe (`git log -S`): commits where the occurrence count of q changed —
-    // i.e. where the string was introduced or removed.
+    // i.e. where the string was introduced or removed. The snippet is passed
+    // verbatim (only trailing whitespace stripped) — indentation matters.
     if (searchMode === 'code')   params.pickaxe = q;
     try {
       filtered = await send<Commit[]>('log', params);
       selCommitIdx = null; diffFiles = []; diffHunks = [];
+      return true;
     } catch (e: unknown) {
       flash('Filter error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      return false;
     }
   }
 
@@ -269,9 +288,23 @@
       return;
     }
     if (searchMode === 'hash') { applyFilter(); return; }
+    if (searchMode === 'code') {
+      // Pickaxe scans every diff in history — explicit submit only (see
+      // handleCodeSearchSubmit). Clearing the box restores the full log.
+      if (!q.trim()) { filtered = [...commits]; selCommitIdx = null; diffFiles = []; diffHunks = []; }
+      return;
+    }
     // message / author → debounced server-side filter (keeps the graph correct).
     clearTimeout(filterTimer);
     filterTimer = setTimeout(runServerFilter, 250);
+  }
+
+  async function handleCodeSearchSubmit() {
+    if (searchMode !== 'code' || !searchQuery.trim()) return;
+    flash('Searching history for snippet…');
+    if (await runServerFilter()) {
+      flash(`${filtered.length} commit${filtered.length !== 1 ? 's' : ''} add or remove this snippet`, '#4ec94e');
+    }
   }
 
   async function handleSearchKey(e: KeyboardEvent) {
@@ -311,8 +344,19 @@
     selFile = null; diffFiles = []; diffHunks = [];
     detailLoading = true;
     const c = filtered[i];
+    // During a code search, restrict the file list to the files that actually
+    // add/remove the snippet — that's *why* this commit is in the results.
+    const pickaxe = searchMode === 'code' ? searchQuery.replace(/\s+$/, '') : '';
     try {
-      const files = await send<DiffFile[]>('diff', { commit: c.hash });
+      let files = await send<DiffFile[]>('diff', { commit: c.hash, ...(pickaxe ? { pickaxe } : {}) });
+      let restricted = !!pickaxe;
+      if (pickaxe && files.length === 0) {
+        // Edge cases (e.g. merge commits) can leave the restricted list empty —
+        // fall back to the full diff rather than showing nothing.
+        files = await send<DiffFile[]>('diff', { commit: c.hash });
+        restricted = false;
+      }
+      diffFilesSnippetOnly = restricted;
       diffFiles = files;
       detailLoading = false;
       if (files.length) selectDiffFile(files[0].path);
@@ -353,7 +397,7 @@
   // Open a ref-vs-working or ref-vs-ref comparison in the detail pane.
   async function startCompare(spec: Compare) {
     selCommitIdx = null; selStashIdx = null; selFile = null;
-    diffFiles = []; diffHunks = [];
+    diffFiles = []; diffHunks = []; diffFilesSnippetOnly = false;
     compare = spec;
     detailLoading = true;
     try {
@@ -397,6 +441,7 @@
       ]);
       diffFiles = files;
       diffHunks = hunks;
+      diffFilesSnippetOnly = false;
       selCommitIdx = null;
       selFile = null;
       // Stash message: "On <branch>: ..." or "WIP on <branch>: ..."
@@ -489,6 +534,7 @@
         `Undone: ${res?.action ?? 'done'}${res?.stashed ? ' · changes stashed' : ''}`,
         '#4ec94e'
       );
+      undoableOp = '';
       loadAll();
     } catch (e: unknown) {
       flash('Undo failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
@@ -535,6 +581,7 @@
     try {
       await send(a);
       flash(a + ' done', '#4ec94e');
+      if (a === 'pull') undoableOp = 'pull';
       loadAll();
     } catch (e: unknown) {
       flash(a + ' failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
@@ -639,6 +686,9 @@
         if (plan.push) receipt.push(`pushed ${ahead}`);
         flash('Synced' + (receipt.length ? ' · ' + receipt.join(' · ') : ''), '#4ec94e');
       }
+      // Offer undo only for the un-pushed case: once commits are on the remote,
+      // rewinding the local branch to ORIG_HEAD would just re-diverge it.
+      if (plan.pull !== 'none' && !plan.push) undoableOp = 'pull';
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       flash('Sync failed: ' + msg + (plan.stash ? ' · your changes are safe in a stash' : ''), '#f07070');
@@ -724,7 +774,7 @@
       if (target) {
         if (!(await confirmMerge(target))) return;
         flash(`Merging ${target}…`);
-        try { await send('merge', { branch: target }); flash(`Merged ${target}`, '#4ec94e'); loadAll(); }
+        try { await send('merge', { branch: target }); flash(`Merged ${target}`, '#4ec94e'); undoableOp = 'merge'; loadAll(); }
         catch (e: unknown) { flash('Merge failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
       }
       return;
@@ -733,7 +783,7 @@
       const onto = await uiPrompt('Rebase onto branch:');
       if (onto) {
         flash(`Rebasing onto ${onto}…`);
-        try { await send('rebase', { onto }); flash('Rebased', '#4ec94e'); loadAll(); }
+        try { await send('rebase', { onto }); flash('Rebased', '#4ec94e'); undoableOp = 'rebase'; loadAll(); }
         catch (e: unknown) { flash('Rebase failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070'); }
       }
       return;
@@ -828,6 +878,7 @@
           flash('Autosquash paused on a conflict — resolve, then Continue', '#e0a030');
         } else {
           flash('Fixups squashed', '#4ec94e');
+          undoableOp = 'rebase';
         }
         loadAll();
       },
@@ -877,6 +928,7 @@
           flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
         } else {
           flash('Commit message updated', '#4ec94e');
+          undoableOp = 'rebase';
         }
         loadAll();
       },
@@ -891,6 +943,7 @@
           flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
         } else {
           flash(`Dropped ${hash.slice(0, 7)}`, '#4ec94e');
+          undoableOp = 'rebase';
         }
         loadAll();
       },
@@ -912,6 +965,7 @@
             flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
           } else {
             flash(`Squashed ${hash.slice(0, 7)} into its parent`, '#4ec94e');
+            undoableOp = 'rebase';
           }
         } catch (e: unknown) {
           flash('Squash failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
@@ -948,6 +1002,7 @@
             : `Reset (${mode}) to ${hash.slice(0, 7)}`,
           res?.stashed ? '#e0a030' : '#4ec94e'
         );
+        undoableOp = 'reset';
         loadAll();
       },
     };
@@ -975,6 +1030,7 @@
         flash('Rebase paused on a conflict — resolve, then Continue', '#e0a030');
       } else {
         flash('Interactive rebase complete', '#4ec94e');
+        undoableOp = 'rebase';
       }
       loadAll();
     } catch (e: unknown) {
@@ -1010,6 +1066,7 @@
         ? `${mode} reset to ${hash.slice(0, 7)} — changes auto-stashed`
         : `${mode} reset to ${hash.slice(0, 7)}`;
       flash(msg, res?.stashed ? '#e0a030' : mode === 'hard' ? '#f07070' : '#4ec94e');
+      undoableOp = 'reset';
       headMode = false;
       loadAll();
     } catch (e: unknown) {
@@ -1027,6 +1084,7 @@
       } else {
         const res = await send<{ conflict: boolean }>(`rebase.${kind}`);
         rebaseInProgress = !!res?.conflict;
+        if (!res?.conflict) undoableOp = 'rebase'; // finished — ORIG_HEAD rewind available
         flash(res?.conflict ? 'Still conflicting — resolve, then Continue' : 'Rebase complete',
           res?.conflict ? '#e0a030' : '#4ec94e');
       }
@@ -1523,10 +1581,28 @@
     {searchQuery}
     onAction={tbAction}
     onSearch={handleSearch}
+    onSearchSubmit={handleCodeSearchSubmit}
     onModeChange={handleModeChange}
     onAllBranches={handleAllBranches}
     onSelectBranch={selectBranch}
+    {statusOpen}
+    onToggleStatus={() => (statusOpen = !statusOpen)}
+    undoLabel={rebaseInProgress ? 'rebase' : undoableOp}
   />
+
+  {#if statusOpen || flashMsg}
+    <div transition:slide={{ duration: 180 }}>
+      <StatusBar
+        repo={repoName}
+        onRepoClick={openRepoPicker}
+        branch={sbBranch}
+        info={sbInfo}
+        infoTitle={sbInfoTitle}
+        countsText={flashMsg ? `⚡ ${flashMsg}` : sbCounts}
+        {iconUri}
+      />
+    </div>
+  {/if}
 
   {#if rebaseEditor}
     <InteractiveRebase
@@ -1589,7 +1665,15 @@
         onSelectWorktree={selectWorktree}
         onWorktreeCtx={showWorktreeCtx}
         {snapshots}
-        onSnapshotSelect={(s) => selectTagCommit(s.hash)}
+        onSnapshotSelect={(s) =>
+          // What the snapshot captured: its tree vs the HEAD it was taken on —
+          // the dirty files at that moment, which is exactly what ↺ restores.
+          startCompare({
+            kind: 'range',
+            base: `${s.hash}^`,
+            head: s.hash,
+            title: `Snapshot: ${s.label}${s.branch ? ` on ${s.branch}` : ''} — ${fullDate(s.date)} (↺ restores these files)`,
+          })}
         onSnapshotAction={snapshotAction}
       />
     </div>
@@ -1624,6 +1708,8 @@
           {compare}
           files={diffFiles}
           hunks={diffHunks}
+          snippetFilter={diffFilesSnippetOnly}
+          searchSnippet={searchMode === 'code' ? searchQuery.replace(/\s+$/, '') : ''}
           {selFile}
           loading={detailLoading}
           {iconUri}
@@ -1634,16 +1720,6 @@
       </div>
     {/if}
   </div>
-
-  <StatusBar
-    repo={repoName}
-    onRepoClick={openRepoPicker}
-    branch={sbBranch}
-    info={sbInfo}
-    infoTitle={sbInfoTitle}
-    countsText={flashMsg ? `⚡ ${flashMsg}` : sbCounts}
-    {iconUri}
-  />
 
   <ContextMenu
     {branchMenu}

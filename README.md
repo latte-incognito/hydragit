@@ -25,7 +25,7 @@ If you came from IntelliJ and miss having everything in one panel — this is it
 
 📖 **Full feature documentation** (every entry point → what happens next):
 [`documentation/index.html`](documentation/index.html) ·
-name index: [`IMPLEMENTED_FEATURES.md`](IMPLEMENTED_FEATURES.md)
+feature index + per-version history: [`CHANGELOG.md`](CHANGELOG.md)
 
 ## Install
 Search `HydraGit` in Extensions, or: `ext install vkushnarenko.hydragit`

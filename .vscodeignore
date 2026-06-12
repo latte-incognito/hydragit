@@ -8,6 +8,7 @@
 # Docs / notes
 CLAUDE.md
 docs/
+alpharius/
 
 # Go source
 cmd/
@@ -54,6 +55,5 @@ vitest-setup.ts
 bin/hydragit-server
 
 # ── Dev docs / notes (not used at runtime) ─────────────────────────
-IMPLEMENTED_FEATURES.md
 documentation/
 .vscode/
