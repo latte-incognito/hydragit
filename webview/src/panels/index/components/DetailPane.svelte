@@ -16,6 +16,10 @@
     selFile?: string | null;
     loading?: boolean;
     iconUri?: string;
+    // Code search active: files is restricted to the pickaxe-matching subset.
+    snippetFilter?: boolean;
+    // The active code-search snippet — highlighted in opened diff editors.
+    searchSnippet?: string;
     onSelectFile?: (path: string) => void;
     onCommitAction?: (action: string, hash: string) => void;
     onStashAction?: (action: string) => void;
@@ -30,6 +34,8 @@
     selFile = null,
     loading = false,
     iconUri = '',
+    snippetFilter = false,
+    searchSnippet = '',
     onSelectFile = () => {},
     onCommitAction = () => {},
     onStashAction = () => {}
@@ -211,6 +217,9 @@
       parent: (commit.parents ?? [])[0] ?? '',
       file: filePath,
       newTab,
+      // Always sent (empty clears stale highlights when the preview tab is
+      // reused after the code search ends).
+      snippet: searchSnippet,
     });
   }
 
@@ -553,6 +562,12 @@
           <div class="tree-toolbar" oncontextmenu={showCtx}>
             <span class="tree-count">
               {files.length} file{files.length !== 1 ? 's' : ''} changed
+              {#if snippetFilter}
+                <span class="tree-count-pickaxe"
+                      title="Only files where the searched snippet was added or removed — that's why this commit matched">
+                  · snippet matches
+                </span>
+              {/if}
             </span>
             <div class="tt-wrap">
               <button
@@ -789,6 +804,7 @@
     color: var(--vscode-disabledForeground, #3a3a3a);
     font-family: var(--hg-font-family);
   }
+  .tree-count-pickaxe { color: #e8648a; }
   .tt-wrap {
     display: flex;
     align-items: center;

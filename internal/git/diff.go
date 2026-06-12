@@ -37,22 +37,37 @@ type DiffResult struct {
 //  1. --name-status  → status letter (M/A/D/R/C/T) + path(s)
 //  2. --numstat      → additions + deletions + path(s)
 func DiffCommit(repoPath, commit string) ([]FileStat, error) {
+	return diffCommitFiles(repoPath, commit, nil)
+}
+
+// DiffCommitPickaxe returns file stats for a commit restricted to files where
+// the occurrence count of snippet changed (`-S`) — i.e. only the files that
+// made a pickaxe log search match this commit. Pickaxe limits diff output to
+// matching filepairs by default (that's what --pickaxe-all would undo), and
+// both passes stay restricted consistently, so the zip-by-index holds.
+func DiffCommitPickaxe(repoPath, commit, snippet string) ([]FileStat, error) {
+	return diffCommitFiles(repoPath, commit, []string{"-S", snippet})
+}
+
+func diffCommitFiles(repoPath, commit string, extra []string) ([]FileStat, error) {
 	// Pass 1: name-status gives us the status letter and paths.
 	// Renamed/copied files produce two tab-separated paths.
-	nsOut, err := run(repoPath, "diff-tree", "--no-commit-id", "-r",
+	nsArgs := append([]string{"diff-tree", "--no-commit-id", "-r",
 		"-M", // detect renames
 		"-C", // detect copies
-		"--name-status", commit)
+	}, extra...)
+	nsOut, err := run(repoPath, append(nsArgs, "--name-status", commit)...)
 	if err != nil {
 		return nil, err
 	}
 
 	// Pass 2: numstat gives us addition/deletion counts.
 	// Renamed files appear as "N\tM\told\tnew" (two path columns).
-	numOut, err := run(repoPath, "diff-tree", "--no-commit-id", "-r",
+	numArgs := append([]string{"diff-tree", "--no-commit-id", "-r",
 		"-M",
 		"-C",
-		"--numstat", commit)
+	}, extra...)
+	numOut, err := run(repoPath, append(numArgs, "--numstat", commit)...)
 	if err != nil {
 		return nil, err
 	}

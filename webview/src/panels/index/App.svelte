@@ -32,6 +32,8 @@
   let selStashIdx:  number | null = $state(null);
   let selFile:      string | null = $state(null);
   let diffFiles:    DiffFile[]    = $state([]);
+  // True when diffFiles holds only the pickaxe-matching subset (code search).
+  let diffFilesSnippetOnly = $state(false);
   let diffHunks:    DiffHunk[]    = $state([]);
   // Active ref/range comparison shown in the detail pane (branch/tag/commit
   // "Compare…" / "Show Diff with Working Tree"); null when viewing a commit/stash.
@@ -237,20 +239,23 @@
   // the Go side recomputes lane layout over the matching commits. A client-side
   // row filter would desync the graph (lanes are laid out over the full set).
   let filterTimer: ReturnType<typeof setTimeout>;
-  async function runServerFilter() {
-    const q = searchQuery.trim();
-    if (!q) { filtered = [...commits]; selCommitIdx = null; return; }
+  async function runServerFilter(): Promise<boolean> {
+    const q = searchMode === 'code' ? searchQuery.replace(/\s+$/, '') : searchQuery.trim();
+    if (!q) { filtered = [...commits]; selCommitIdx = null; return true; }
     const params: Record<string, unknown> = { branch: allBranches ? '' : activeBranch, limit: 0 };
     if (searchMode === 'msg')    params.grep = q;
     if (searchMode === 'author') params.author = q;
     // Pickaxe (`git log -S`): commits where the occurrence count of q changed —
-    // i.e. where the string was introduced or removed.
+    // i.e. where the string was introduced or removed. The snippet is passed
+    // verbatim (only trailing whitespace stripped) — indentation matters.
     if (searchMode === 'code')   params.pickaxe = q;
     try {
       filtered = await send<Commit[]>('log', params);
       selCommitIdx = null; diffFiles = []; diffHunks = [];
+      return true;
     } catch (e: unknown) {
       flash('Filter error: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      return false;
     }
   }
 
@@ -277,9 +282,23 @@
       return;
     }
     if (searchMode === 'hash') { applyFilter(); return; }
+    if (searchMode === 'code') {
+      // Pickaxe scans every diff in history — explicit submit only (see
+      // handleCodeSearchSubmit). Clearing the box restores the full log.
+      if (!q.trim()) { filtered = [...commits]; selCommitIdx = null; diffFiles = []; diffHunks = []; }
+      return;
+    }
     // message / author → debounced server-side filter (keeps the graph correct).
     clearTimeout(filterTimer);
     filterTimer = setTimeout(runServerFilter, 250);
+  }
+
+  async function handleCodeSearchSubmit() {
+    if (searchMode !== 'code' || !searchQuery.trim()) return;
+    flash('Searching history for snippet…');
+    if (await runServerFilter()) {
+      flash(`${filtered.length} commit${filtered.length !== 1 ? 's' : ''} add or remove this snippet`, '#4ec94e');
+    }
   }
 
   async function handleSearchKey(e: KeyboardEvent) {
@@ -319,8 +338,19 @@
     selFile = null; diffFiles = []; diffHunks = [];
     detailLoading = true;
     const c = filtered[i];
+    // During a code search, restrict the file list to the files that actually
+    // add/remove the snippet — that's *why* this commit is in the results.
+    const pickaxe = searchMode === 'code' ? searchQuery.replace(/\s+$/, '') : '';
     try {
-      const files = await send<DiffFile[]>('diff', { commit: c.hash });
+      let files = await send<DiffFile[]>('diff', { commit: c.hash, ...(pickaxe ? { pickaxe } : {}) });
+      let restricted = !!pickaxe;
+      if (pickaxe && files.length === 0) {
+        // Edge cases (e.g. merge commits) can leave the restricted list empty —
+        // fall back to the full diff rather than showing nothing.
+        files = await send<DiffFile[]>('diff', { commit: c.hash });
+        restricted = false;
+      }
+      diffFilesSnippetOnly = restricted;
       diffFiles = files;
       detailLoading = false;
       if (files.length) selectDiffFile(files[0].path);
@@ -361,7 +391,7 @@
   // Open a ref-vs-working or ref-vs-ref comparison in the detail pane.
   async function startCompare(spec: Compare) {
     selCommitIdx = null; selStashIdx = null; selFile = null;
-    diffFiles = []; diffHunks = [];
+    diffFiles = []; diffHunks = []; diffFilesSnippetOnly = false;
     compare = spec;
     detailLoading = true;
     try {
@@ -405,6 +435,7 @@
       ]);
       diffFiles = files;
       diffHunks = hunks;
+      diffFilesSnippetOnly = false;
       selCommitIdx = null;
       selFile = null;
       // Stash message: "On <branch>: ..." or "WIP on <branch>: ..."
@@ -1531,6 +1562,7 @@
     {searchQuery}
     onAction={tbAction}
     onSearch={handleSearch}
+    onSearchSubmit={handleCodeSearchSubmit}
     onModeChange={handleModeChange}
     onAllBranches={handleAllBranches}
     onSelectBranch={selectBranch}
@@ -1656,6 +1688,8 @@
           {compare}
           files={diffFiles}
           hunks={diffHunks}
+          snippetFilter={diffFilesSnippetOnly}
+          searchSnippet={searchMode === 'code' ? searchQuery.replace(/\s+$/, '') : ''}
           {selFile}
           loading={detailLoading}
           {iconUri}

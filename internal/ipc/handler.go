@@ -313,8 +313,9 @@ func handle(repoPath string, req Request) Response {
 
 	case "diff":
 		var p struct {
-			Commit string `json:"commit"`
-			File   string `json:"file"`
+			Commit  string `json:"commit"`
+			File    string `json:"file"`
+			Pickaxe string `json:"pickaxe"` // restrict file list to pickaxe matches
 		}
 		json.Unmarshal(req.Params, &p)
 		if p.File != "" {
@@ -324,7 +325,13 @@ func handle(repoPath string, req Request) Response {
 			}
 			return ok(id, hunks)
 		}
-		files, err := git.DiffCommit(repoPath, p.Commit)
+		var files []git.FileStat
+		var err error
+		if p.Pickaxe != "" {
+			files, err = git.DiffCommitPickaxe(repoPath, p.Commit, p.Pickaxe)
+		} else {
+			files, err = git.DiffCommit(repoPath, p.Commit)
+		}
 		if err != nil {
 			return fail(id, err)
 		}

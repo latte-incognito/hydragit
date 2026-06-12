@@ -168,3 +168,69 @@ func TestDiffCommitEmpty(t *testing.T) {
 		t.Fatal("expected empty slice, not nil")
 	}
 }
+
+func TestDiffCommitPickaxe(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "a.go", "package main\n\nfunc magicToken() {}\n", "add a")
+	commitFile(t, dir, "b.txt", "some text\n", "add b")
+
+	// One commit touching both files; only a.go changes the snippet count.
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package main\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("some text\nmore text\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exec.Command("git", "-C", dir, "add", ".").Run()
+	exec.Command("git", "-C", dir, "commit", "-m", "touch both").Run()
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := strings.TrimSpace(string(out))
+
+	all, err := DiffCommit(dir, hash)
+	if err != nil {
+		t.Fatalf("DiffCommit failed: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("unrestricted diff should list both files, got %d", len(all))
+	}
+
+	matched, err := DiffCommitPickaxe(dir, hash, "magicToken")
+	if err != nil {
+		t.Fatalf("DiffCommitPickaxe failed: %v", err)
+	}
+	if len(matched) != 1 || matched[0].Path != "a.go" {
+		t.Fatalf("pickaxe should restrict to a.go, got %+v", matched)
+	}
+	if matched[0].Deletions == 0 {
+		t.Error("a.go removed the snippet line — deletions should be counted")
+	}
+}
+
+func TestDiffCommitPickaxe_noMatch(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "a.go", "package main\n", "add a")
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := strings.TrimSpace(string(out))
+
+	// Snippet never touched by this commit → empty list, not an error.
+	files, err := DiffCommitPickaxe(dir, hash, "neverSeenAnywhere")
+	if err != nil {
+		t.Fatalf("no-match pickaxe must not error: %v", err)
+	}
+	if len(files) != 0 {
+		t.Fatalf("expected no files, got %+v", files)
+	}
+}
+
+func TestDiffCommitPickaxe_badCommit(t *testing.T) {
+	dir := initRepo(t)
+	if _, err := DiffCommitPickaxe(dir, "deadbeef", "x"); err == nil {
+		t.Fatal("expected error for a nonexistent commit")
+	}
+}

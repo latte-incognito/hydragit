@@ -38,7 +38,7 @@ describe('DetailPane file context menu — wired items', () => {
   it('"Show Diff in a New Tab" sends openDiff for the file', async () => {
     const { getByText } = await openFileCtx();
     await fireEvent.click(getByText('Show Diff in a New Tab'));
-    expect(sendMock).toHaveBeenCalledWith('openDiff', { commit: 'h1', parent: 'p0', file: 'a.txt', newTab: true });
+    expect(sendMock).toHaveBeenCalledWith('openDiff', { commit: 'h1', parent: 'p0', file: 'a.txt', newTab: true, snippet: '' });
   });
 
   it('"Edit Source" sends openFile for the file', async () => {

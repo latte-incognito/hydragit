@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { slide } from 'svelte/transition';
 
   interface Props {
     repoName?: string;
@@ -11,6 +12,7 @@
     searchQuery?: string;
     onAction?: (a: string) => void;
     onSearch?: (q: string) => void;
+    onSearchSubmit?: () => void;
     onModeChange?: (m: typeof searchMode) => void;
     onAllBranches?: (v: boolean) => void;
     onSelectBranch?: (name: string, remote: boolean) => void;
@@ -29,6 +31,7 @@
     searchQuery = $bindable(''),
     onAction = () => {},
     onSearch = () => {},
+    onSearchSubmit = () => {},
     onModeChange = () => {},
     onAllBranches = () => {},
     onSelectBranch = () => {},
@@ -97,6 +100,43 @@
     searchQuery = '';
     onSearch('');
     onModeChange(m);
+    if (m === 'code') setTimeout(() => codeBoxEl?.focus(), 10);
+  }
+
+  // ── Code search (pickaxe) ─────────────────────────────────────────────────
+  // Code snippets don't fit the one-line toolbar input, and `git log -S` scans
+  // every diff in history — too expensive to run per keystroke. Code mode gets
+  // an expanded monospace box below the toolbar; search runs only on submit.
+  let codeBoxEl: HTMLTextAreaElement = $state();
+
+  let codeLines = $derived(searchQuery ? searchQuery.split('\n').length : 1);
+  let codeRows  = $derived(Math.min(6, Math.max(1, codeLines)));
+  let codeFirstLine = $derived(
+    (searchQuery.split('\n').find(l => l.trim()) ?? '').trim()
+  );
+
+  function handleCodeInput(e: Event) {
+    searchQuery = (e.target as HTMLTextAreaElement).value;
+    // Notify only when cleared, so the host restores the full log; non-empty
+    // values wait for an explicit submit.
+    if (!searchQuery.trim()) onSearch('');
+  }
+
+  function handleCodeKeydown(e: KeyboardEvent) {
+    // Only intercept plain Enter. Never stopPropagation on other keys — VS Code
+    // forwards webview keybindings (Cmd+V paste!) via a document-level listener,
+    // and swallowing keydown here breaks the clipboard inside the webview.
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      submitCode();
+    }
+  }
+
+  function submitCode() {
+    if (!searchQuery.trim()) return;
+    onSearch(searchQuery);
+    onSearchSubmit();
   }
 
   // ── Tooltip ───────────────────────────────────────────────────────────────
@@ -240,26 +280,41 @@
         </button>
       {/each}
     </div>
-    <div class="search-inner">
-      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" class="search-icon">
-        <circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.2"/>
-        <path d="M8 8l2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-      </svg>
-      <input
-        type="text"
-        placeholder={currentMode.placeholder}
-        value={searchQuery}
-        oninput={handleInput}
-      />
-      <span class="mode-hint mode-hint-{searchMode}">{currentMode.hint}</span>
-      {#if searchQuery}
-        <button class="clear-btn" onclick={clearSearch} tabindex="-1">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-          </svg>
-        </button>
-      {/if}
-    </div>
+    {#if searchMode === 'code'}
+      <!-- Code mode edits in the expanded box below — this slot just summarizes. -->
+      <button class="search-inner code-summary" onclick={() => codeBoxEl?.focus()}>
+        {#if searchQuery.trim()}
+          <span class="code-summary-text">{codeFirstLine}</span>
+          {#if codeLines > 1}
+            <span class="code-summary-more">+{codeLines - 1} line{codeLines > 2 ? 's' : ''}</span>
+          {/if}
+        {:else}
+          <span class="code-summary-placeholder">Code snippet — use the box below</span>
+        {/if}
+        <span class="mode-hint mode-hint-code">code</span>
+      </button>
+    {:else}
+      <div class="search-inner">
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" class="search-icon">
+          <circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M8 8l2 2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        <input
+          type="text"
+          placeholder={currentMode.placeholder}
+          value={searchQuery}
+          oninput={handleInput}
+        />
+        <span class="mode-hint mode-hint-{searchMode}">{currentMode.hint}</span>
+        {#if searchQuery}
+          <button class="clear-btn" onclick={clearSearch} tabindex="-1">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2 2l6 6M8 2L2 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            </svg>
+          </button>
+        {/if}
+      </div>
+    {/if}
   </div>
 
   <!-- All branches toggle -->
@@ -294,6 +349,30 @@
   </button>
 
 </div>
+
+{#if searchMode === 'code'}
+  <div class="code-search-row" transition:slide={{ duration: 150 }}>
+    <svg class="csr-icon" width="13" height="13" viewBox="0 0 13 13" fill="none">
+      <path d="M4.5 3.5 1.5 6.5l3 3M8.5 3.5l3 3-3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <textarea
+      bind:this={codeBoxEl}
+      class="code-box"
+      rows={codeRows}
+      spellcheck="false"
+      placeholder="Paste a code snippet — finds commits that added or removed it. Enter to search, Shift+Enter for a new line."
+      value={searchQuery}
+      oninput={handleCodeInput}
+      onkeydown={handleCodeKeydown}
+    ></textarea>
+    <div class="csr-actions">
+      <button class="csr-run" disabled={!searchQuery.trim()} onclick={submitCode}>Search</button>
+      {#if searchQuery}
+        <button class="csr-clear" onclick={clearSearch}>Clear</button>
+      {/if}
+    </div>
+  </div>
+{/if}
 
 <style>
   /* Alpha-Legion teal/silver gradient at rest — visibly "special" without any
@@ -470,6 +549,7 @@
   .search-wrap.mode-hash   { border-color: #4a3a1a; }
   .search-wrap.mode-file   { border-color: #1a3a1a; }
   .search-wrap.mode-author { border-color: #2a1a3a; }
+  .search-wrap.mode-code   { border-color: #4a2230; }
 
   .mode-tabs { display: flex; border-right: 0.5px solid var(--vscode-panel-border, #2a2a2a); flex-shrink: 0; }
   .mtab {
@@ -491,6 +571,7 @@
   .mtab-hash.active   { background: rgba(224,160,48,0.1);  color: #e0a030; }
   .mtab-file.active   { background: rgba(78,201,78,0.1);   color: #4ec94e; }
   .mtab-author.active { background: rgba(160,122,232,0.1); color: #a07ae8; }
+  .mtab-code.active   { background: rgba(232,100,138,0.1); color: #e8648a; }
 
   .search-inner {
     flex: 1;
@@ -524,6 +605,108 @@
   .mode-hint-hash   { color: #8a6030; background: rgba(224,160,48,0.08); }
   .mode-hint-file   { color: #2a7a3a; background: rgba(78,201,78,0.08);  }
   .mode-hint-author { color: #7a5aaa; background: rgba(160,122,232,0.08);}
+  .mode-hint-code   { color: #a04a64; background: rgba(232,100,138,0.08);}
+
+  /* Code-mode summary slot — the real editing happens in .code-search-row */
+  .code-summary {
+    border: none;
+    background: none;
+    cursor: text;
+    text-align: left;
+    font-size: var(--hg-font-xs);
+    font-family: var(--vscode-editor-font-family, monospace);
+  }
+  .code-summary-text {
+    color: var(--vscode-input-foreground, #ccc);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+  .code-summary-more {
+    font-size: var(--hg-font-xxs);
+    color: #a04a64;
+    flex-shrink: 0;
+  }
+  .code-summary-placeholder {
+    color: var(--vscode-disabledForeground, #3a3a3a);
+    font-family: var(--hg-font-family);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Expanded code-search row (pickaxe) ── */
+  .code-search-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    padding: 6px 10px;
+    background: var(--vscode-editorGroupHeader-tabsBackground, #2d2d2d);
+    border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
+    flex-shrink: 0;
+  }
+  .csr-icon {
+    color: #e8648a;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+  .code-box {
+    flex: 1;
+    min-width: 0;
+    resize: none;
+    background: var(--vscode-input-background, #1a1a1a);
+    border: 0.5px solid #4a2230;
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: var(--vscode-input-foreground, #ccc);
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: var(--hg-font-xs);
+    line-height: 1.5;
+    outline: none;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .code-box:focus { border-color: #e8648a; }
+  .code-box::placeholder {
+    color: var(--vscode-disabledForeground, #3a3a3a);
+    font-family: var(--hg-font-family);
+  }
+  .csr-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .csr-run {
+    border: 0.5px solid #4a2230;
+    border-radius: 3px;
+    padding: 3px 10px;
+    font-size: var(--hg-font-xxs);
+    font-family: var(--hg-font-family);
+    cursor: pointer;
+    color: #e8648a;
+    background: rgba(232,100,138,0.08);
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+  .csr-run:hover:not(:disabled) { border-color: #e8648a; background: rgba(232,100,138,0.16); }
+  .csr-run:disabled { opacity: 0.4; cursor: default; }
+  .csr-clear {
+    border: 0.5px solid var(--vscode-widget-border, #3a3a3a);
+    border-radius: 3px;
+    padding: 3px 10px;
+    font-size: var(--hg-font-xxs);
+    font-family: var(--hg-font-family);
+    cursor: pointer;
+    color: var(--vscode-disabledForeground, #888);
+    background: none;
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+  .csr-clear:hover { color: var(--vscode-foreground, #ccc); border-color: var(--vscode-focusBorder, #007fd4); }
 
   .clear-btn {
     background: none; border: none; padding: 2px; border-radius: 2px;

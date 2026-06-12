@@ -119,11 +119,8 @@ Main panel UI:
 4. Ref pills eat the subject — `HEAD →` as icon, middle-truncate, `+N`
    overflow. *(pill markup pass)*
 5. Detail action row: add checkout-at-commit, create branch/tag, View on
-   GitHub; separate Revert from Copy hash.
+   GitHub; separate Revert from Copy hash.   
 6. Search mode switching discoverability. *(needs a UX look)*
-
-Graph style — **decided 2026-06-10: dashes stay** (signature look). Revisit
-only as "semantic dashes" (solid local / dashed remote-only) if ever.
 
 ---
 
@@ -180,21 +177,3 @@ the setting.
 
 ---
 
-## 7 · CHANGELOG.md starter
-
-```markdown
-# Changelog
-
-## [0.3.0] - 2026-06-XX
-### Added
-- Working-tree snapshots — auto-captured before risky operations (incl. untracked files); browse, diff, restore, delete from the branch pane
-- Merge conflict preview — every merge confirm shows a dry-run verdict (git ≥ 2.38)
-- Pre-commit safety checks — warns on likely secrets, conflict markers, large files, protected branches (hydragit.safety.*)
-- Code search (pickaxe) — find commits that added or removed a string
-- Fixup & autosquash from the commit context menu; git rerere enabled per repo (hydragit.rerere.enabled)
-### Changed
-- Concurrent git backend — slow network operations no longer freeze the panels; per-repo operation locking
-- License: GPL-3.0
-### Security
-- Webview hardening: repo allowlist, worktree-path validation, zero-network-egress CSP on all panels, destructive-op confirmation gate
-```

@@ -20,16 +20,17 @@ describe('Toolbar — rendering', () => {
     expect(getByPlaceholderText('Search commit messages…')).toBeTruthy();
   });
 
-  it('renders four mode tab buttons', () => {
+  it('renders five mode tab buttons', () => {
     const { getAllByRole } = render(Toolbar, {});
     // mode tabs + clear btn (hidden) + filter-pill = several buttons
-    // specifically check we have msg/hash/file/author tabs by title
+    // specifically check we have msg/hash/file/author/code tabs by title
     const buttons = getAllByRole('button');
     const titles = buttons.map(b => b.getAttribute('title')).filter(Boolean);
     expect(titles).toContain('Message');
     expect(titles).toContain('Hash');
     expect(titles).toContain('File');
     expect(titles).toContain('Author');
+    expect(titles).toContain('Code');
   });
 
   it('renders all-branches filter pill defaulting to "This branch"', () => {
@@ -134,6 +135,85 @@ describe('Toolbar — search input', () => {
     if (clearBtn) await fireEvent.click(clearBtn);
 
     expect(onSearch).toHaveBeenCalledWith('');
+  });
+});
+
+// ── code search (pickaxe) ─────────────────────────────────────────────────────
+
+describe('Toolbar — code search', () => {
+  it('switching to code mode shows the expanded snippet box', async () => {
+    const onModeChange = vi.fn();
+    const { getByTitle } = render(Toolbar, { onModeChange });
+
+    await fireEvent.click(getByTitle('Code'));
+
+    expect(onModeChange).toHaveBeenCalledWith('code');
+    expect(document.querySelector('textarea.code-box')).toBeTruthy();
+  });
+
+  it('Enter submits the snippet: onSearch with value, then onSearchSubmit', async () => {
+    const onSearch = vi.fn();
+    const onSearchSubmit = vi.fn();
+    const { getByTitle } = render(Toolbar, { onSearch, onSearchSubmit });
+
+    await fireEvent.click(getByTitle('Code'));
+    onSearch.mockClear(); // setMode fires onSearch('')
+
+    const box = document.querySelector('textarea.code-box')!;
+    await fireEvent.input(box, { target: { value: 'const x = 1;' } });
+    expect(onSearch).not.toHaveBeenCalled(); // no live search while typing
+
+    await fireEvent.keyDown(box, { key: 'Enter' });
+    expect(onSearch).toHaveBeenCalledWith('const x = 1;');
+    expect(onSearchSubmit).toHaveBeenCalledOnce();
+  });
+
+  it('Shift+Enter does not submit (newline instead)', async () => {
+    const onSearchSubmit = vi.fn();
+    const { getByTitle } = render(Toolbar, { onSearchSubmit });
+
+    await fireEvent.click(getByTitle('Code'));
+    const box = document.querySelector('textarea.code-box')!;
+    await fireEvent.input(box, { target: { value: 'line one' } });
+    await fireEvent.keyDown(box, { key: 'Enter', shiftKey: true });
+
+    expect(onSearchSubmit).not.toHaveBeenCalled();
+  });
+
+  it('Enter on an empty box does not submit', async () => {
+    const onSearchSubmit = vi.fn();
+    const { getByTitle } = render(Toolbar, { onSearchSubmit });
+
+    await fireEvent.click(getByTitle('Code'));
+    const box = document.querySelector('textarea.code-box')!;
+    await fireEvent.keyDown(box, { key: 'Enter' });
+
+    expect(onSearchSubmit).not.toHaveBeenCalled();
+  });
+
+  it('clearing the box calls onSearch with empty string (restores the log)', async () => {
+    const onSearch = vi.fn();
+    const { getByTitle } = render(Toolbar, { onSearch });
+
+    await fireEvent.click(getByTitle('Code'));
+    const box = document.querySelector('textarea.code-box')!;
+    await fireEvent.input(box, { target: { value: 'snippet' } });
+    onSearch.mockClear();
+
+    await fireEvent.input(box, { target: { value: '' } });
+    expect(onSearch).toHaveBeenCalledWith('');
+  });
+
+  it('Search button is disabled while the box is empty', async () => {
+    const { getByTitle, getByText } = render(Toolbar, {});
+
+    await fireEvent.click(getByTitle('Code'));
+    const run = getByText('Search') as HTMLButtonElement;
+    expect(run.disabled).toBe(true);
+
+    const box = document.querySelector('textarea.code-box')!;
+    await fireEvent.input(box, { target: { value: 'x' } });
+    expect(run.disabled).toBe(false);
   });
 });
 
