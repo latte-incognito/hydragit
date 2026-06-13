@@ -13,7 +13,16 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 
 ## [Unreleased]
 
+### Added
+- **Actionable status-bar pills** (ROADMAP §4.1) — the main-panel status bar's ahead/behind text became clickable pills, each reusing the exact action-rail handler:
+  - **↑ Publish** when on a branch with no upstream → `doPush()` → Go's `Push("")`, which retries `push -u origin HEAD` (push + set upstream in one click). Only on a branch — a detached HEAD keeps its own &ldquo;create a branch&rdquo; banner.
+  - **↓ N Pull** when behind → `tbAction('pull')`.
+  - **↑ N Push** when ahead → `doPush()` (already offers force-with-lease on a non-fast-forward rejection).
+  - **⇅ Sync** when diverged (ahead *and* behind) → `railAction('sync')`, the same Smart Sync the rail runs (pull-then-push behind one confirm). Sync shows only when diverged — purely ahead/behind, the directional Push/Pull pill already is the smart action.
+  - Driven by `status.hasUpstream` / ahead / behind; accent pills (Sync, Publish) use VS Code's prominent status-bar tokens. New `StatusBar.test.ts`.
+
 ### Fixed
+- **Amending a pushed commit then syncing rebased the old commit back** instead of offering a force-push (ROADMAP §4.2, two related reports). After an amend/rebase/reword/squash of an already-pushed commit, the branch is *diverged* (ahead = your rewrite, behind = the original still on the remote), and Smart Sync treated every divergence as "rebase then push" — which pulled the pre-rewrite commit back, so the amend looked undone. Sync now distinguishes a **rewrite** divergence from a genuine collaboration divergence: new Go `DivergenceIsRewrite` (`branch.divergeRewrite` cmd) checks whether every commit the upstream has that we don't is an *old version of our own history* (present in this branch's reflog) — `git rev-list HEAD..@{u} --not <branch-reflog>`. When it is, Smart Sync offers a single **force-with-lease** push (no rebase, no stash; the lease still aborts if a teammate pushed since your last fetch); a genuine divergence still rebases as before. The decision lives in the pure `planSync` (new `rewrite` arg + `force` plan field), so it's exhaustively unit-tested; Go tests cover the amend, collab-divergence, and in-sync/ahead cases.
 - **Opening a stash whose origin branch was deleted showed nothing.** Double-clicking a stash redirected the log to the branch it was taken on (parsed from the `On <branch>:` message) *before* rendering the stash — and `selectBranch` clears the detail pane as a side effect. If that branch had since been deleted, `git log <deleted-branch>` errored and left the pane empty, even though the stash content (keyed by index, never branch-scoped) had loaded fine. Now the redirect is best-effort and guarded: it only switches when the branch still exists, and the stash diff is rendered last so nothing can wipe it. Branch gone → stay on the current view and just show the stash (its `On <branch>:` label keeps the context); no forced jump elsewhere. Redirect decision extracted to `stashRedirect.ts` with unit tests (incl. the deleted-branch path).
 
 ## [0.2.8] — 2026-06-13

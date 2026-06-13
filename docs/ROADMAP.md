@@ -107,10 +107,6 @@ every mutation) lives in `CLAUDE.md` → Testing approach.
 > what was fixed and when.
 
 Real bugs:
-1. Main-panel status bar: show "no upstream / unpublished branch" state after
-   the branch name, clickable → push & set upstream.
-2. Amend with remote sync not amending; after amending, "magic sync" rebases
-   back instead of force-with-lease offering. (Two related reports.)
 3. Theme-token audit: ~76 hardcoded `color:`/`background:` declarations remain
    across components — most have token fallbacks already, but audit the ones
    without before 1.0.

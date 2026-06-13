@@ -632,6 +632,13 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, branch)
 
+	case "branch.divergeRewrite":
+		rewrite, err := git.DivergenceIsRewrite(repoPath)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, map[string]bool{"rewrite": rewrite})
+
 	case "merge":
 		var p struct {
 			Branch string `json:"branch"`

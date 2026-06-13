@@ -66,17 +66,10 @@
   let hasPending    = $state(false);   // ahead > 0 → pull button lit
 
   let sbBranch = $state('master');
-  let sbInfo   = $state('');
-  let sbInfoTitle = $state(''); // raw ↑/↓ symbols, shown as a tooltip for git pros
+  let sbAhead  = $state(0); // commits to push → Push pill
+  let sbBehind = $state(0); // commits to pull → Pull pill
   let sbCounts = $state('');
-
-  // Plain-language ahead/behind (ideas.md): "↑2 ↓1" → "2 to push, 1 to pull".
-  function aheadBehindText(ahead: number, behind: number): string {
-    const parts: string[] = [];
-    if (ahead) parts.push(`${ahead} to push`);
-    if (behind) parts.push(`${behind} to pull`);
-    return parts.length ? ' · ' + parts.join(', ') : '';
-  }
+  let sbNoUpstream = $state(false); // on a branch with no upstream → show Publish
   let iconUri  = document.body.dataset.iconUri ?? '';
   // Multi-repo breadcrumb: the active repo's name, shown before the branch in
   // the status bar (repo ▸ branch). Empty in single-repo workspaces → hidden.
@@ -152,10 +145,12 @@
       const rawCommits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 0 });
 
       sbBranch    = status.branch || activeBranch;
-      sbInfo      = aheadBehindText(status.ahead ?? 0, status.behind ?? 0);
-      sbInfoTitle = status.ahead || status.behind ? `↑${status.ahead} ↓${status.behind}` : '';
+      sbAhead     = status.ahead ?? 0;
+      sbBehind    = status.behind ?? 0;
       hasPending  = (status.behind ?? 0) > 0;
       detached    = !!status.detached;
+      // Unpublished branch: on a branch (not detached) with no upstream set.
+      sbNoUpstream = !status.detached && !!status.branch && !status.hasUpstream;
       identityMissing = !user?.name || !user?.email;
       branches    = brs;
       commits     = rawCommits;
@@ -619,7 +614,16 @@
 
     const ahead = st.ahead ?? 0;
     const behind = st.behind ?? 0;
-    const plan = planSync(ahead, behind, (st.modified ?? 0) > 0);
+    // A divergence caused by amending/rebasing already-pushed commits must be
+    // reconciled by force-with-lease, not a rebase (which would pull the old
+    // commits back). Only worth asking Go when actually diverged.
+    let rewrite = false;
+    if (ahead > 0 && behind > 0) {
+      rewrite = await send<{ rewrite: boolean }>('branch.divergeRewrite')
+        .then((r) => !!r?.rewrite)
+        .catch(() => false);
+    }
+    const plan = planSync(ahead, behind, (st.modified ?? 0) > 0, rewrite);
     const branch = st.branch || activeBranch;
 
     if (plan.kind === 'noop') {
@@ -636,6 +640,25 @@
         `yourself? Cancel and use the Pull / Push buttons.`
       );
       if (!ok) { flash('Sync cancelled', '#e0a030'); return; }
+    }
+
+    // Rewrite divergence: a single force-with-lease push, no pull/stash.
+    if (plan.force) {
+      flash('Force-pushing…');
+      try {
+        await send('push.force');
+        flash(`Force-pushed ${ahead} rewritten commit${ahead === 1 ? '' : 's'} (with lease)`, '#4ec94e');
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // --force-with-lease aborts if the remote moved since our fetch.
+        if (/stale info|force-with-lease|\brejected\b|non-fast-forward/i.test(msg)) {
+          flash('Remote changed since fetch — Sync again to re-check before force-pushing.', '#e0a030');
+        } else {
+          flash('Force-push failed: ' + msg, '#f07070');
+        }
+      }
+      loadAll();
+      return;
     }
 
     flash('Syncing…');
@@ -1623,10 +1646,15 @@
         repo={repoName}
         onRepoClick={openRepoPicker}
         branch={sbBranch}
-        info={sbInfo}
-        infoTitle={sbInfoTitle}
         countsText={flashMsg ? `⚡ ${flashMsg}` : sbCounts}
         {iconUri}
+        noUpstream={sbNoUpstream}
+        onPublish={() => doPush()}
+        ahead={sbAhead}
+        behind={sbBehind}
+        onPush={() => doPush()}
+        onPull={() => tbAction('pull')}
+        onSync={() => railAction('sync')}
       />
     </div>
   {/if}
