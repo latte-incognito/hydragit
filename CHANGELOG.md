@@ -11,7 +11,7 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
-## [Unreleased]
+## [0.2.8] — 2026-06-13
 
 ### Added
 - **Hunk staging — stage part of a file** (Sublime Merge–style, the payoff of real-index staging): a `›` chevron on each file row expands a compact unified diff inline, with per-hunk **Stage** / **Discard** in the Changes section and **Unstage** in Staged Changes. Stage one hunk of a five-hunk file, commit it, leave the rest — no separate view, no mode switch. Backed by new Go `WorkingDiff`/`StageHunk`/`UnstageHunk`/`DiscardHunk` (`internal/git/hunks.go`): each hunk carries git's **verbatim patch text** (file header + that hunk), which the webview round-trips opaquely back through `git apply --cached [-R]` — so we never reconstruct a patch and can't corrupt it. A stale hunk (the index moved since the diff rendered) is git's own "does not apply" refusal, surfaced and re-synced rather than half-applied; hunk discard auto-snapshots like every discard. New cmds: `diff.working`, `hunk.stage`, `hunk.unstage`, `hunk.discard`. Line-level selection and syntax highlighting in the inline diff are deliberately deferred. New `HunkView.svelte` + the row toggle in `FileTree`; covered by Go unit tests (two-hunk partial-stage round-trip, stale-refusal-leaves-index-intact, binary/untracked → no hunks, no-newline marker survives), Vitest (`HunkView.test.ts`), and a Playwright spec (`hunks.spec.ts`, HK1).
@@ -193,6 +193,7 @@ The MVP was replaced with the real foundation in this range (~8 400 insertions).
 
 Everything HydraGit ships today, by topic. Each entry links to its full
 documentation (UI entry point → what happens next) in
+[0.2.8]: https://github.com/latte-incognito/hydragit/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/latte-incognito/hydragit/compare/v0.2.6...v0.2.7
 [`documentation/`](documentation/index.html).
 
