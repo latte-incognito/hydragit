@@ -143,6 +143,9 @@ var mutatingCmds = map[string]bool{
 	"discard":               true,
 	"stage":                 true,
 	"unstage":               true,
+	"hunk.stage":            true,
+	"hunk.unstage":          true,
+	"hunk.discard":          true,
 }
 
 // autoSnapshotCmds trigger a working-tree snapshot (refs/hydragit/snapshots)
@@ -167,6 +170,7 @@ var autoSnapshotCmds = map[string]bool{
 	"stash.apply":        true,
 	"snapshot.restore":   true,
 	"discard":            true,
+	"hunk.discard":       true,
 }
 
 func Handle(repoPath string, req Request) Response {
@@ -918,6 +922,43 @@ func handle(repoPath string, req Request) Response {
 			fn = git.Unstage
 		}
 		if err := fn(repoPath, p.Paths); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "diff.working":
+		var p struct {
+			File   string `json:"file"`
+			Cached bool   `json:"cached"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "file", p.File); r != nil {
+			return *r
+		}
+		hunks, err := git.WorkingDiff(repoPath, p.File, p.Cached)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, hunks)
+
+	case "hunk.stage", "hunk.unstage", "hunk.discard":
+		var p struct {
+			Patch string `json:"patch"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "patch", p.Patch); r != nil {
+			return *r
+		}
+		var err error
+		switch req.Cmd {
+		case "hunk.stage":
+			err = git.StageHunk(repoPath, p.Patch)
+		case "hunk.unstage":
+			err = git.UnstageHunk(repoPath, p.Patch)
+		default:
+			err = git.DiscardHunk(repoPath, p.Patch)
+		}
+		if err != nil {
 			return fail(id, err)
 		}
 		return ok(id, nil)

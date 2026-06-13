@@ -1,6 +1,7 @@
 <script lang="ts">
   import { send } from '$shared/messageBus';
   import type { GitFile } from '../types';
+  import HunkView from './HunkView.svelte';
 
 
   interface Props {
@@ -8,12 +9,19 @@
     loading?: boolean;
     noRepo?: boolean;
     collapsed?: Set<string>; // persisted by parent
+    /** Repo root for hunk-diff fetches (scoped per repo); empty disables hunks. */
+    repoRoot?: string;
+    /** Bumped by the parent on every status change so open hunk views re-fetch. */
+    statusKey?: number;
     onToggleStage?: (path: string, stage: boolean) => void;
     onToggleFolder?: (key: string) => void;
     onStageFolder?: (paths: string[], stage: boolean) => void;
     onOpenDiff?: (path: string) => void;
     onOpenFile?: (path: string) => void;
     onDiscard?: (paths: string[]) => void;
+    onHunkStage?: (patch: string) => void;
+    onHunkUnstage?: (patch: string) => void;
+    onHunkDiscard?: (patch: string) => void;
   }
 
   let {
@@ -21,13 +29,33 @@
     loading = false,
     noRepo = false,
     collapsed = new Set(),
+    repoRoot = '',
+    statusKey = 0,
     onToggleStage = () => {},
     onToggleFolder = () => {},
     onStageFolder = () => {},
     onOpenDiff = () => {},
     onOpenFile = () => {},
-    onDiscard = () => {}
+    onDiscard = () => {},
+    onHunkStage = () => {},
+    onHunkUnstage = () => {},
+    onHunkDiscard = () => {}
   }: Props = $props();
+
+  // Which file rows have their inline hunk view expanded. Keyed by
+  // "staged|path" so the same file's two section rows expand independently.
+  let expanded: Set<string> = $state(new Set());
+  function hunkKey(path: string, staged: boolean) {
+    return (staged ? 's|' : 'w|') + path;
+  }
+  function toggleHunks(path: string, staged: boolean) {
+    const k = hunkKey(path, staged);
+    // Reassign a FRESH Set — Svelte 5 drops self-assignment (`x = x`) on the
+    // equality check, so an in-place mutate + self-assign never re-renders.
+    const next = new Set(expanded);
+    next.has(k) ? next.delete(k) : next.add(k);
+    expanded = next;
+  }
 
   // ── Types ─────────────────────────────────────────────────────────────────
   interface TreeFolder {
@@ -369,6 +397,8 @@
             {@const fname = f.path.split('/').pop() ?? f.path}
             {@const staged = inStaged}
             {@const indent = 8 + (node.fullPath === '__root__' ? 0 : depth + 1) * 14}
+            {@const canHunk = !!repoRoot && !isConflict(f)}
+            {@const hunksOpen = expanded.has(hunkKey(f.path, staged))}
 
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -384,6 +414,22 @@
               data-path={f.path}
               tabindex="0"
             >
+              {#if canHunk}
+                <button
+                  class="hunk-toggle"
+                  class:open={hunksOpen}
+                  title={hunksOpen ? 'Hide hunks' : 'Show hunks (stage part of this file)'}
+                  aria-label="Toggle hunks for {fname}"
+                  aria-expanded={hunksOpen}
+                  onclick={(e) => { e.stopPropagation(); toggleHunks(f.path, staged); }}
+                >
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                    <path d="M3 2l4 3-4 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              {:else}
+                <span class="hunk-toggle-spacer"></span>
+              {/if}
               <span class="badge {s.badgeClass}" title={s.label}>{s.label}</span>
 
               {#if isRename && parsed?.oldName}
@@ -433,6 +479,18 @@
                 />
               {/if}
             </div>
+
+            {#if canHunk && hunksOpen}
+              <HunkView
+                file={f.path}
+                {repoRoot}
+                {staged}
+                refreshKey={statusKey}
+                onStage={onHunkStage}
+                onUnstage={onHunkUnstage}
+                onDiscard={onHunkDiscard}
+              />
+            {/if}
           {/if}
         {/each}
       {/if}
@@ -676,6 +734,30 @@
   .rename-arrow {
     color: var(--vscode-descriptionForeground, #666);
     font-size: var(--hg-font-xxs);
+    flex-shrink: 0;
+  }
+
+  /* ── Hunk expand toggle ── */
+  .hunk-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--vscode-descriptionForeground, #888);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.12s ease, color 0.1s;
+  }
+  .hunk-toggle.open { transform: rotate(90deg); }
+  .hunk-toggle:hover { color: var(--vscode-foreground, #ccc); }
+  .hunk-toggle-spacer {
+    width: 14px;
+    min-width: 14px;
     flex-shrink: 0;
   }
 

@@ -33,6 +33,9 @@ internal/git/safety.go        CommitSafety — pre-commit warnings (secrets, con
 internal/git/snapshot.go      SnapshotCreate/List/Restore/Drop — working-tree time machine (refs/hydragit/snapshots)
 internal/git/stash.go         StashList, StashPop, StashApply, StashDrop, StashClear, StashShow, StashFiles, StashSave
 internal/git/commit.go        CreateCommit, CommitAndPush (stage paths + commit), AmendCommit, FixupCommit, LastCommitMessage
+internal/git/stage.go         Stage/Unstage — real-index staging (git add / restore --staged) behind the sidebar checkboxes
+internal/git/hunks.go         WorkingDiff (hunks of a working/staged diff), StageHunk/UnstageHunk/DiscardHunk (git apply --cached [-R])
+internal/git/discard.go       Discard — throw away local changes (restore tracked from HEAD, clean untracked); auto-snapshot before
 internal/git/rebase.go        RunInteractiveRebase, DropCommit, RewordCommit, SquashWithParent, RebaseAutosquash, Rebase{Continue,Skip,Abort}, RebaseInProgress
 internal/git/conflict.go      Conflicts, KeepCurrent/KeepIncoming, MarkResolved, Continue/AbortConflict
 internal/git/reflog.go        Reflog — HEAD undo timeline
@@ -116,7 +119,9 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 | Working-tree snapshots (auto before risky ops) | `snapshot.list`, `snapshot.save`, `snapshot.restore`, `snapshot.drop` |
 | Fetch, pull (+ mode), push | `fetch`, `pull`, `pull.mode`, `push` |
 | Cherry-pick, revert | `cherrypick`, `revert` |
-| Stage + commit / commit & push | `commit`, `commit.push` |
+| Stage / unstage (real index) + commit / commit & push | `stage`, `unstage`, `commit`, `commit.push` |
+| Hunk staging (inline diff, stage/unstage/discard a hunk) | `diff.working`, `hunk.stage`, `hunk.unstage`, `hunk.discard` |
+| Discard changes (file/folder/section, auto-snapshot) | `discard` |
 | Tags list/create/delete | `tags`, `tag.create`, `tag.delete` |
 | Blame (buffer-aware), committer info | `blame`, `user` |
 | File history + line/selection history | `file.history`, `line.history` |

@@ -43,6 +43,7 @@
   let commitError = $state('');
   let commitAreaRef: CommitArea = $state();
   let loaded = $state(false); // first successful load done — gates the loading spinner
+  let statusKey = $state(0); // bumped on every applied status change → open hunk views re-fetch
   // Clean repos collapse to a one-liner (§4.15); this opens the commit area
   // anyway for the message-only amend path (§4.16).
   let showCleanCommitArea = $state(false);
@@ -79,6 +80,7 @@
     hasUpstream = nextUpstream;
     branch = nextBranch;
     files = nextFiles;
+    statusKey++; // signal open hunk views to re-fetch their diffs
     loading = false;
     loaded = true;
     if (nextFiles.some((f) => f.status === '!') || conflicts.operation) {
@@ -172,6 +174,23 @@
   function handleStageFolder(paths: string[], stage: boolean) {
     void stagePaths(paths, stage);
   }
+
+  // ── Hunk staging (Sublime-style inline) ────────────────────────────────────
+  // The patch is opaque (raw git output round-tripped). A stale patch — index
+  // moved since the hunk view rendered — is git's "does not apply" error,
+  // surfaced as commitError; loadChanges then re-fetches the fresh diff.
+  async function runHunk(cmd: 'hunk.stage' | 'hunk.unstage' | 'hunk.discard', patch: string) {
+    try {
+      await call(cmd, { patch });
+      await loadChanges();
+    } catch (e: unknown) {
+      commitError = e instanceof Error ? e.message : String(e);
+      await loadChanges(); // resync so the user sees the real current state
+    }
+  }
+  const handleHunkStage = (patch: string) => void runHunk('hunk.stage', patch);
+  const handleHunkUnstage = (patch: string) => void runHunk('hunk.unstage', patch);
+  const handleHunkDiscard = (patch: string) => void runHunk('hunk.discard', patch);
 
   // ── Discard ──────────────────────────────────────────────────────────────
   // The handler auto-snapshots before `discard` (refs/hydragit/snapshots), so
@@ -305,12 +324,17 @@
           {loading}
           noRepo={false}
           {collapsed}
+          repoRoot={repo.rootPath}
+          {statusKey}
           onToggleStage={handleToggleStage}
           onToggleFolder={handleToggleFolder}
           onStageFolder={handleStageFolder}
           onOpenDiff={handleOpenDiff}
           onOpenFile={handleOpenFile}
           onDiscard={handleDiscard}
+          onHunkStage={handleHunkStage}
+          onHunkUnstage={handleHunkUnstage}
+          onHunkDiscard={handleHunkDiscard}
         />
       {/if}
 

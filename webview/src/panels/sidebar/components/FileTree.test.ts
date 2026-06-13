@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent } from '@testing-library/svelte';
+import { render, fireEvent, waitFor } from '@testing-library/svelte';
+
+// FileTree mounts HunkView (which calls send) when a hunk row expands; mock the
+// bus so those fetches resolve to an empty diff unless a test overrides it.
+const sendMock = vi.hoisted(() => vi.fn());
+vi.mock('$shared/messageBus', () => ({ send: sendMock, on: vi.fn(() => () => {}) }));
+
 import FileTree from './FileTree.svelte';
 
 // Real-index model: a file renders in the Changes section via workStatus and
@@ -14,6 +20,7 @@ const files = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sendMock.mockResolvedValue([]);
 });
 
 // ── empty / loading states ────────────────────────────────────────────────────
@@ -366,6 +373,40 @@ describe('FileTree — row hover actions', () => {
 
     await fireEvent.click(getByLabelText('Discard all staged changes'));
     expect(onDiscard).toHaveBeenCalledWith(['src/main.ts']);
+  });
+});
+
+// ── hunk expand toggle ────────────────────────────────────────────────────────
+
+describe('FileTree — hunk toggle', () => {
+  it('shows the toggle only when a repoRoot is provided', () => {
+    const { container } = render(FileTree, { files });
+    expect(container.querySelector('.hunk-toggle')).toBeNull(); // no repoRoot → no hunks
+
+    const withRoot = render(FileTree, { files, repoRoot: '/a' });
+    expect(withRoot.container.querySelector('.hunk-toggle')).toBeTruthy();
+  });
+
+  it('conflicted rows never get a hunk toggle', () => {
+    const conflict = [{ path: 'clash.txt', status: '!', workStatus: '!' }];
+    const { getByText } = render(FileTree, { files: conflict, repoRoot: '/a' });
+    const row = getByText('clash.txt').closest('.file-row') as HTMLElement;
+    expect(row.querySelector('.hunk-toggle')).toBeNull();
+  });
+
+  it('clicking the toggle expands the inline hunk view and does not open the diff', async () => {
+    const onOpenDiff = vi.fn();
+    const { getByText, container } = render(FileTree, { files, repoRoot: '/a', onOpenDiff });
+
+    const row = getByText('main.ts').closest('.file-row') as HTMLElement;
+    const toggle = row.querySelector('.hunk-toggle') as HTMLElement;
+    await fireEvent.click(toggle);
+
+    expect(onOpenDiff).not.toHaveBeenCalled();
+    // HunkView mounts and issues its diff fetch.
+    await waitFor(() =>
+      expect(sendMock).toHaveBeenCalledWith('diff.working', { file: 'src/main.ts', cached: false }, '/a')
+    );
   });
 });
 
