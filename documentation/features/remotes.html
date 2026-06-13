@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Remotes &amp; Sync</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.5</span>
+    <span class="ver">v0.2.8</span>
   </header>
 
   <div class="page">
@@ -65,7 +65,7 @@
         <ul class="entrypoints">
           <li><span class="where">Action rail</span><span class="what"><b>Fetch</b> button.</span></li>
         </ul>
-        <p>Updates remote-tracking refs without touching your working tree. Ahead/behind counts refresh afterward.</p>
+        <p>Updates remote-tracking refs without touching your working tree. Ahead/behind counts refresh afterward. Runs with <code>--prune</code>, so branches deleted on the remote disappear from the tree instead of lingering. Fetch also refreshes <code>origin/HEAD</code> (<code>remote set-head --auto</code>) so the default-branch marker heals itself.</p>
       </section>
 
       <section class="feature" id="pull">
@@ -76,7 +76,7 @@
           <li><span class="where">Branch menu</span><span class="what"><b>Pull into '&lt;current&gt;' Using Rebase</b> or <b>Using Merge</b>.</span></li>
         </ul>
         <ol class="flow">
-          <li>Plain pull runs <span class="cmd">pull</span>.</li>
+          <li>Plain pull runs <span class="cmd">pull</span> (with <code>--prune</code>).</li>
           <li>The rebase/merge variants set the strategy via <span class="cmd">pull.mode</span> with <code>{ mode }</code>.</li>
           <li>A conflicting pull pauses with the <a href="conflicts.html">resolution banner</a>.</li>
         </ol>

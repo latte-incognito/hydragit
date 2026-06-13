@@ -11,6 +11,11 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
+## [Unreleased]
+
+### Fixed
+- **Opening a stash whose origin branch was deleted showed nothing.** Double-clicking a stash redirected the log to the branch it was taken on (parsed from the `On <branch>:` message) *before* rendering the stash — and `selectBranch` clears the detail pane as a side effect. If that branch had since been deleted, `git log <deleted-branch>` errored and left the pane empty, even though the stash content (keyed by index, never branch-scoped) had loaded fine. Now the redirect is best-effort and guarded: it only switches when the branch still exists, and the stash diff is rendered last so nothing can wipe it. Branch gone → stay on the current view and just show the stash (its `On <branch>:` label keeps the context); no forced jump elsewhere. Redirect decision extracted to `stashRedirect.ts` with unit tests (incl. the deleted-branch path).
+
 ## [0.2.8] — 2026-06-13
 
 ### Added

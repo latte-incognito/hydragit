@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Search &amp; filter</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.5</span>
+    <span class="ver">v0.2.8</span>
   </header>
 
   <div class="page">
@@ -29,17 +29,19 @@
     <article class="content">
       <h1><span class="glyph">⬡</span>Search &amp; filter</h1>
       <p class="lede">
-        The toolbar search box narrows the commit log five different ways, and the all-branches
-        toggle controls how much history is in scope. Message, author and code searches run
+        One toolbar search box narrows the commit log five different ways, and the branch pill
+        controls how much history is in scope. Message, author and code searches run
         server-side so the lane graph is re-laid-out over just the matches.
       </p>
 
       <section class="feature" id="modes">
-        <h2>Search modes</h2>
-        <p>A mode switch sits to the left of the search input; each mode tints the box and has its own placeholder.</p>
+        <h2>Search modes — token search</h2>
+        <p>There is a <b>single search input</b> (the icon mode-tabs were removed in 0.2.7). Focusing it opens a scope dropdown; the mode is chosen by typing a prefix, which becomes a removable coloured chip inside the input.</p>
         <h3 class="lbl">Entry point</h3>
         <ul class="entrypoints">
-          <li><span class="where">Toolbar</span><span class="what">Click a mode icon (<span class="chip">Message</span> <span class="chip a">Hash</span> <span class="chip g">File</span> <span class="chip p">Author</span> <span class="chip">Code</span>), then type.</span></li>
+          <li><span class="where">Toolbar</span><span class="what">Focus the search box → a dropdown lists <span class="chip p">Author</span> <span class="chip g">File</span> <span class="chip a">Hash</span> <span class="chip">Code</span> with example syntax. ↑↓ + Enter pick one.</span></li>
+          <li><span class="where">Prefix</span><span class="what">Type <code>author:</code>, <code>file:</code>, <code>hash:</code>, <code>code:</code> (or <code>@</code> for author) and it converts into a chip; no prefix = Message search.</span></li>
+          <li><span class="where">Backspace</span><span class="what">On an empty input, removes the active scope chip and returns to Message.</span></li>
         </ul>
       </section>
 
@@ -82,11 +84,12 @@
         match. Unrelated commits that merely shipped alongside the string don't.</p>
         <h3 class="lbl">Entry point</h3>
         <ul class="entrypoints">
-          <li><span class="where">Toolbar</span><span class="what">Pick the <span class="chip">Code</span> mode (<code>&lt;/&gt;</code> icon), type a string — e.g. a function name.</span></li>
+          <li><span class="where">Toolbar</span><span class="what">Pick the <span class="chip">Code</span> scope — a full-width monospace <b>snippet box</b> opens below the toolbar (auto-grows to 6 lines, paste-friendly, multi-line supported).</span></li>
         </ul>
         <ol class="flow">
-          <li>Typing debounces, then Go re-runs <span class="cmd">log</span> with <code>pickaxe</code> (<code>git log -S&lt;string&gt;</code>) server-side.</li>
-          <li>The graph re-lays out over the matches — typically just the commit that introduced the string and the one that removed it.</li>
+          <li>Unlike the other modes, code search runs <b>only on Enter / the Search button</b> — pickaxe scans every diff in history and is too expensive to run per keystroke. Shift+Enter inserts a newline; clearing the box restores the full log.</li>
+          <li>Go runs <span class="cmd">log</span> with <code>pickaxe</code> (<code>git log -S&lt;string&gt;</code>); the graph re-lays out over the matches and the result count is flashed (<code>N commits add or remove this snippet</code>).</li>
+          <li><b>Why a commit matched</b> — selecting a result restricts the detail pane's file list to the files where the snippet count actually changed (<code>diff-tree -S</code>, the <code>pickaxe</code> param on <span class="cmd">diff</span>), labelled "· snippet matches". Opening a file's diff also highlights every occurrence of the snippet in the native diff editor.</li>
         </ol>
         <div class="related"><b>Related</b><a href="history.html#linehistory">Line / selection history</a></div>
       </section>
@@ -95,10 +98,9 @@
         <h2>Branch scope</h2>
         <h3 class="lbl">Entry points</h3>
         <ul class="entrypoints">
-          <li><span class="where">Toolbar pill</span><span class="what"><b>All branches / This branch</b> toggle.</span></li>
-          <li><span class="where">Branch combobox</span><span class="what">Picking a branch restricts the log to that branch.</span></li>
+          <li><span class="where">Branch pill</span><span class="what">Opens a searchable branch picker with a pinned <b>All branches</b> first entry; the pill label reflects the active scope. (The separate All/This-branch toggle was removed in 0.2.7.)</span></li>
+          <li><span class="where">Pick a branch</span><span class="what">Restricts the log to that branch; picking <b>All branches</b> passes <code>--all</code>.</span></li>
         </ul>
-        <p>"All branches" passes <code>--all</code>; otherwise the log is scoped to the selected branch only.</p>
         <div class="related"><b>Related</b><a href="commit-log-graph.html">Commit log &amp; graph</a><a href="branches.html">Branches</a></div>
       </section>
 

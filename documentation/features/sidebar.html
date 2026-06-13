@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Views &amp; Layout<span class="sep">/</span>Sidebar</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.5</span>
+    <span class="ver">v0.2.8</span>
   </header>
 
   <div class="page">
@@ -19,6 +19,9 @@
       <h4>On this page</h4>
       <a href="#open" class="head">Opening the sidebar</a>
       <a href="#files">Changed-files tree</a>
+      <a href="#staging">Real-index staging</a>
+      <a href="#hunks">Hunk staging</a>
+      <a href="#discard">Discard changes</a>
       <a href="#sections">Section headers</a>
       <a href="#commitarea">Commit area</a>
       <a href="#conflict">Conflict banner</a>
@@ -28,8 +31,8 @@
       <h1><span class="glyph">⬡</span>Sidebar — staging view</h1>
       <p class="lede">
         The activity-bar webview <code>hydragit.sidebarView</code>: a focused staging-and-commit
-        surface. Changed files with status badges, per-file and master staging checkboxes, and a
-        pinned commit area with Commit / Commit &amp; Push.
+        surface. Changed files with status badges, real-index staging checkboxes, inline
+        hunk staging, per-level discard, and a pinned commit area with Commit / Commit &amp; Push.
       </p>
 
       <section class="feature" id="open">
@@ -43,7 +46,7 @@
         <ol class="flow">
           <li>On mount it sends <span class="cmd">status</span> and renders the returned changed-file list.</li>
           <li><a href="status.html"><code>HydraStatusService</code></a> pushes a fresh snapshot on every change via the <b>statusUpdate</b> message; the tree re-renders.</li>
-          <li>Staged paths are tracked webview-side as a <code>Set&lt;string&gt;</code> and pruned to paths still present on each refresh.</li>
+          <li>The tree's two sections come straight from git's own index/worktree split — each file carries an <code>indexStatus</code> (staged side) and a <code>workStatus</code> (working-tree side), so a file edited after staging shows in both.</li>
         </ol>
       </section>
 
@@ -56,14 +59,52 @@
           <span class="chip p">U</span> unmerged · <span class="chip">C</span> copied · <span class="chip">T</span> type-changed
         </p>
         <ul class="plain">
-          <li><b>Per-file checkbox</b> — stage or unstage that single file.</li>
+          <li><b>Per-file checkbox</b> — stage or unstage that single file (see <a href="#staging">real-index staging</a>).</li>
           <li><b>Click a file</b> to open its diff.</li>
+          <li><b>Hover a row</b> for an <b>open-file</b> pencil and a <b>↶ discard</b> button (see <a href="#discard">discard</a>).</li>
+          <li><b>Right-click a row</b> for Show Diff · Open File · Copy Path · Discard Changes.</li>
+          <li><b>The <code>›</code> chevron</b> expands the file's hunks inline (see <a href="#hunks">hunk staging</a>).</li>
         </ul>
+      </section>
+
+      <section class="feature" id="staging">
+        <h2>Real-index staging <span class="cmd">stage</span> <span class="cmd">unstage</span></h2>
+        <p>The checkboxes drive git's <b>real index</b>, VS Code SCM–style: checking a file runs <code>git add</code>, unchecking runs <code>git restore --staged</code> (on an unborn branch, <code>rm --cached</code>). This is a change from the old behaviour, where staging was a webview-side list and <code>git add</code> only ran at commit time.</p>
+        <ul class="plain">
+          <li><b>Stage, then keep editing</b> — the frozen snapshot stays under <b>Staged Changes</b> while the new edits appear as a second row under <b>Changes</b> (git's <code>MM</code> state).</li>
+          <li><b>Commit takes the frozen snapshot</b> — <span class="cmd">commit</span> commits the index as it stands, not whatever the file looks like at commit time.</li>
+          <li><b>Staging is shared and durable</b> — it's the real index, so it survives reloads and is visible to the terminal and other git tools.</li>
+          <li>Conflicted rows have no checkbox; the <a href="conflicts.html">conflict banner</a> owns their resolution.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="commit.html">Staging &amp; commit</a></div>
+      </section>
+
+      <section class="feature" id="hunks">
+        <h2>Hunk staging <span class="cmd">diff.working</span> <span class="cmd">hunk.stage</span></h2>
+        <p>Stage <b>part</b> of a file, Sublime Merge–style. The <code>›</code> chevron on any file row expands a compact unified diff inline, one bar per hunk:</p>
+        <ul class="plain">
+          <li>In <b>Changes</b>, each hunk has <b>Stage</b> and <b>↶ Discard</b>.</li>
+          <li>In <b>Staged Changes</b>, each hunk has <b>Unstage</b>.</li>
+          <li>Stage one hunk of a many-hunk file, commit it, leave the rest as working changes.</li>
+        </ul>
+        <p>Under the hood each hunk carries git's verbatim patch text, round-tripped back through <code>git apply --cached</code> (or <code>-R</code> for unstage/discard) — so the patch is never reconstructed. A stale hunk (the index moved since the diff rendered) is git's own &ldquo;does not apply&rdquo; refusal, surfaced and re-synced rather than half-applied. Binary and untracked files have no hunks — use the whole-file checkbox. Hunk discard auto-snapshots like every discard.</p>
+      </section>
+
+      <section class="feature" id="discard">
+        <h2>Discard changes <span class="cmd">discard</span></h2>
+        <p>Throw away local changes at any level of the tree, with a working-tree <a href="snapshots.html">snapshot</a> saved automatically first so every discard is recoverable.</p>
+        <ul class="plain">
+          <li><b>File</b> — the hover <b>↶</b> or the right-click <b>Discard Changes</b>.</li>
+          <li><b>Folder / section</b> — the <b>↶</b> revealed on the folder row or the Staged Changes / Changes header.</li>
+          <li>Tracked files are restored from HEAD; untracked/added files are removed from disk (the confirm says so).</li>
+          <li>The confirm names the repo in multi-repo workspaces; conflicted files are refused, and bulk discards skip them.</li>
+        </ul>
+        <div class="related"><b>Related</b><a href="snapshots.html">Working-tree snapshots</a></div>
       </section>
 
       <section class="feature" id="sections">
         <h2>Section headers <span class="cmd">SectionHeader</span></h2>
-        <p>Collapsible headers with file counts. The master checkbox stages/unstages everything in the section and supports an <b>indeterminate</b> state when only some files are staged.</p>
+        <p>Collapsible headers with file counts. The master checkbox stages/unstages everything in the section; each header also reveals a <b>↶ discard-all</b> on hover. Because the sections now come from the real index, a folder row is simply <b>checked</b> in Staged Changes and <b>unchecked</b> in Changes (no indeterminate state).</p>
       </section>
 
       <section class="feature" id="multirepo">
@@ -76,7 +117,7 @@
         <h2>Commit area <span class="cmd">CommitArea</span></h2>
         <p>Pinned to the bottom: the message textarea, a branch chip showing the target, and the action buttons.</p>
         <ul class="plain">
-          <li><b>Commit</b> — enabled only when <code>stagedCount &gt; 0</code> and the message is non-empty.</li>
+          <li><b>Commit</b> — enabled only when something is staged and the message is non-empty; it commits the real index (no paths are re-staged at commit time).</li>
           <li><b>Commit &amp; Push</b> — shown when the branch has an upstream and amend is off.</li>
           <li><b>Amend last commit</b> toggle — prefills HEAD's message; staging becomes optional. See <a href="commit.html#amend">amend</a>.</li>
         </ul>

@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Undo &amp; Safety<span class="sep">/</span>Working-tree snapshots</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.5</span>
+    <span class="ver">v0.2.8</span>
   </header>
 
   <div class="page">
@@ -37,7 +37,7 @@
         <h2>Auto-capture <span class="cmd amber">snapshot.save</span></h2>
         <h3 class="lbl">When snapshots are taken</h3>
         <ol class="flow">
-          <li>Automatically, right before: <span class="chip a">merge</span> <span class="chip a">rebase</span> (all variants) <span class="chip a">reset</span> <span class="chip a">pull</span> <span class="chip a">checkout</span> <span class="chip a">cherry-pick</span> <span class="chip a">revert</span> <span class="chip a">undo</span> <span class="chip a">stash pop/apply</span> — and before a snapshot <a href="#restore">restore</a> itself.</li>
+          <li>Automatically, right before: <span class="chip a">merge</span> <span class="chip a">rebase</span> (all variants) <span class="chip a">reset</span> <span class="chip a">pull</span> <span class="chip a">checkout</span> <span class="chip a">cherry-pick</span> <span class="chip a">revert</span> <span class="chip a">undo</span> <span class="chip a">stash pop/apply</span> <span class="chip a">discard</span> <span class="chip a">hunk discard</span> — and before a snapshot <a href="#restore">restore</a> itself.</li>
           <li>Inside the repo's operation lock, so the captured state is exactly what the operation saw.</li>
           <li>A <b>clean tree skips silently</b> — nothing at risk, nothing saved. Capture failures never block the operation (best-effort by design).</li>
         </ol>
@@ -51,8 +51,8 @@
           <li><span class="where">Branch pane</span><span class="what"><b>Snapshots</b> section (below Worktrees) — label, age, hover actions.</span></li>
         </ul>
         <ol class="flow">
-          <li>Each row shows the trigger label (e.g. <code>before reset</code>) and a relative age.</li>
-          <li><b>Click</b> a snapshot to see its diff in the detail pane — a snapshot is an ordinary commit, so the regular commit-diff plumbing renders what it captured.</li>
+          <li>Each row shows the trigger label (e.g. <code>before reset</code>), the <b>branch it was taken on</b> (recorded in the snapshot commit; older snapshots render without it), and a real date (<code>Today 3:00 pm</code> / <code>Jun 10</code>) instead of a bare relative age.</li>
+          <li><b>Click</b> a snapshot to see <b>what it captured</b> — the dirty files at the moment it was taken (exactly what ↺ Restore writes back), in the detail pane, titled with the label, branch, and capture time. (Snapshot commits are on no branch, so they aren't looked up in the log.)</li>
         </ol>
       </section>
 

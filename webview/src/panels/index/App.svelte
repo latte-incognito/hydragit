@@ -7,6 +7,7 @@
   import { fullDate } from '$shared/dates';
   import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Snapshot, Tag, Worktree } from './types';
   import { planSync } from './syncPlan';
+  import { stashRedirectTarget } from './stashRedirect';
 
   import Toolbar     from './components/Toolbar.svelte';
   import ActionRail  from './components/ActionRail.svelte';
@@ -431,7 +432,7 @@
   // ── Stash ─────────────────────────────────────────────────────────────────
   async function selectStash(i: number) {
     compare = null;
-    selStashIdx = i;
+    selStashIdx = i; // highlight the row immediately, before the fetch
     const s = stashes[i];
     const idx = s.index ?? i;
     try {
@@ -439,17 +440,28 @@
         send<DiffFile[]>('stash.files', { index: idx }),
         send<DiffHunk[]>('stash.show', { index: idx }),
       ]);
+      // Best-effort redirect to the stash's origin branch — and FIRST, because
+      // selectBranch clears diffFiles/diffHunks/selStashIdx as a side effect.
+      // The guard (stashRedirectTarget) skips a deleted/absent branch so opening
+      // the stash never depends on its branch still existing. Branch gone → stay
+      // put, just show the stash (its "On <branch>:" label keeps the context).
+      const target = stashRedirectTarget(
+        s.msg ?? s.message ?? '',
+        activeBranch,
+        branches.map((b) => b.name),
+      );
+      if (target) {
+        await selectBranch(target, false);
+      }
+      // Show the stash content LAST and unconditionally — it's keyed by index,
+      // never needs a branch, and is exactly what the user clicked on. Setting
+      // it after the redirect means selectBranch can't wipe it.
+      selStashIdx = i;
+      selCommitIdx = null;
+      selFile = null;
       diffFiles = files;
       diffHunks = hunks;
       diffFilesSnippetOnly = false;
-      selCommitIdx = null;
-      selFile = null;
-      // Stash message: "On <branch>: ..." or "WIP on <branch>: ..."
-      const stashMsg = s.msg ?? s.message ?? '';
-      const branchMatch = stashMsg.match(/^(?:WIP )?[Oo]n (.+?):/);
-      if (branchMatch && branchMatch[1] !== activeBranch) {
-        await selectBranch(branchMatch[1], false);
-      }
     } catch (e: unknown) {
       flash('Show failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
     }
