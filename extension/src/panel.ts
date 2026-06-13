@@ -56,6 +56,17 @@ function enabledSafetyChecks(): string[] {
   const cfg = vscode.workspace.getConfiguration('hydragit.safety');
   return SAFETY_CHECKS.filter((c) => cfg.get<boolean>(c, true));
 }
+// Which branches the protectedBranch check guards. Sanitized here so a
+// malformed user setting (non-array, empty strings) degrades to the default
+// instead of silently disarming the check Go-side.
+function protectedBranchList(): string[] {
+  const cfg = vscode.workspace.getConfiguration('hydragit.safety');
+  const raw = cfg.get<unknown>('protectedBranches', ['main', 'master']);
+  const list = Array.isArray(raw)
+    ? raw.filter((b): b is string => typeof b === 'string' && b.trim() !== '').map((b) => b.trim())
+    : [];
+  return list.length > 0 ? list : ['main', 'master'];
+}
 
 // ── Shared diff helpers ───────────────────────────────────────────────────────
 
@@ -682,7 +693,7 @@ export class HydraSidebarProvider implements vscode.WebviewViewProvider {
           webviewView.webview.postMessage({ id: msg.id, ok: true, data: [] });
           return;
         }
-        msg.params = { ...(msg.params ?? {}), checks };
+        msg.params = { ...(msg.params ?? {}), checks, protectedBranches: protectedBranchList() };
       }
 
       try {

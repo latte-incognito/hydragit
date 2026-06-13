@@ -2,8 +2,11 @@ export interface Branch {
   name: string;
   isCurrent: boolean;
   isRemote: boolean;
+  isDefault?: boolean; // the branch origin/HEAD points to
   upstream?: string;
-  trackShort?: string; // "[ahead 2]", "[behind 1]", "[gone]"
+  trackShort?: string; // "=", ">", "<", "<>" (upstream:trackshort)
+  ahead?: number;
+  behind?: number;
   gone?: boolean;
 }
 
@@ -31,6 +34,7 @@ export interface Commit {
   date: string;
   refs: string[];
   parents: string[];
+  unpushed?: boolean; // not reachable from any remote-tracking ref (local-only)
   lane?: number;
   seg?: number;
   color?: string;

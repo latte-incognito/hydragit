@@ -1,6 +1,6 @@
 <script lang="ts">
   import { send } from '$shared/messageBus';
-  import { fullDate } from '$shared/dates';
+  import { fullDate, smartDate } from '$shared/dates';
   import type { Commit, DiffFile, DiffHunk } from '../types';
 
   // Active ref/range comparison header (branch/tag/commit "Compare…"); when set,
@@ -21,7 +21,9 @@
     // The active code-search snippet — highlighted in opened diff editors.
     searchSnippet?: string;
     onSelectFile?: (path: string) => void;
-    onCommitAction?: (action: string, hash: string) => void;
+    // Routes to the same handler as the log's right-click menu — one source of
+    // behaviour for every commit action, two doors.
+    onCommitMenuAction?: (action: string, commit: Commit) => void;
     onStashAction?: (action: string) => void;
   }
 
@@ -37,9 +39,59 @@
     snippetFilter = false,
     searchSnippet = '',
     onSelectFile = () => {},
-    onCommitAction = () => {},
+    onCommitMenuAction = () => {},
     onStashAction = () => {}
   }: Props = $props();
+
+  // ── Commit card helpers ─────────────────────────────────────────────────────
+  let hashCopied = $state(false);
+  let hashCopyTimer: ReturnType<typeof setTimeout>;
+  async function copyHash() {
+    if (!commit?.hash) return;
+    await navigator.clipboard.writeText(commit.hash);
+    hashCopied = true;
+    clearTimeout(hashCopyTimer);
+    hashCopyTimer = setTimeout(() => (hashCopied = false), 1200);
+  }
+
+  // "HEAD -> develop" becomes two pills; "tag: v1.0" keeps its tag styling.
+  function refPills(refs: string[]): { label: string; kind: 'head' | 'tag' | 'branch' }[] {
+    return refs.flatMap((r) =>
+      r.split(' -> ').map((part) => {
+        const p = part.trim();
+        if (p === 'HEAD') return { label: 'HEAD', kind: 'head' as const };
+        if (p.startsWith('tag: ')) return { label: p.slice(5), kind: 'tag' as const };
+        return { label: p, kind: 'branch' as const };
+      })
+    );
+  }
+
+  // ⋯ overflow — the rarer/destructive actions, same handler as the log menu.
+  // The dropdown is position:fixed and anchored to the button's viewport rect:
+  // .detail-meta scrolls (overflow-y:auto), which clips absolutely-positioned
+  // children, so an absolute dropdown would render cut off under the pane.
+  let moreOpen = $state(false);
+  let moreRight = $state(0);
+  let moreBottom = $state(0);
+  function toggleMore(e: MouseEvent) {
+    hideTip();
+    if (!moreOpen) {
+      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      moreRight = window.innerWidth - r.right;
+      moreBottom = window.innerHeight - r.top + 4;
+    }
+    moreOpen = !moreOpen;
+  }
+  const MORE_ITEMS: { id: string; label: string; danger?: boolean }[] = [
+    { id: 'checkout',     label: 'Checkout at commit (detached)' },
+    { id: 'copy-message', label: 'Copy commit message' },
+    { id: 'create-patch', label: 'Save as patch…' },
+    { id: 'revert',       label: 'Revert commit', danger: true },
+  ];
+  function runMore(id: string) {
+    moreOpen = false;
+    if (commit) onCommitMenuAction(id, commit);
+  }
 
   let isStash = $derived(!commit && stash !== null);
 
@@ -137,9 +189,13 @@
   let collapsed = $state(new Set<string>());
 
   function toggleFolder(key: string) {
-    if (collapsed.has(key)) collapsed.delete(key);
-    else collapsed.add(key);
-    collapsed = collapsed; // trigger reactivity
+    // Reassign a fresh Set — Svelte 5 $state doesn't proxy Set mutations, and
+    // self-assignment is dropped by the equality check, so .add/.delete alone
+    // never re-renders (folder clicks silently did nothing).
+    const next = new Set(collapsed);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    collapsed = next;
   }
 
   function expandAll() {
@@ -329,16 +385,17 @@
   }
 
   // Revert / cherry-pick operate at commit granularity (the changes this commit
-  // introduced) — the same ops as the detail footer buttons. File-granular
-  // selection is not supported by the backend yet.
+  // introduced) — the same ops as the detail action row, routed through the
+  // shared commit-menu handler. File-granular selection is not supported by
+  // the backend yet.
   function ctxRevert() {
     closeCtx();
-    if (commit?.hash) onCommitAction('revert', commit.hash);
+    if (commit) onCommitMenuAction('revert', commit);
   }
 
   function ctxCherryPick() {
     closeCtx();
-    if (commit?.hash) onCommitAction('cherry-pick', commit.hash);
+    if (commit) onCommitMenuAction('cherry-pick', commit);
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -346,7 +403,12 @@
   }
 </script>
 
-<svelte:window onkeydown={onKeyDown} />
+<svelte:window
+  onkeydown={onKeyDown}
+  onclick={(e) => {
+    if (moreOpen && !(e.target as HTMLElement).closest('.dm-more-wrap')) moreOpen = false;
+  }}
+/>
 
 <!-- Fixed tooltip -->
 {#if tipVisible}
@@ -467,54 +529,53 @@
           </div>
 
           <div class="tree-body" oncontextmenu={showCtx}>
-            {#snippet renderStashFolder(node: TreeFolder, depth: number)}
-              <div
-                class="tree-row tree-row--folder"
-                class:tree-row--root={node.fullPath === '__root__'}
-                style="padding-left:{8 + depth * 14}px"
-                onclick={() => toggleFolder(node.fullPath)}
-                oncontextmenu={showCtx}
-              >
-                <svg class="chevron" class:open={!collapsed.has(node.fullPath)} width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M3 2l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <svg class="folder-icon" width="13" height="12" viewBox="0 0 14 13" fill="none">
-                  <path d="M1 4a1 1 0 011-1h3l1 1.5H12a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1V4z" stroke="currentColor" stroke-width="1.1"/>
-                </svg>
-                <span class="folder-label">{node.label}</span>
-                <span class="folder-count">{countFiles(node)}</span>
-              </div>
-              {#if !collapsed.has(node.fullPath)}
-                {#each node.children as child}
-                  {#if child.kind === 'folder'}
-                    {@render renderStashFolder(child, depth + 1)}
-                  {:else}
-                    {@const f = child.file}
-                    {@const s = cfg(f.status)}
-                    {@const fname = f.path.split('/').pop() ?? f.path}
-                    <div
-                      class="tree-row tree-row--file"
-                      class:selected={selFile === f.path}
-                      style="padding-left:{8 + (depth + 1) * 14}px"
-                      onclick={() => { onSelectFile(f.path); openDiff(f.path); }}
-                      ondblclick={() => openDiff(f.path, true)}
-                      oncontextmenu={(e) => showCtx(e, f.path)}
-                      role="option"
-                      aria-selected={selFile === f.path}
-                      tabindex="0"
-                    >
-                      <span class="badge {s.badgeClass}" title={f.status}>{s.label}</span>
-                      <span class="fname {s.nameClass}" title={f.path}>{fname}</span>
-                      <span class="file-stats">
-                        {#if f.additions}<span class="stat-add">+{f.additions}</span>{/if}
-                        {#if f.deletions}<span class="stat-del">-{f.deletions}</span>{/if}
-                      </span>
-                    </div>
+            {#snippet renderStashNodes(children: TreeNode[], depth: number)}
+              {#each children as child}
+                {#if child.kind === 'folder'}
+                  <div
+                    class="tree-row tree-row--folder"
+                    style="padding-left:{8 + depth * 14}px"
+                    onclick={() => toggleFolder(child.fullPath)}
+                    oncontextmenu={showCtx}
+                  >
+                    <svg class="chevron" class:open={!collapsed.has(child.fullPath)} width="10" height="10" viewBox="0 0 10 10" fill="none">
+                      <path d="M3 2l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <svg class="folder-icon" width="13" height="12" viewBox="0 0 14 13" fill="none">
+                      <path d="M1 4a1 1 0 011-1h3l1 1.5H12a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1V4z" stroke="currentColor" stroke-width="1.1"/>
+                    </svg>
+                    <span class="folder-label">{child.label}</span>
+                    <span class="folder-count">{countFiles(child)}</span>
+                  </div>
+                  {#if !collapsed.has(child.fullPath)}
+                    {@render renderStashNodes(child.children, depth + 1)}
                   {/if}
-                {/each}
-              {/if}
+                {:else}
+                  {@const f = child.file}
+                  {@const s = cfg(f.status)}
+                  {@const fname = f.path.split('/').pop() ?? f.path}
+                  <div
+                    class="tree-row tree-row--file"
+                    class:selected={selFile === f.path}
+                    style="padding-left:{8 + depth * 14}px"
+                    onclick={() => { onSelectFile(f.path); openDiff(f.path); }}
+                    ondblclick={() => openDiff(f.path, true)}
+                    oncontextmenu={(e) => showCtx(e, f.path)}
+                    role="option"
+                    aria-selected={selFile === f.path}
+                    tabindex="0"
+                  >
+                    <span class="badge {s.badgeClass}" title={f.status}>{s.label}</span>
+                    <span class="fname {s.nameClass}" title={f.path}>{fname}</span>
+                    <span class="file-stats">
+                      {#if f.additions}<span class="stat-add">+{f.additions}</span>{/if}
+                      {#if f.deletions}<span class="stat-del">-{f.deletions}</span>{/if}
+                    </span>
+                  </div>
+                {/if}
+              {/each}
             {/snippet}
-            {@render renderStashFolder(tree, 0)}
+            {@render renderStashNodes(tree.children, 0)}
           </div>
         {/if}
       </div>
@@ -569,6 +630,12 @@
                 </span>
               {/if}
             </span>
+            {#if !loading}
+              <span class="tree-totals">
+                <span class="stat-add">+{totalAdd}</span>
+                <span class="stat-del">-{totalDel}</span>
+              </span>
+            {/if}
             <div class="tt-wrap">
               <button
                 class="tt-btn"
@@ -597,74 +664,72 @@
             </div>
           </div>
 
-          <!-- Tree -->
+          <!-- Tree — the synthetic repo-root node is not rendered: it was always
+               there, always expanded, and cost one indent level for every row. -->
           <div class="tree-body" oncontextmenu={showCtx}>
-            {#snippet renderFolder(node: TreeFolder, depth: number)}
-              <!-- Folder row — always render, including root -->
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <div
-                class="tree-row tree-row--folder"
-                class:tree-row--root={node.fullPath === '__root__'}
-                style="padding-left:{8 + depth * 14}px"
-                onclick={() => toggleFolder(node.fullPath)}
-                oncontextmenu={showCtx}
-              >
-                <svg class="chevron" class:open={!collapsed.has(node.fullPath)} width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M3 2l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <svg class="folder-icon" width="13" height="12" viewBox="0 0 14 13" fill="none">
-                  <path d="M1 4a1 1 0 011-1h3l1 1.5H12a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1V4z" stroke="currentColor" stroke-width="1.1"/>
-                </svg>
-                <span class="folder-label">{node.label}</span>
-                <span class="folder-count">{countFiles(node)}</span>
-              </div>
-
-              {#if !collapsed.has(node.fullPath)}
-                {#each node.children as child}
-                  {#if child.kind === 'folder'}
-                    {@render renderFolder(child, depth + 1)}
-                  {:else}
-                    <!-- File row -->
-                    {@const f = child.file}
-                    {@const s = cfg(f.status)}
-                    {@const isRename = f.status === 'R'}
-                    {@const parsed = isRename ? parseRename(f) : null}
-                    {@const fname = f.path.split('/').pop() ?? f.path}
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <div
-                      class="tree-row tree-row--file"
-                      class:selected={selFile === f.path}
-                      style="padding-left:{8 + (depth + 1) * 14}px"
-                      onclick={() => { onSelectFile(f.path); openDiff(f.path); }}
-                      ondblclick={() => openDiff(f.path, true)}
-                      oncontextmenu={(e) => showCtx(e, f.path)}
-                      role="option"
-                      aria-selected={selFile === f.path}
-                      tabindex="0"
-                    >
-                      <span class="badge {s.badgeClass}" title={f.status}>{s.label}</span>
-
-                      {#if isRename && parsed?.oldName}
-                        <span class="fname fname-old">{parsed.oldName}</span>
-                        <span class="rename-arrow">→</span>
-                        <span class="fname {s.nameClass}">{parsed.newName}</span>
-                      {:else}
-                        <span class="fname {s.nameClass}" class:fname-d-strike={f.status === 'D'} title={f.path}>{fname}</span>
-                      {/if}
-
-                      <span class="file-stats">
-                        {#if f.additions}<span class="stat-add">+{f.additions}</span>{/if}
-                        {#if f.deletions}<span class="stat-del">-{f.deletions}</span>{/if}
-                      </span>
-                    </div>
+            {#snippet renderNodes(children: TreeNode[], depth: number)}
+              {#each children as child}
+                {#if child.kind === 'folder'}
+                  <!-- svelte-ignore a11y_click_events_have_key_events -->
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div
+                    class="tree-row tree-row--folder"
+                    style="padding-left:{8 + depth * 14}px"
+                    onclick={() => toggleFolder(child.fullPath)}
+                    oncontextmenu={showCtx}
+                  >
+                    <svg class="chevron" class:open={!collapsed.has(child.fullPath)} width="10" height="10" viewBox="0 0 10 10" fill="none">
+                      <path d="M3 2l4 3-4 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <svg class="folder-icon" width="13" height="12" viewBox="0 0 14 13" fill="none">
+                      <path d="M1 4a1 1 0 011-1h3l1 1.5H12a1 1 0 011 1v5a1 1 0 01-1 1H2a1 1 0 01-1-1V4z" stroke="currentColor" stroke-width="1.1"/>
+                    </svg>
+                    <span class="folder-label">{child.label}</span>
+                    <span class="folder-count">{countFiles(child)}</span>
+                  </div>
+                  {#if !collapsed.has(child.fullPath)}
+                    {@render renderNodes(child.children, depth + 1)}
                   {/if}
-                {/each}
-              {/if}
+                {:else}
+                  <!-- File row -->
+                  {@const f = child.file}
+                  {@const s = cfg(f.status)}
+                  {@const isRename = f.status === 'R'}
+                  {@const parsed = isRename ? parseRename(f) : null}
+                  {@const fname = f.path.split('/').pop() ?? f.path}
+                  <!-- svelte-ignore a11y_click_events_have_key_events -->
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <div
+                    class="tree-row tree-row--file"
+                    class:selected={selFile === f.path}
+                    style="padding-left:{8 + depth * 14}px"
+                    onclick={() => { onSelectFile(f.path); openDiff(f.path); }}
+                    ondblclick={() => openDiff(f.path, true)}
+                    oncontextmenu={(e) => showCtx(e, f.path)}
+                    role="option"
+                    aria-selected={selFile === f.path}
+                    tabindex="0"
+                  >
+                    <span class="badge {s.badgeClass}" title={f.status}>{s.label}</span>
+
+                    {#if isRename && parsed?.oldName}
+                      <span class="fname fname-old">{parsed.oldName}</span>
+                      <span class="rename-arrow">→</span>
+                      <span class="fname {s.nameClass}">{parsed.newName}</span>
+                    {:else}
+                      <span class="fname {s.nameClass}" class:fname-d-strike={f.status === 'D'} title={f.path}>{fname}</span>
+                    {/if}
+
+                    <span class="file-stats">
+                      {#if f.additions}<span class="stat-add">+{f.additions}</span>{/if}
+                      {#if f.deletions}<span class="stat-del">-{f.deletions}</span>{/if}
+                    </span>
+                  </div>
+                {/if}
+              {/each}
             {/snippet}
 
-            {@render renderFolder(tree, 0)}
+            {@render renderNodes(tree.children, 0)}
           </div>
         {/if}
       </div>
@@ -683,26 +748,70 @@
             </div>
           {/if}
         {:else if commit}
-          <div class="dm-hash">{(commit.hash ?? '').slice(0, 8)}</div>
+          <!-- Hash copies itself on click (GitHub style) — no Copy-hash button. -->
+          <button
+            class="dm-hash"
+            title={hashCopied ? 'Copied!' : `${commit.hash} — click to copy`}
+            onclick={copyHash}
+          >
+            {(commit.hash ?? '').slice(0, 8)}
+            {#if hashCopied}
+              <span class="dm-hash-copied">✓ copied</span>
+            {:else}
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none" class="dm-hash-copy">
+                <rect x="4" y="4" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.1"/>
+                <path d="M8 4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v4a1 1 0 001 1h1" stroke="currentColor" stroke-width="1.1"/>
+              </svg>
+            {/if}
+          </button>
           <div class="dm-msg">{commit.message ?? commit.msg ?? ''}</div>
-          <div class="dm-row"><span class="dm-label">Author</span>{commit.author ?? ''}</div>
-          <div class="dm-row"><span class="dm-label">Date</span>{fullDate(commit.date ?? '')}</div>
+          <div class="dm-byline">
+            <span class="dm-author">{commit.author ?? ''}</span>
+            <span class="dm-byline-sep">·</span>
+            <span title={fullDate(commit.date ?? '')}>{smartDate(commit.date ?? '')}</span>
+          </div>
           {#if (commit.refs ?? []).length}
-            <div class="dm-row"><span class="dm-label">Refs</span>{(commit.refs ?? []).join(', ')}</div>
-          {/if}
-          {#if loading}
-            <div class="dm-stats"><span class="dm-stat-dim">Loading…</span></div>
-          {:else}
-            <div class="dm-stats">
-              <span class="stat-add">+{totalAdd}</span>
-              <span class="stat-del">-{totalDel}</span>
-              <span class="dm-stat-dim">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+            <div class="dm-refs">
+              {#each refPills(commit.refs ?? []) as pill}
+                <span class="dm-pill dm-pill--{pill.kind}">{pill.label}</span>
+              {/each}
             </div>
           {/if}
           <div class="dm-actions">
-            <button class="action-btn" onclick={() => onCommitAction('cherry-pick', commit?.hash ?? '')}>Cherry-pick</button>
-            <button class="action-btn" onclick={() => onCommitAction('revert', commit?.hash ?? '')}>Revert</button>
-            <button class="action-btn" onclick={() => onCommitAction('copy', commit?.hash ?? '')}>Copy hash</button>
+            <button class="action-btn"
+                    onmouseenter={e => showTip(e, 'Apply this commit onto the current branch')}
+                    onmouseleave={hideTip}
+                    onclick={() => commit && onCommitMenuAction('cherry-pick', commit)}>Cherry-pick</button>
+            <button class="action-btn"
+                    onmouseenter={e => showTip(e, 'Create a new branch at this commit')}
+                    onmouseleave={hideTip}
+                    onclick={() => commit && onCommitMenuAction('new-branch', commit)}>Branch here</button>
+            <button class="action-btn"
+                    onmouseenter={e => showTip(e, 'Create a tag at this commit')}
+                    onmouseleave={hideTip}
+                    onclick={() => commit && onCommitMenuAction('new-tag', commit)}>Tag</button>
+            {#if !commit.unpushed}
+              <!-- Only for pushed commits — a local-only commit has no remote URL. -->
+              <button class="action-btn" aria-label="View on remote"
+                      onmouseenter={e => showTip(e, 'View this commit on the remote (GitHub, GitLab…)')}
+                      onmouseleave={hideTip}
+                      onclick={() => commit && onCommitMenuAction('view-in-browser', commit)}>↗</button>
+            {/if}
+            <span class="dm-more-wrap">
+              <button class="action-btn" aria-label="More actions" aria-haspopup="menu" aria-expanded={moreOpen}
+                      onmouseenter={e => showTip(e, 'More actions')}
+                      onmouseleave={hideTip}
+                      onclick={toggleMore}>⋯</button>
+              {#if moreOpen}
+                <div class="dm-more" role="menu" style="right:{moreRight}px;bottom:{moreBottom}px">
+                  {#each MORE_ITEMS as item}
+                    {#if item.danger}<div class="dm-more-sep"></div>{/if}
+                    <button class="dm-more-item" class:danger={item.danger} role="menuitem"
+                            onclick={() => runMore(item.id)}>{item.label}</button>
+                  {/each}
+                </div>
+              {/if}
+            </span>
           </div>
         {/if}
       </div>
@@ -898,30 +1007,23 @@
   }
 
   /* ── Badge ── */
+  /* Bare colored status letters, VS Code SCM palette — the boxy chips around
+     identical Ms were noise; color is the signal, and these tokens are muscle
+     memory for anyone using VS Code's own source control view. */
   .badge {
     font-size: var(--hg-font-xxs);
     font-family: var(--hg-font-family);
     font-weight: 600;
-    width: 14px;
-    height: 14px;
-    border-radius: 3px;
+    width: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
   }
-  /* Modified — blue */
-  .badge-m { background: var(--vscode-gitDecoration-modifiedResourceForeground, #4a9cd6) 18%;
-              color: var(--vscode-gitDecoration-modifiedResourceForeground, #4a9cd6); }
-  .badge-m { background: rgba(74,156,214,0.15); color: #4a9cd6; border: 0.5px solid rgba(74,156,214,0.35); }
-  /* Added / Untracked — green */
-  .badge-a, .badge-u { background: rgba(78,201,78,0.13); color: #4ec94e; border: 0.5px solid rgba(78,201,78,0.3); }
-  /* Deleted — muted */
-  .badge-d { background: rgba(160,160,160,0.1); color: #888; border: 0.5px solid rgba(160,160,160,0.25); }
-  /* Renamed — blue (same family as M) */
-  .badge-r { background: rgba(74,156,214,0.15); color: #4a9cd6; border: 0.5px solid rgba(74,156,214,0.35); }
-  /* Copied — amber */
-  .badge-c { background: rgba(224,160,48,0.13); color: #e0a030; border: 0.5px solid rgba(224,160,48,0.3); }
+  .badge-m { color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d); }
+  .badge-a, .badge-u { color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b); }
+  .badge-d { color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39); }
+  .badge-r, .badge-c { color: var(--vscode-gitDecoration-renamedResourceForeground, #73c991); }
 
   /* ── File name ── */
   .fname {
@@ -975,12 +1077,28 @@
     overflow-y: auto;
     max-height: 40%;
   }
+  /* Hash is the copy affordance — click copies the full hash. */
   .dm-hash {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-family: var(--hg-editor-font-family);
     font-size: var(--hg-editor-font-size);
     color: #4a9cd6;
     margin-bottom: 4px;
     opacity: 0.85;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .dm-hash:hover { opacity: 1; }
+  .dm-hash-copy { opacity: 0; transition: opacity 0.12s; }
+  .dm-hash:hover .dm-hash-copy { opacity: 0.7; }
+  .dm-hash-copied {
+    font-size: var(--hg-font-xxs);
+    color: #4ec94e;
+    font-family: var(--hg-font-family);
   }
   .dm-msg {
     font-size: var(--hg-font-sm);
@@ -988,18 +1106,32 @@
     line-height: 1.4;
     margin-bottom: 6px;
   }
-  .dm-row {
+  .dm-byline {
     display: flex;
-    gap: 6px;
+    align-items: center;
+    gap: 5px;
     font-size: var(--hg-font-xs);
     color: var(--vscode-descriptionForeground, #888);
-    margin-bottom: 2px;
+    margin-bottom: 4px;
   }
-  .dm-label {
-    color: var(--vscode-disabledForeground, #555);
-    min-width: 48px;
-    flex-shrink: 0;
+  .dm-byline-sep { color: var(--vscode-disabledForeground, #555); }
+  .dm-refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin: 2px 0 4px;
   }
+  .dm-pill {
+    font-size: var(--hg-font-xxs);
+    font-family: var(--hg-font-family);
+    padding: 0px 6px;
+    border-radius: 7px;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+  .dm-pill--head   { color: #56c8e8; background: rgba(86,200,232,0.12);  border: 0.5px solid rgba(86,200,232,0.35); }
+  .dm-pill--branch { color: #4ec94e; background: rgba(78,201,78,0.1);    border: 0.5px solid rgba(78,201,78,0.3); }
+  .dm-pill--tag    { color: #e0a030; background: rgba(224,160,48,0.1);   border: 0.5px solid rgba(224,160,48,0.3); }
   .dm-stats {
     display: flex;
     gap: 8px;
@@ -1031,6 +1163,55 @@
   }
   .action-btn--danger:hover {
     color: #f07070;
+  }
+
+  /* ── ⋯ overflow menu (same handler as the log's right-click menu) ── */
+  .dm-more-wrap { position: relative; }
+  /* Fixed, viewport-anchored (right/bottom set inline from the button rect):
+     .detail-meta's overflow-y clips absolutely-positioned descendants. */
+  .dm-more {
+    position: fixed;
+    z-index: 120;
+    min-width: 200px;
+    background: var(--vscode-menu-background, #252526);
+    border: 0.5px solid var(--vscode-menu-border, #3a3a3a);
+    border-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    padding: 4px 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .dm-more-item {
+    background: none;
+    border: none;
+    text-align: left;
+    padding: 4px 12px;
+    font-size: var(--hg-font-xs);
+    font-family: var(--hg-font-family);
+    color: var(--vscode-menu-foreground, #ccc);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .dm-more-item:hover {
+    background: var(--vscode-menu-selectionBackground, #094771);
+    color: var(--vscode-menu-selectionForeground, #fff);
+  }
+  .dm-more-item.danger { color: #f07070; }
+  .dm-more-item.danger:hover { background: rgba(240,112,112,0.12); color: #f07070; }
+  .dm-more-sep {
+    height: 0.5px;
+    background: var(--vscode-menu-separatorBackground, #3a3a3a);
+    margin: 4px 0;
+  }
+
+  /* Totals in the tree toolbar (moved up from the commit card) */
+  .tree-totals {
+    display: flex;
+    gap: 6px;
+    font-size: var(--hg-font-xxs);
+    font-family: var(--hg-editor-font-family);
+    flex-shrink: 0;
+    margin-right: 2px;
   }
 
   /* ── Context menu ── */

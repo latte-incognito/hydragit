@@ -140,6 +140,12 @@ var mutatingCmds = map[string]bool{
 	"snapshot.save":         true,
 	"snapshot.restore":      true,
 	"snapshot.drop":         true,
+	"discard":               true,
+	"stage":                 true,
+	"unstage":               true,
+	"hunk.stage":            true,
+	"hunk.unstage":          true,
+	"hunk.discard":          true,
 }
 
 // autoSnapshotCmds trigger a working-tree snapshot (refs/hydragit/snapshots)
@@ -163,6 +169,8 @@ var autoSnapshotCmds = map[string]bool{
 	"stash.pop":          true,
 	"stash.apply":        true,
 	"snapshot.restore":   true,
+	"discard":            true,
+	"hunk.discard":       true,
 }
 
 func Handle(repoPath string, req Request) Response {
@@ -888,6 +896,73 @@ func handle(repoPath string, req Request) Response {
 		}
 		return ok(id, nil)
 
+	case "discard":
+		var p struct {
+			Paths []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if len(p.Paths) == 0 {
+			return fail(id, fmt.Errorf("missing required parameter: paths"))
+		}
+		if err := git.Discard(repoPath, p.Paths); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "stage", "unstage":
+		var p struct {
+			Paths []string `json:"paths"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if len(p.Paths) == 0 {
+			return fail(id, fmt.Errorf("missing required parameter: paths"))
+		}
+		fn := git.Stage
+		if req.Cmd == "unstage" {
+			fn = git.Unstage
+		}
+		if err := fn(repoPath, p.Paths); err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
+	case "diff.working":
+		var p struct {
+			File   string `json:"file"`
+			Cached bool   `json:"cached"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "file", p.File); r != nil {
+			return *r
+		}
+		hunks, err := git.WorkingDiff(repoPath, p.File, p.Cached)
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, hunks)
+
+	case "hunk.stage", "hunk.unstage", "hunk.discard":
+		var p struct {
+			Patch string `json:"patch"`
+		}
+		json.Unmarshal(req.Params, &p)
+		if r := missingParam(id, "patch", p.Patch); r != nil {
+			return *r
+		}
+		var err error
+		switch req.Cmd {
+		case "hunk.stage":
+			err = git.StageHunk(repoPath, p.Patch)
+		case "hunk.unstage":
+			err = git.UnstageHunk(repoPath, p.Patch)
+		default:
+			err = git.DiscardHunk(repoPath, p.Patch)
+		}
+		if err != nil {
+			return fail(id, err)
+		}
+		return ok(id, nil)
+
 	case "commit":
 		var p struct {
 			Message string   `json:"message"`
@@ -926,15 +1001,16 @@ func handle(repoPath string, req Request) Response {
 
 	case "commit.precheck":
 		var p struct {
-			Paths  []string `json:"paths"`
-			Checks []string `json:"checks"` // enabled checks, injected by the host from settings; empty = all
+			Paths             []string `json:"paths"`
+			Checks            []string `json:"checks"`            // enabled checks, injected by the host from settings; empty = all
+			ProtectedBranches []string `json:"protectedBranches"` // custom protected list, injected by the host; empty = main/master
 		}
 		json.Unmarshal(req.Params, &p)
 		enabled := map[string]bool{}
 		for _, c := range p.Checks {
 			enabled[c] = true
 		}
-		return ok(id, git.CommitSafety(repoPath, p.Paths, enabled))
+		return ok(id, git.CommitSafety(repoPath, p.Paths, enabled, p.ProtectedBranches))
 
 	case "commit.fixup":
 		var p struct {

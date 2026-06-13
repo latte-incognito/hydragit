@@ -145,41 +145,119 @@ describe('DetailPane — stats', () => {
     expect(getAllByText('-1').length).toBeGreaterThan(0);
   });
 
-  it('shows correct file count', () => {
+  it('shows file count in the tree toolbar', () => {
     const { getByText } = render(DetailPane, { commit, files });
-    expect(getByText('2 files')).toBeTruthy();
+    expect(getByText(/2 files changed/)).toBeTruthy();
   });
 
   it('shows singular file count', () => {
     const { getByText } = render(DetailPane, { commit, files: [files[0]] });
-    expect(getByText('1 file')).toBeTruthy();
+    expect(getByText(/1 file changed/)).toBeTruthy();
   });
 });
 
 // ── actions ───────────────────────────────────────────────────────────────────
 
-describe('DetailPane — action buttons', () => {
-  it('calls onCommitAction with cherry-pick', async () => {
-    const onCommitAction = vi.fn();
-    const { getByText } = render(DetailPane, { commit, files, onCommitAction });
+describe('DetailPane — action row', () => {
+  it('visible chips route through onCommitMenuAction with the commit', async () => {
+    const onCommitMenuAction = vi.fn();
+    const { getByText } = render(DetailPane, { commit, files, onCommitMenuAction });
 
     await fireEvent.click(getByText('Cherry-pick'));
-    expect(onCommitAction).toHaveBeenCalledWith('cherry-pick', commit.hash);
+    expect(onCommitMenuAction).toHaveBeenCalledWith('cherry-pick', commit);
+
+    await fireEvent.click(getByText('Branch here'));
+    expect(onCommitMenuAction).toHaveBeenCalledWith('new-branch', commit);
+
+    await fireEvent.click(getByText('Tag'));
+    expect(onCommitMenuAction).toHaveBeenCalledWith('new-tag', commit);
+
+    await fireEvent.click(getByText('↗'));
+    expect(onCommitMenuAction).toHaveBeenCalledWith('view-in-browser', commit);
   });
 
-  it('calls onCommitAction with revert', async () => {
-    const onCommitAction = vi.fn();
-    const { getByText } = render(DetailPane, { commit, files, onCommitAction });
+  it('Revert lives in the ⋯ overflow, separated from the visible chips', async () => {
+    const onCommitMenuAction = vi.fn();
+    const { getByText, queryByText } = render(DetailPane, { commit, files, onCommitMenuAction });
 
-    await fireEvent.click(getByText('Revert'));
-    expect(onCommitAction).toHaveBeenCalledWith('revert', commit.hash);
+    // not visible until the overflow opens
+    expect(queryByText('Revert commit')).toBeNull();
+
+    await fireEvent.click(getByText('⋯'));
+    expect(getByText('Checkout at commit (detached)')).toBeTruthy();
+    expect(getByText('Copy commit message')).toBeTruthy();
+
+    await fireEvent.click(getByText('Revert commit'));
+    expect(onCommitMenuAction).toHaveBeenCalledWith('revert', commit);
+    // menu closes after running an action
+    expect(queryByText('Revert commit')).toBeNull();
   });
 
-  it('calls onCommitAction with copy', async () => {
-    const onCommitAction = vi.fn();
-    const { getByText } = render(DetailPane, { commit, files, onCommitAction });
+  it('clicking the hash copies the full hash', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    // navigator.clipboard is getter-only in happy-dom — defineProperty, not assign.
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const { getByTitle, findByText } = render(DetailPane, { commit, files });
 
-    await fireEvent.click(getByText('Copy hash'));
-    expect(onCommitAction).toHaveBeenCalledWith('copy', commit.hash);
+    await fireEvent.click(getByTitle(`${commit.hash} — click to copy`));
+
+    expect(writeText).toHaveBeenCalledWith(commit.hash);
+    expect(await findByText('✓ copied')).toBeTruthy();
+  });
+
+  it('there is no separate Copy hash button anymore', () => {
+    const { queryByText } = render(DetailPane, { commit, files });
+    expect(queryByText('Copy hash')).toBeNull();
+  });
+
+  it('hides the view-on-remote button for unpushed commits', () => {
+    const { queryByText } = render(DetailPane, { commit: { ...commit, unpushed: true }, files });
+    expect(queryByText('↗')).toBeNull();
+  });
+
+  it('shows the view-on-remote button for pushed commits', () => {
+    const { getByText } = render(DetailPane, { commit, files });
+    expect(getByText('↗')).toBeTruthy();
+  });
+});
+
+// ── folder collapse/expand ────────────────────────────────────────────────────
+
+describe('DetailPane — folder toggle', () => {
+  it('clicking a folder row collapses and re-expands its files', async () => {
+    const { getByText, queryByText } = render(DetailPane, { commit, files });
+    // src/main.ts renders under the "src" folder, expanded by default
+    expect(getByText('main.ts')).toBeTruthy();
+
+    await fireEvent.click(getByText('src'));
+    expect(queryByText('main.ts')).toBeNull();
+
+    await fireEvent.click(getByText('src'));
+    expect(getByText('main.ts')).toBeTruthy();
+  });
+});
+
+// ── file tree root ────────────────────────────────────────────────────────────
+
+describe('DetailPane — tree has no synthetic root node', () => {
+  it('does not render a repo-root folder row', () => {
+    const { queryByText, container } = render(DetailPane, { commit, files });
+    expect(queryByText('HydraGit')).toBeNull();
+    // top-level folder starts at depth 0 (8px padding), not one level in
+    const firstFolder = container.querySelector('.tree-row--folder') as HTMLElement | null;
+    if (firstFolder) expect(firstFolder.style.paddingLeft).toBe('8px');
+  });
+});
+
+// ── refs pills ────────────────────────────────────────────────────────────────
+
+describe('DetailPane — ref pills', () => {
+  it('splits "HEAD -> branch" into separate pills', () => {
+    const withRefs = { ...commit, refs: ['HEAD -> develop', 'tag: v1.0', 'origin/develop'] };
+    const { getByText, container } = render(DetailPane, { commit: withRefs, files });
+
+    expect(container.querySelector('.dm-pill--head')?.textContent?.trim()).toBe('HEAD');
+    expect(getByText('develop').classList.contains('dm-pill')).toBe(true);
+    expect(container.querySelector('.dm-pill--tag')?.textContent?.trim()).toBe('v1.0');
   });
 });

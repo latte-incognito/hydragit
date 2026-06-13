@@ -1,17 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent } from '@testing-library/svelte';
+import { render, fireEvent, waitFor } from '@testing-library/svelte';
+
+// FileTree mounts HunkView (which calls send) when a hunk row expands; mock the
+// bus so those fetches resolve to an empty diff unless a test overrides it.
+const sendMock = vi.hoisted(() => vi.fn());
+vi.mock('$shared/messageBus', () => ({ send: sendMock, on: vi.fn(() => () => {}) }));
+
 import FileTree from './FileTree.svelte';
 
+// Real-index model: a file renders in the Changes section via workStatus and
+// in Staged Changes via indexStatus (both set = both sections, the MM case).
 const files = [
-  { path: 'src/main.ts',              status: 'M' },
-  { path: 'src/components/App.svelte', status: 'M' },
-  { path: 'internal/git/log.go',      status: 'M' },
-  { path: 'README.md',                status: 'A' },
-  { path: 'deleted.txt',              status: 'D' },
+  { path: 'src/main.ts',              status: 'M', workStatus: 'M' },
+  { path: 'src/components/App.svelte', status: 'M', workStatus: 'M' },
+  { path: 'internal/git/log.go',      status: 'M', workStatus: 'M' },
+  { path: 'README.md',                status: 'A', workStatus: 'A' },
+  { path: 'deleted.txt',              status: 'D', workStatus: 'D' },
 ];
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sendMock.mockResolvedValue([]);
 });
 
 // ── empty / loading states ────────────────────────────────────────────────────
@@ -110,22 +119,23 @@ describe('FileTree — status classes', () => {
   });
 });
 
-// ── staging — per file ────────────────────────────────────────────────────────
+// ── staging — per file (real index) ───────────────────────────────────────────
 
 describe('FileTree — per-file staging', () => {
-  it('renders unchecked checkboxes by default', () => {
-    const { getAllByRole } = render(FileTree, { files, stagedPaths: new Set() });
+  it('renders unchecked checkboxes for working-tree changes', () => {
+    const { getAllByRole } = render(FileTree, { files });
     const checkboxes = getAllByRole('checkbox') as HTMLInputElement[];
     const fileCheckboxes = checkboxes.filter(cb => cb.getAttribute('aria-label')?.startsWith('Stage '));
+    expect(fileCheckboxes.length).toBeGreaterThan(0);
     expect(fileCheckboxes.every(cb => !cb.checked)).toBe(true);
   });
 
-  it('renders checked checkboxes for staged files', () => {
-    const staged = new Set(['src/main.ts']);
-    const { getAllByRole } = render(FileTree, { files, stagedPaths: staged });
+  it('renders a checked Unstage checkbox for files with index changes', () => {
+    const staged = [{ path: 'src/main.ts', status: 'M', indexStatus: 'M' }];
+    const { getAllByRole } = render(FileTree, { files: staged });
     const checkboxes = getAllByRole('checkbox') as HTMLInputElement[];
-    const staged_cb = checkboxes.find(cb => cb.getAttribute('aria-label') === 'Stage main.ts');
-    expect(staged_cb?.checked).toBe(true);
+    const cb = checkboxes.find(c => c.getAttribute('aria-label') === 'Unstage main.ts');
+    expect(cb?.checked).toBe(true);
   });
 
   it('calls onOpenDiff with file path when file row is clicked', async () => {
@@ -136,7 +146,7 @@ describe('FileTree — per-file staging', () => {
     expect(onOpenDiff).toHaveBeenCalledWith('src/main.ts');
   });
 
-  it('calls onToggleStage when checkbox is changed', async () => {
+  it('checking a changes-row checkbox asks to stage the file', async () => {
     const onToggleStage = vi.fn();
     const { getAllByRole } = render(FileTree, { files, onToggleStage });
 
@@ -145,7 +155,20 @@ describe('FileTree — per-file staging', () => {
     if (!cb) throw new Error('checkbox not found');
 
     await fireEvent.change(cb);
-    expect(onToggleStage).toHaveBeenCalledWith('src/main.ts');
+    expect(onToggleStage).toHaveBeenCalledWith('src/main.ts', true);
+  });
+
+  it('unchecking a staged-row checkbox asks to unstage the file', async () => {
+    const onToggleStage = vi.fn();
+    const staged = [{ path: 'src/main.ts', status: 'M', indexStatus: 'M' }];
+    const { getAllByRole } = render(FileTree, { files: staged, onToggleStage });
+
+    const checkboxes = getAllByRole('checkbox') as HTMLInputElement[];
+    const cb = checkboxes.find(c => c.getAttribute('aria-label') === 'Unstage main.ts');
+    if (!cb) throw new Error('checkbox not found');
+
+    await fireEvent.change(cb);
+    expect(onToggleStage).toHaveBeenCalledWith('src/main.ts', false);
   });
 
   it('does not call onToggleStage when file row is clicked', async () => {
@@ -157,12 +180,26 @@ describe('FileTree — per-file staging', () => {
   });
 
   it('applies staged border class to staged file rows', () => {
-    const staged = new Set(['README.md']);
-    const { getByText } = render(FileTree, { files, stagedPaths: staged });
-    // The file row is the parent of the fname span
-    const fname = getByText('README.md');
-    const row = fname.closest('.file-row');
+    const staged = [{ path: 'README.md', status: 'A', indexStatus: 'A' }];
+    const { getByText } = render(FileTree, { files: staged });
+    const row = getByText('README.md').closest('.file-row');
     expect(row?.classList.contains('staged')).toBe(true);
+  });
+
+  it('a file edited after staging (MM) appears in BOTH sections', () => {
+    const mm = [{ path: 'src/main.ts', status: 'M', indexStatus: 'M', workStatus: 'M' }];
+    const { getAllByText, getByText } = render(FileTree, { files: mm });
+
+    expect(getByText('Staged Changes')).toBeTruthy();
+    expect(getByText('Changes')).toBeTruthy();
+    expect(getAllByText('main.ts')).toHaveLength(2);
+  });
+
+  it('conflicted rows have no stage checkbox (the banner owns resolution)', () => {
+    const conflict = [{ path: 'clash.txt', status: '!', workStatus: '!' }];
+    const { getByText } = render(FileTree, { files: conflict });
+    const row = getByText('clash.txt').closest('.file-row') as HTMLElement;
+    expect(row.querySelector('input[type="checkbox"]')).toBeNull();
   });
 });
 
@@ -171,7 +208,7 @@ describe('FileTree — per-file staging', () => {
 describe('FileTree — folder staging', () => {
   it('calls onStageFolder with all paths in folder when folder checkbox is checked', async () => {
     const onStageFolder = vi.fn();
-    const { getAllByRole, getByText } = render(FileTree, { files, onStageFolder });
+    const { getAllByRole } = render(FileTree, { files, onStageFolder });
 
     // Find folder checkbox for 'src'
     const checkboxes = getAllByRole('checkbox') as HTMLInputElement[];
@@ -188,14 +225,17 @@ describe('FileTree — folder staging', () => {
     );
   });
 
-  it('calls onStageFolder with stage=false when folder checkbox is unchecked', async () => {
+  it('calls onStageFolder with stage=false on a staged-section folder', async () => {
     const onStageFolder = vi.fn();
-    const staged = new Set(['src/main.ts', 'src/components/App.svelte']);
-    const { getAllByRole } = render(FileTree, { files, stagedPaths: staged, onStageFolder });
+    const staged = [
+      { path: 'src/main.ts', status: 'M', indexStatus: 'M' },
+      { path: 'src/components/App.svelte', status: 'M', indexStatus: 'M' },
+    ];
+    const { getAllByRole } = render(FileTree, { files: staged, onStageFolder });
 
     const checkboxes = getAllByRole('checkbox') as HTMLInputElement[];
     const folderCb = checkboxes.find(cb =>
-      cb.getAttribute('aria-label')?.includes('Stage all in src')
+      cb.getAttribute('aria-label')?.includes('Unstage all in src')
     );
     if (!folderCb) throw new Error('src folder checkbox not found');
 
@@ -207,24 +247,28 @@ describe('FileTree — folder staging', () => {
     );
   });
 
-  it('folder checkbox is checked when all files in folder are staged', () => {
-    const staged = new Set(['src/main.ts', 'src/components/App.svelte']);
-    const { getAllByRole } = render(FileTree, { files, stagedPaths: staged });
+  it('folder checkbox is checked in the staged section', () => {
+    const staged = [
+      { path: 'src/main.ts', status: 'M', indexStatus: 'M' },
+      { path: 'src/components/App.svelte', status: 'M', indexStatus: 'M' },
+    ];
+    const { getAllByRole } = render(FileTree, { files: staged });
 
     const checkboxes = getAllByRole('checkbox') as HTMLInputElement[];
     const folderCb = checkboxes.find(cb =>
-      cb.getAttribute('aria-label')?.includes('Stage all in src')
+      cb.getAttribute('aria-label')?.includes('Unstage all in src')
     ) as HTMLInputElement | undefined;
 
     expect(folderCb?.checked).toBe(true);
   });
 
-  it('splits partially-staged files into Staged Changes and Changes sections', () => {
-    const staged = new Set(['src/main.ts']); // one staged, the rest not
-    const { getByText } = render(FileTree, { files, stagedPaths: staged });
+  it('splits index vs working-tree changes into Staged Changes and Changes', () => {
+    const mixed = [
+      { path: 'src/main.ts', status: 'M', indexStatus: 'M' },
+      { path: 'README.md', status: 'M', workStatus: 'M' },
+    ];
+    const { getByText } = render(FileTree, { files: mixed });
 
-    // Both section headers appear; the staged file is no longer "partial" — it
-    // lives under Staged Changes while the rest live under Changes.
     expect(getByText('Staged Changes')).toBeTruthy();
     expect(getByText('Changes')).toBeTruthy();
   });
@@ -258,12 +302,180 @@ describe('FileTree — collapse state', () => {
   });
 });
 
+// ── hover actions (discard / open file) ──────────────────────────────────────
+
+describe('FileTree — row hover actions', () => {
+  it('discard button on a file row calls onDiscard with that path', async () => {
+    const onDiscard = vi.fn();
+    const { getByText } = render(FileTree, { files, onDiscard });
+
+    const row = getByText('main.ts').closest('.file-row') as HTMLElement;
+    const btn = row.querySelector('.row-act--discard') as HTMLElement;
+    await fireEvent.click(btn);
+    expect(onDiscard).toHaveBeenCalledWith(['src/main.ts']);
+  });
+
+  it('open-file button on a file row calls onOpenFile, not onOpenDiff', async () => {
+    const onOpenFile = vi.fn();
+    const onOpenDiff = vi.fn();
+    const { getByText } = render(FileTree, { files, onOpenFile, onOpenDiff });
+
+    const row = getByText('main.ts').closest('.file-row') as HTMLElement;
+    const btn = row.querySelector('.row-act:not(.row-act--discard)') as HTMLElement;
+    await fireEvent.click(btn);
+    expect(onOpenFile).toHaveBeenCalledWith('src/main.ts');
+    expect(onOpenDiff).not.toHaveBeenCalled();
+  });
+
+  it('deleted files keep discard (restores them) but lose open-file', () => {
+    const { getByText } = render(FileTree, { files });
+    const row = getByText('deleted.txt').closest('.file-row') as HTMLElement;
+    expect(row.querySelector('.row-act--discard')).toBeTruthy();
+    expect(row.querySelector('.row-act:not(.row-act--discard)')).toBeNull();
+  });
+
+  it('conflicted files get no hover actions at all', () => {
+    const conflictFiles = [{ path: 'clash.txt', status: '!', workStatus: '!' }];
+    const { getByText } = render(FileTree, { files: conflictFiles });
+    const row = getByText('clash.txt').closest('.file-row') as HTMLElement;
+    expect(row.querySelector('.row-act')).toBeNull();
+  });
+
+  it('folder discard button passes every file in the folder', async () => {
+    const onDiscard = vi.fn();
+    const { getByText } = render(FileTree, { files, onDiscard });
+
+    const row = getByText('src').closest('.folder-row') as HTMLElement;
+    await fireEvent.click(row.querySelector('.row-act--discard') as HTMLElement);
+    expect(onDiscard).toHaveBeenCalledWith(
+      expect.arrayContaining(['src/main.ts', 'src/components/App.svelte'])
+    );
+  });
+
+  it('section "discard all" passes all paths but skips conflicted files', async () => {
+    const onDiscard = vi.fn();
+    const withConflict = [...files, { path: 'clash.txt', status: '!', workStatus: '!' }];
+    const { getByLabelText } = render(FileTree, { files: withConflict, onDiscard });
+
+    await fireEvent.click(getByLabelText('Discard all changes'));
+    const paths = onDiscard.mock.calls[0][0] as string[];
+    expect(paths).toContain('src/main.ts');
+    expect(paths).not.toContain('clash.txt');
+  });
+
+  it('staged section gets its own discard-all scoped to staged files', async () => {
+    const onDiscard = vi.fn();
+    const mixed = [
+      { path: 'src/main.ts', status: 'M', indexStatus: 'M' },
+      { path: 'README.md', status: 'M', workStatus: 'M' },
+    ];
+    const { getByLabelText } = render(FileTree, { files: mixed, onDiscard });
+
+    await fireEvent.click(getByLabelText('Discard all staged changes'));
+    expect(onDiscard).toHaveBeenCalledWith(['src/main.ts']);
+  });
+});
+
+// ── hunk expand toggle ────────────────────────────────────────────────────────
+
+describe('FileTree — hunk toggle', () => {
+  it('shows the toggle only when a repoRoot is provided', () => {
+    const { container } = render(FileTree, { files });
+    expect(container.querySelector('.hunk-toggle')).toBeNull(); // no repoRoot → no hunks
+
+    const withRoot = render(FileTree, { files, repoRoot: '/a' });
+    expect(withRoot.container.querySelector('.hunk-toggle')).toBeTruthy();
+  });
+
+  it('conflicted rows never get a hunk toggle', () => {
+    const conflict = [{ path: 'clash.txt', status: '!', workStatus: '!' }];
+    const { getByText } = render(FileTree, { files: conflict, repoRoot: '/a' });
+    const row = getByText('clash.txt').closest('.file-row') as HTMLElement;
+    expect(row.querySelector('.hunk-toggle')).toBeNull();
+  });
+
+  it('clicking the toggle expands the inline hunk view and does not open the diff', async () => {
+    const onOpenDiff = vi.fn();
+    const { getByText, container } = render(FileTree, { files, repoRoot: '/a', onOpenDiff });
+
+    const row = getByText('main.ts').closest('.file-row') as HTMLElement;
+    const toggle = row.querySelector('.hunk-toggle') as HTMLElement;
+    await fireEvent.click(toggle);
+
+    expect(onOpenDiff).not.toHaveBeenCalled();
+    // HunkView mounts and issues its diff fetch.
+    await waitFor(() =>
+      expect(sendMock).toHaveBeenCalledWith('diff.working', { file: 'src/main.ts', cached: false }, '/a')
+    );
+  });
+});
+
+// ── context menu ──────────────────────────────────────────────────────────────
+
+describe('FileTree — file context menu', () => {
+  async function openCtx(fileLabel: string, props: Record<string, unknown> = {}) {
+    const utils = render(FileTree, { files, ...props });
+    const row = utils.getByText(fileLabel).closest('.file-row') as HTMLElement;
+    await fireEvent.contextMenu(row);
+    return utils;
+  }
+
+  it('right-click opens the menu with the expected items', async () => {
+    const { getByText } = await openCtx('main.ts');
+    expect(getByText('Show Diff')).toBeTruthy();
+    expect(getByText('Open File')).toBeTruthy();
+    expect(getByText('Copy Path')).toBeTruthy();
+    expect(getByText('Discard Changes')).toBeTruthy();
+  });
+
+  it('"Show Diff" routes through onOpenDiff and closes the menu', async () => {
+    const onOpenDiff = vi.fn();
+    const { getByText, queryByText } = await openCtx('main.ts', { onOpenDiff });
+    await fireEvent.click(getByText('Show Diff'));
+    expect(onOpenDiff).toHaveBeenCalledWith('src/main.ts');
+    expect(queryByText('Copy Path')).toBeNull();
+  });
+
+  it('"Discard Changes" routes through onDiscard', async () => {
+    const onDiscard = vi.fn();
+    const { getByText } = await openCtx('main.ts', { onDiscard });
+    await fireEvent.click(getByText('Discard Changes'));
+    expect(onDiscard).toHaveBeenCalledWith(['src/main.ts']);
+  });
+
+  it('"Copy Path" writes the full path to the clipboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    // navigator.clipboard is getter-only in happy-dom — defineProperty, not assign.
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const { getByText } = await openCtx('main.ts');
+    await fireEvent.click(getByText('Copy Path'));
+    expect(writeText).toHaveBeenCalledWith('src/main.ts');
+  });
+
+  it('conflicted file: diff item becomes "Open Merge Editor" and discard is inert', async () => {
+    const onDiscard = vi.fn();
+    const conflictFiles = [{ path: 'clash.txt', status: '!', workStatus: '!' }];
+    const utils = render(FileTree, { files: conflictFiles, onDiscard });
+    const row = utils.getByText('clash.txt').closest('.file-row') as HTMLElement;
+    await fireEvent.contextMenu(row);
+
+    expect(utils.getByText('Open Merge Editor')).toBeTruthy();
+    await fireEvent.click(utils.getByText('Discard Changes'));
+    expect(onDiscard).not.toHaveBeenCalled();
+  });
+
+  it('deleted file has no "Open File" item', async () => {
+    const { queryByText } = await openCtx('deleted.txt');
+    expect(queryByText('Open File')).toBeNull();
+  });
+});
+
 // ── rename ────────────────────────────────────────────────────────────────────
 
 describe('FileTree — renamed files', () => {
   it('renders old and new name for renamed files with oldPath', () => {
     const renamedFiles = [
-      { path: 'new-name.ts', status: 'R', oldPath: 'old-name.ts' } as any,
+      { path: 'new-name.ts', status: 'R', indexStatus: 'R', oldPath: 'old-name.ts' } as any,
     ];
     const { getByText } = render(FileTree, { files: renamedFiles });
     expect(getByText('old-name.ts')).toBeTruthy();

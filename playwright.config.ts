@@ -9,7 +9,7 @@ const DIRTY_REPO_DIR = "/tmp/hydragit-dirty-repo";
 const EXTENSION_DIR = __dirname;
 
 // Specs that belong to their own dedicated-fixture project, not the default one.
-const DEDICATED_SPECS = /graph-perf\.spec\.ts|graph-fork\d+\.spec\.ts|conflict\.spec\.ts|journeys-dirty\.spec\.ts/;
+const DEDICATED_SPECS = /graph-perf\.spec\.ts|graph-fork\d+\.spec\.ts|conflict\.spec\.ts|journeys-dirty\.spec\.ts|safety-settings\.spec\.ts|hunks\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -82,9 +82,9 @@ export default defineConfig({
     },
     {
       // Dirty project: repo with uncommitted changes. Exercises stage / commit /
-      // stash journeys (S10, S11).
+      // stash journeys (S10, S11) and the protected-branch settings (SS1–SS3).
       name: "vscode-dirty",
-      testMatch: /journeys-dirty\.spec\.ts/,
+      testMatch: /journeys-dirty\.spec\.ts|safety-settings\.spec\.ts|hunks\.spec\.ts/,
       use: {
         extensionPath: EXTENSION_DIR,
         repoPath: DIRTY_REPO_DIR,

@@ -11,6 +11,41 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
+## [0.2.8] — 2026-06-13
+
+### Added
+- **Hunk staging — stage part of a file** (Sublime Merge–style, the payoff of real-index staging): a `›` chevron on each file row expands a compact unified diff inline, with per-hunk **Stage** / **Discard** in the Changes section and **Unstage** in Staged Changes. Stage one hunk of a five-hunk file, commit it, leave the rest — no separate view, no mode switch. Backed by new Go `WorkingDiff`/`StageHunk`/`UnstageHunk`/`DiscardHunk` (`internal/git/hunks.go`): each hunk carries git's **verbatim patch text** (file header + that hunk), which the webview round-trips opaquely back through `git apply --cached [-R]` — so we never reconstruct a patch and can't corrupt it. A stale hunk (the index moved since the diff rendered) is git's own "does not apply" refusal, surfaced and re-synced rather than half-applied; hunk discard auto-snapshots like every discard. New cmds: `diff.working`, `hunk.stage`, `hunk.unstage`, `hunk.discard`. Line-level selection and syntax highlighting in the inline diff are deliberately deferred. New `HunkView.svelte` + the row toggle in `FileTree`; covered by Go unit tests (two-hunk partial-stage round-trip, stale-refusal-leaves-index-intact, binary/untracked → no hunks, no-newline marker survives), Vitest (`HunkView.test.ts`), and a Playwright spec (`hunks.spec.ts`, HK1).
+- **Configurable protected branches** — new setting `hydragit.safety.protectedBranches` (default `["main", "master"]`): the branch names the protected-branch commit warning guards. The list **replaces** the default (include main/master to keep them), so a develop-first workflow can protect `develop` — or stop protecting `master` — without touching code. The existing `hydragit.safety.protectedBranch` boolean stays the on/off switch. Host-side the list is sanitized (malformed/empty → default) and injected into `commit.precheck` alongside the enabled checks; `CommitSafety` takes it as a parameter instead of a hardcoded map. Covered end to end: Go unit tests + a new Playwright spec (`safety-settings.spec.ts`, SS1–SS3) that drives the setting through live workspace-settings edits.
+- **Discard changes — at every level of the sidebar tree** (a long-missing core action): hover any file row for ↶ Discard and an Open-file pencil (VS Code SCM style), hover a folder row or the Staged Changes / Changes section headers for their scoped ↶, or use the new **right-click menu** on file rows (Show Diff · Open File · Copy Path · Discard Changes — IntelliJ style, matching the detail pane's menus). Safety: a **working-tree snapshot is auto-saved before every discard** (server-side, inside the repo lock), so even deleting an untracked file is recoverable from the branch pane's Snapshots section; confirms name the repo in multi-repo workspaces ("Discard 13 files in HydraGit?"); conflicted files are refused (the conflict banner owns those) and bulk discards skip them. New Go `Discard()` (`internal/git/discard.go`) restores tracked paths from HEAD and removes untracked/added/rename-target paths, handling staged renames (source restored, target removed) and copies; new `discard` IPC cmd (mutating + auto-snapshot).
+
+### Fixed
+- **Detail-pane redesign follow-ups** (ROADMAP item 5.1–5.4):
+  - The **⋯ overflow menu rendered clipped under the commit card** — the card scrolls (`overflow-y: auto`), which clips absolutely-positioned children. The dropdown is now viewport-anchored (`position: fixed` off the button rect) and opens fully above the button.
+  - **Folder rows in the file tree didn't collapse/expand on click** — a Svelte 5 runes regression: `Set` mutations aren't tracked and self-assignment is dropped by the equality check. Toggling now reassigns a fresh `Set`.
+  - **Action chips had no hover hints** — Cherry-pick, Branch here, Tag, ↗ and ⋯ now show the pane's styled tooltip explaining what each does.
+  - **↗ View on remote now appears only on pushed commits** (detail action row *and* the log's right-click menu) — a local-only commit has no remote URL to open. Backed by a new per-commit `unpushed` flag from Go: one `git rev-list --all --not --remotes` pass marks commits not reachable from any remote-tracking ref (cost scales with the unpushed frontier, not history size).
+- **The ⭐ default-branch marker was guessed by name** (first of `master`/`main` found locally) and could land on the wrong branch. It's now real data: the Go side resolves what **origin/HEAD** points to (`Branch.isDefault`; never guessed when there's no remote), and `fetch` refreshes origin/HEAD (`git remote set-head origin --auto`) so a default-branch change on the remote heals itself.
+
+### Changed
+- **Staging is real now** (VS Code SCM semantics) — the sidebar checkboxes were a client-side "include in next commit" list (`git add` only happened at commit time); they now drive the index directly: check = `git add`, uncheck = `git restore --staged` (new `stage`/`unstage` cmds, `internal/git/stage.go`; unborn-branch unstage falls back to `rm --cached`). What this buys:
+  - **Edit a staged file and the new edits appear as a second row** under Changes while the frozen snapshot stays under Staged Changes (porcelain `MM` → the new `FileStatus.indexStatus`/`workStatus` split; renames carry `oldPath` for the `old → new` display).
+  - **Commit takes the frozen snapshot**, not whatever the file looks like at commit time — `commit` with no paths now commits the index as-is (the old stage-paths-then-commit contract still works when paths are passed).
+  - Staging survives reloads and is shared with the terminal/other git tools (it's the real index); folder/section checkboxes stage/unstage their subtree; conflicted rows lost their checkbox (the conflict banner owns resolution); the indeterminate folder state is gone — a folder row is simply checked in Staged Changes and unchecked in Changes.
+
+- **Detail pane (commit card + file tree) redesigned**:
+  - The synthetic repo-root tree node ("HydraGit · 13") is gone — it was always present, always expanded, and cost one indent level for every row (both commit and stash views).
+  - File status letters use **VS Code's own SCM colors** (`gitDecoration.*` theme tokens: M amber, A green, D red, R/C teal) as bare letters — the boxy chips around identical Ms were noise.
+  - **+/− totals moved up** into the tree toolbar next to the file count.
+  - **Click the hash to copy it** (GitHub style, ✓ feedback); the Copy-hash button is deleted. Author/date became one line with a smart relative date (full date on hover). Refs render as **pills** (`HEAD -> develop` splits into HEAD + branch pills; tags amber) instead of raw text.
+  - **Action row reworked** (ROADMAP item 5): visible chips are Cherry-pick · Branch here · Tag · ↗ View on remote, plus a **⋯ overflow** holding Checkout at commit (detached), Copy commit message, Save as patch, and Revert (red, separated — no longer adjacent to a harmless button). Every action routes through the *same* handler as the log's right-click menu (`commitMenuAction`, which gained `copy-message`); the old separate `commitAction` path was deleted.
+
+- **Branch pane redesigned** (Discord/Linear style):
+  - The ambiguous global `+` is gone — each section header (Local / Tags / Stashes / Worktrees / Snapshots) reveals its own `+` on hover: new branch, tag at HEAD, stash, worktree, or manual snapshot (the last two got first-class UI entry points for the first time).
+  - The `HEAD · <branch>` row stopped masquerading as a branch — it's now labelled by function: **↺ Undo timeline** (amber, highlighted while reflog mode is active). Same position, same one-click access.
+  - **One hydra head = one branch**: branch rows use a single-head hydra icon matching the logo, gradient on the checked-out branch; the ⭐ emoji is replaced by an SVG shield on the default branch (tooltip "Default branch (origin/HEAD)").
+  - **Ahead/behind counts** (`↑2 ↓1`, amber/cyan) replace the cryptic `=` trackshort glyph — in-sync branches show nothing. Backed by new `Branch.ahead`/`behind` parsed from `%(upstream:track)`.
+  - Section headers de-shouted (no more ALL-CAPS), and a **type-to-filter** (⌕ in the pane header) filters every section at once, auto-expanding matches.
+
 ## [0.2.7] — 2026-06-11
 
 ### Fixed
@@ -158,6 +193,7 @@ The MVP was replaced with the real foundation in this range (~8 400 insertions).
 
 Everything HydraGit ships today, by topic. Each entry links to its full
 documentation (UI entry point → what happens next) in
+[0.2.8]: https://github.com/latte-incognito/hydragit/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/latte-incognito/hydragit/compare/v0.2.6...v0.2.7
 [`documentation/`](documentation/index.html).
 

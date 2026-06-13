@@ -118,8 +118,11 @@ Real bugs:
 Main panel UI:
 4. Ref pills eat the subject — `HEAD →` as icon, middle-truncate, `+N`
    overflow. *(pill markup pass)*
-5. Detail action row: add checkout-at-commit, create branch/tag, View on
-   GitHub; separate Revert from Copy hash.   
+5. ~~Detail action row~~ shipped (redesign + 5.1–5.4 follow-up fixes — see
+   CHANGELOG Unreleased). 5.5 (cherry-pick) verified wired end-to-end
+   (chip → `commitMenuAction` → `cherrypick` cmd → `git cherry-pick`; failures
+   flash git's error). Remaining nice-to-have: a conflicted cherry-pick only
+   flashes the error — no resolve/continue bar like merge/rebase have.
 6. Token-search polish (smart detection): paste 7–40 hex chars → "jump to
    commit" suggestion; `@` → author autocomplete from loaded commits;
    multi-line paste → offer code search. *(follow-up to the toolbar redesign)*
@@ -134,11 +137,22 @@ snapshots). Build nothing below before the Marketplace release; let real users
 re-rank it.
 
 First candidates after 1.0:
+- **Send report** — one-click crash/bug report: bundle the extension + git + OS
+  versions, the last N entries of the rotating JSON log (errors + failed IPC
+  round-trips, repo paths/names scrubbed), and any in-progress-op state into a
+  prefilled GitHub issue. Entry points: error toasts ("Report this…") + command
+  palette. Privacy rule: always show the exact payload before anything leaves
+  the machine — never auto-send. Highest value right after launch, when
+  marketplace users hit bugs we can't reproduce.
 - **Guided bisect** — good/bad buttons, auto-checkout midpoint, "N commits left".
 - **Move changes to another branch** — "oops, wrong branch" in one click.
-- **Hunk/line staging** — High effort; built-in SCM has the raw capability, this
-  is in-panel cohesion. Then **patch-from-commit** (lazygit-style, shares the
-  patch plumbing).
+- ~~**Hunk staging**~~ shipped 2026-06-12 (Sublime-style inline expand —
+  `WorkingDiff`/`StageHunk`/`UnstageHunk`/`DiscardHunk` + `HunkView.svelte`; see
+  CHANGELOG Unreleased). Remaining follow-ups: **line-level selection**
+  (GitHub-Desktop gutter-click — the patch plumbing already takes an opaque
+  hunk, line selection just narrows the patch we build) and optional Shiki
+  highlighting in the inline diff. Then **patch-from-commit** (lazygit-style,
+  shares the `git apply` plumbing).
 - **True "edit" step in interactive rebase** — pause-to-amend, reuses the
   conflict-pause machinery.
 - Small: stash→branch, apply patch (`git am`), blame `.git-blame-ignore-revs`.

@@ -32,7 +32,6 @@
     files={[]}
     loading={false}
     noRepo={true}
-    stagedPaths={new Set()}
     collapsed={new Set()}
   />
 {:else}

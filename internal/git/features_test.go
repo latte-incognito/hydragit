@@ -173,7 +173,7 @@ func TestCommitSafety_flagsTheFourFootguns(t *testing.T) {
 	big := make([]byte, largeFileLimit+1)
 	os.WriteFile(filepath.Join(dir, "huge.bin"), big, 0o644)
 
-	warnings := CommitSafety(dir, []string{".env", "merged.txt", "huge.bin"}, nil)
+	warnings := CommitSafety(dir, []string{".env", "merged.txt", "huge.bin"}, nil, nil)
 
 	types := map[string]bool{}
 	for _, w := range warnings {
@@ -191,7 +191,7 @@ func TestCommitSafety_cleanFileOnFeatureBranchIsQuiet(t *testing.T) {
 	run(dir, "checkout", "-b", "feat/quiet")
 	os.WriteFile(filepath.Join(dir, "normal.go"), []byte("package x\n"), 0o644)
 
-	warnings := CommitSafety(dir, []string{"normal.go"}, nil)
+	warnings := CommitSafety(dir, []string{"normal.go"}, nil, nil)
 	if len(warnings) != 0 {
 		t.Fatalf("expected no warnings, got %+v", warnings)
 	}
@@ -202,8 +202,41 @@ func TestCommitSafety_respectsEnabledSet(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, ".env"), []byte("x\n"), 0o644)
 
 	// Only largeFile enabled — the .env must not be flagged.
-	warnings := CommitSafety(dir, []string{".env"}, map[string]bool{"largeFile": true})
+	warnings := CommitSafety(dir, []string{".env"}, map[string]bool{"largeFile": true}, nil)
 	if len(warnings) != 0 {
 		t.Fatalf("disabled checks must not fire, got %+v", warnings)
+	}
+}
+
+func TestCommitSafety_protectedBranchCustomList(t *testing.T) {
+	dir := initRepo(t)
+	run(dir, "checkout", "-b", "develop")
+	os.WriteFile(filepath.Join(dir, "normal.go"), []byte("package x\n"), 0o644)
+	enabled := map[string]bool{"protectedBranch": true}
+
+	// develop is not protected by default…
+	if w := CommitSafety(dir, []string{"normal.go"}, enabled, nil); len(w) != 0 {
+		t.Fatalf("develop must not warn with the default list, got %+v", w)
+	}
+	// …but warns once the user's list names it.
+	w := CommitSafety(dir, []string{"normal.go"}, enabled, []string{"develop", "release"})
+	if len(w) != 1 || w[0].Type != "protectedBranch" {
+		t.Fatalf("expected a protectedBranch warning for develop, got %+v", w)
+	}
+}
+
+func TestCommitSafety_customListReplacesDefaults(t *testing.T) {
+	dir := initRepo(t) // on main
+	os.WriteFile(filepath.Join(dir, "normal.go"), []byte("package x\n"), 0o644)
+	enabled := map[string]bool{"protectedBranch": true}
+
+	// A custom list without main replaces the default — main stops warning.
+	if w := CommitSafety(dir, []string{"normal.go"}, enabled, []string{"release"}); len(w) != 0 {
+		t.Fatalf("custom list must replace (not extend) the default, got %+v", w)
+	}
+	// Empty list falls back to the main/master default.
+	w := CommitSafety(dir, []string{"normal.go"}, enabled, nil)
+	if len(w) != 1 || w[0].Type != "protectedBranch" {
+		t.Fatalf("expected the default list to protect main, got %+v", w)
 	}
 }

@@ -805,21 +805,32 @@
     await tbAction(a);
   }
 
-  // ── Commit actions ────────────────────────────────────────────────────────
-  async function commitAction(action: string, hash: string) {
-    if (action === 'copy') { flash('Copied: ' + hash, '#4ec94e'); return; }
-    flash(`${action}: ${hash}`);
-    const cmdMap: Record<string, string> = { 'cherry-pick': 'cherrypick', revert: 'revert' };
+  // ── Section creators (branch pane hover +) ─────────────────────────────────
+  async function newStash() {
+    const message = await uiPrompt('Stash message (optional):');
+    if (message === null) return; // cancelled
     try {
-      await send(cmdMap[action] ?? action, { commit: hash });
-      flash(action + ' done', '#4ec94e');
+      await send('stash.save', message ? { message } : {});
+      flash('Stashed working tree', '#4ec94e');
       loadAll();
     } catch (e: unknown) {
-      flash(action + ' failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+      flash('Stash failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
     }
   }
 
-  // ── Commit context menu (LogPane) ────────────────────────────────────────
+  async function newSnapshot() {
+    const label = await uiPrompt('Snapshot label:', 'manual snapshot');
+    if (label === null) return; // cancelled
+    try {
+      await send('snapshot.save', { label });
+      flash('Snapshot taken', '#4ec94e');
+      loadAll();
+    } catch (e: unknown) {
+      flash('Snapshot failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
+    }
+  }
+
+  // ── Commit context menu (LogPane + DetailPane action row) ────────────────
   // Dry-run the merge (`git merge-tree`, object-db only) and fold the verdict
   // into the confirm dialog. Preview unavailable (git < 2.38) → plain confirm.
   async function confirmMerge(target: string): Promise<boolean> {
@@ -843,6 +854,10 @@
       'copy-hash': async () => {
         await navigator.clipboard.writeText(hash);
         flash(`Copied: ${hash.slice(0, 7)}`, '#4ec94e');
+      },
+      'copy-message': async () => {
+        await navigator.clipboard.writeText(commit.message ?? commit.msg ?? '');
+        flash('Copied commit message', '#4ec94e');
       },
       'cherry-pick': async () => {
         await send('cherrypick', { commit: hash });
@@ -1654,10 +1669,15 @@
         {selStashIdx}
         onSelectBranch={selectBranch}
         onHead={enterHeadMode}
+        headActive={headMode}
         onFolderCtx={handleFolderCtx}
         onSelectStash={selectStash}
         onStashAction={stashAction}
         onNewBranch={() => railAction('branch.new')}
+        onNewTag={() => railAction('tag')}
+        onNewStash={newStash}
+        onNewWorktree={() => railAction('worktree.new')}
+        onNewSnapshot={newSnapshot}
         onBranchCtx={showBranchCtx}
         onStashCtx={showStashCtx}
         onTagCtx={showTagCtx}
@@ -1714,7 +1734,7 @@
           loading={detailLoading}
           {iconUri}
           onSelectFile={selectDiffFile}
-          onCommitAction={commitAction}
+          onCommitMenuAction={commitMenuAction}
           onStashAction={stashAction}
         />
       </div>

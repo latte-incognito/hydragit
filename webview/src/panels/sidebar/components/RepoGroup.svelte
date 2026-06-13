@@ -39,11 +39,11 @@
   let hasUpstream = $state(false);
   let loading = $state(true);
   let conflicts: { operation: string; files: string[] } = $state({ operation: '', files: [] });
-  let stagedPaths: Set<string> = $state(new Set());
   let collapsed: Set<string> = $state(new Set());
   let commitError = $state('');
   let commitAreaRef: CommitArea = $state();
   let loaded = $state(false); // first successful load done — gates the loading spinner
+  let statusKey = $state(0); // bumped on every applied status change → open hunk views re-fetch
   // Clean repos collapse to a one-liner (§4.15); this opens the commit area
   // anyway for the message-only amend path (§4.16).
   let showCleanCommitArea = $state(false);
@@ -56,7 +56,12 @@
   function sameFiles(a: GitFile[], b: GitFile[]): boolean {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
-      if (a[i].path !== b[i].path || a[i].status !== b[i].status) return false;
+      if (
+        a[i].path !== b[i].path ||
+        a[i].status !== b[i].status ||
+        a[i].indexStatus !== b[i].indexStatus ||
+        a[i].workStatus !== b[i].workStatus
+      ) return false;
     }
     return true;
   }
@@ -72,11 +77,10 @@
       return;
     }
 
-    const nextPaths = new Set(nextFiles.map((f) => f.path));
-    stagedPaths = new Set([...stagedPaths].filter((p) => nextPaths.has(p)));
     hasUpstream = nextUpstream;
     branch = nextBranch;
     files = nextFiles;
+    statusKey++; // signal open hunk views to re-fetch their diffs
     loading = false;
     loaded = true;
     if (nextFiles.some((f) => f.status === '!') || conflicts.operation) {
@@ -150,20 +154,75 @@
     }
   }
 
-  // ── Staging ──────────────────────────────────────────────────────────────────
+  // ── Staging (real index: checkbox = git add / restore --staged) ────────────
   function handleToggleFolder(key: string) {
     collapsed.has(key) ? collapsed.delete(key) : collapsed.add(key);
     collapsed = collapsed;
   }
-  function handleToggleStage(path: string) {
-    const next = new Set(stagedPaths);
-    next.has(path) ? next.delete(path) : next.add(path);
-    stagedPaths = next;
+  async function stagePaths(paths: string[], stage: boolean) {
+    if (paths.length === 0) return;
+    try {
+      await call(stage ? 'stage' : 'unstage', { paths });
+      await loadChanges();
+    } catch (e: unknown) {
+      commitError = e instanceof Error ? e.message : String(e);
+    }
+  }
+  function handleToggleStage(path: string, stage: boolean) {
+    void stagePaths([path], stage);
   }
   function handleStageFolder(paths: string[], stage: boolean) {
-    const next = new Set(stagedPaths);
-    for (const p of paths) stage ? next.add(p) : next.delete(p);
-    stagedPaths = next;
+    void stagePaths(paths, stage);
+  }
+
+  // ── Hunk staging (Sublime-style inline) ────────────────────────────────────
+  // The patch is opaque (raw git output round-tripped). A stale patch — index
+  // moved since the hunk view rendered — is git's "does not apply" error,
+  // surfaced as commitError; loadChanges then re-fetches the fresh diff.
+  async function runHunk(cmd: 'hunk.stage' | 'hunk.unstage' | 'hunk.discard', patch: string) {
+    try {
+      await call(cmd, { patch });
+      await loadChanges();
+    } catch (e: unknown) {
+      commitError = e instanceof Error ? e.message : String(e);
+      await loadChanges(); // resync so the user sees the real current state
+    }
+  }
+  const handleHunkStage = (patch: string) => void runHunk('hunk.stage', patch);
+  const handleHunkUnstage = (patch: string) => void runHunk('hunk.unstage', patch);
+  const handleHunkDiscard = (patch: string) => void runHunk('hunk.discard', patch);
+
+  // ── Discard ──────────────────────────────────────────────────────────────
+  // The handler auto-snapshots before `discard` (refs/hydragit/snapshots), so
+  // every discard — including deleted untracked files — is recoverable from
+  // the branch pane's Snapshots section. The confirm names the repo when more
+  // than one is visible: in a multi-repo sidebar, "which repo?" is the whole
+  // safety question.
+  async function handleDiscard(paths: string[]) {
+    if (paths.length === 0) return;
+    const where = showHeader ? ` in ${repo.name}` : '';
+    let msg: string;
+    if (paths.length === 1) {
+      const f = files.find((x) => x.path === paths[0]);
+      const name = paths[0].split('/').pop() ?? paths[0];
+      msg = f?.status === 'U'
+        ? `Delete ${name}${where}? The file is untracked — it will be removed from disk. A snapshot is saved first.`
+        : `Discard changes in ${name}${where}? A snapshot is saved first.`;
+    } else {
+      msg = `Discard changes in ${paths.length} files${where}? A snapshot is saved first — restorable from the branch pane.`;
+    }
+    if (!(await uiConfirm(msg))) return;
+    try {
+      await call('discard', { paths });
+      await loadChanges();
+    } catch (e: unknown) {
+      commitError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  function handleOpenFile(path: string) {
+    onFocus(repo.rootPath);
+    send('openFile', { file: path }, repo.rootPath);
   }
 
   // ── Diff ───────────────────────────────────────────────────────────────────
@@ -185,7 +244,7 @@
       // conflict markers, huge files, protected branch. Which checks run comes
       // from user settings, resolved by the extension host.
       try {
-        const warnings = (await call('commit.precheck', { paths: [...stagedPaths] })) as
+        const warnings = (await call('commit.precheck', { paths: stagedPathList })) as
           | { type: string; path: string; detail: string }[]
           | null;
         if (warnings?.length) {
@@ -197,8 +256,10 @@
           if (!(await uiConfirm(`Safety check found:\n${lines}${more}\n\nCommit anyway?`))) return;
         }
       } catch { /* precheck unavailable — never block the commit on it */ }
-      await call(cmd, { message: msg, paths: [...stagedPaths] });
-      stagedPaths = new Set();
+      // No paths — the index is already staged for real; Go commits it as-is,
+      // which is what preserves the frozen snapshot for files edited after
+      // staging (re-adding paths here would silently absorb the newer edits).
+      await call(cmd, { message: msg, paths: [] });
       commitAreaRef?.clearMessage();
       showCleanCommitArea = false;
       await loadChanges();
@@ -214,7 +275,8 @@
     onFocus(repo.rootPath);
   }
 
-  let stagedCount = $derived(stagedPaths.size);
+  let stagedPathList = $derived(files.filter((f) => f.indexStatus).map((f) => f.path));
+  let stagedCount = $derived(stagedPathList.length);
 
   // Long branch names keep their informative tail (the leaf) — §4.21.
   function middleTruncate(s: string, max: number): string {
@@ -261,12 +323,18 @@
           {files}
           {loading}
           noRepo={false}
-          {stagedPaths}
           {collapsed}
+          repoRoot={repo.rootPath}
+          {statusKey}
           onToggleStage={handleToggleStage}
           onToggleFolder={handleToggleFolder}
           onStageFolder={handleStageFolder}
           onOpenDiff={handleOpenDiff}
+          onOpenFile={handleOpenFile}
+          onDiscard={handleDiscard}
+          onHunkStage={handleHunkStage}
+          onHunkUnstage={handleHunkUnstage}
+          onHunkDiscard={handleHunkDiscard}
         />
       {/if}
 

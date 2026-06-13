@@ -6,9 +6,15 @@ import (
 )
 
 // FileStatus represents a single changed file from `git status --porcelain`.
+// Status is the combined one-letter summary; IndexStatus/WorkStatus split it
+// into the real index (staged) and working-tree sides, so a file edited after
+// staging (porcelain "MM") can appear in both sidebar sections.
 type FileStatus struct {
-	Path   string `json:"path"`
-	Status string `json:"status"` // M | A | D | U | R | C | T | ! (conflict)
+	Path        string `json:"path"`
+	Status      string `json:"status"`                // M | A | D | U | R | C | T | ! (conflict)
+	IndexStatus string `json:"indexStatus,omitempty"` // staged side (X column): M A D R C T
+	WorkStatus  string `json:"workStatus,omitempty"`  // working-tree side (Y column): M D T; U untracked; ! conflict
+	OldPath     string `json:"oldPath,omitempty"`     // rename/copy source for staged renames
 }
 
 // StatusResult is the full snapshot returned by Status().
@@ -51,7 +57,7 @@ func Status(repoPath string) (StatusResult, error) {
 		return res, err
 	}
 
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		// Trim only trailing whitespace per line — never leading,
 		// since the leading space is part of the XY status code (e.g. " M").
 		line = strings.TrimRight(line, "\r\n")
@@ -69,10 +75,12 @@ func Status(repoPath string) (StatusResult, error) {
 		}
 		raw := line[3:] // path (or "old -> new" for renames)
 
-		// Renames are reported as "old -> new"; we only care about the new path.
-		path := raw
-		if idx := strings.Index(raw, " -> "); idx != -1 {
-			path = raw[idx+4:]
+		// Renames are reported as "old -> new"; the new path is the file's
+		// identity, the old one is kept for display.
+		path, oldPath := raw, ""
+		if old, renamed, ok := strings.Cut(raw, " -> "); ok {
+			oldPath = old
+			path = renamed
 		}
 
 		status := resolveStatus(xy)
@@ -84,10 +92,21 @@ func Status(repoPath string) (StatusResult, error) {
 			res.Modified++
 		}
 
-		res.Files = append(res.Files, FileStatus{
-			Path:   path,
-			Status: status,
-		})
+		fs := FileStatus{Path: path, Status: status, OldPath: oldPath}
+		switch status {
+		case "!":
+			fs.WorkStatus = "!" // conflicts live with the working-tree changes
+		case "U":
+			fs.WorkStatus = "U"
+		default:
+			if x := xy[0]; x != ' ' {
+				fs.IndexStatus = string(x)
+			}
+			if y := xy[1]; y != ' ' {
+				fs.WorkStatus = string(y)
+			}
+		}
+		res.Files = append(res.Files, fs)
 	}
 
 	return res, nil

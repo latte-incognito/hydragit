@@ -97,7 +97,7 @@ test("S7 checkout a branch from the tree context menu", async ({ mainWindow }) =
   // slash-named branches nest in collapsed folders — expand "feature" first,
   // then right-click a leaf row (folder/HEAD rows have no branch menu).
   await f.locator(".titem.folder-row", { hasText: "feature" }).first().click();
-  const row = f.locator(".titem:not(.folder-row):not(.head)", { hasText: "logging" }).first();
+  const row = f.locator(".titem:not(.folder-row):not(.timeline)", { hasText: "logging" }).first();
   await row.click({ button: "right" });
   await f.locator(".ctx").getByText("Switch to Branch", { exact: true }).click();
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
@@ -113,7 +113,7 @@ test("S8 merge a feature branch into the current branch", async ({ mainWindow })
   // feature/diverged is the only feature branch NOT yet merged into the default
   // branch — merging it is a real state change we can assert.
   await f.locator(".titem.folder-row", { hasText: "feature" }).first().click();
-  await f.locator(".titem:not(.folder-row):not(.head)", { hasText: "diverged" }).first()
+  await f.locator(".titem:not(.folder-row):not(.timeline)", { hasText: "diverged" }).first()
     .click({ button: "right" });
   await f.locator(".ctx").getByText("Merge", { exact: false }).first().click();
   await confirmModal(mainWindow); // merge preview → native 'Yes' modal

@@ -48,10 +48,10 @@ describe('BranchPane — rendering', () => {
     expect(getByText('WIP: my stash')).toBeTruthy();
   });
 
-  it('HEAD row is labelled "HEAD · <branch>"', () => {
+  it('renders the Undo timeline row (door to reflog mode)', () => {
     const { getByText } = render(BranchPane, { branches, stashes: [], activeBranch: 'main' });
     // click behaviour (onHead) is covered in BranchPane.emit.test.ts
-    expect(getByText('HEAD · main')).toBeTruthy();
+    expect(getByText('Undo timeline')).toBeTruthy();
   });
 
   it('shows no stashes empty state', async () => {
@@ -170,5 +170,128 @@ describe('BranchPane — snapshots', () => {
 
     await fireEvent.click(getByText('Snapshots'));
     expect(getByText('No snapshots — taken automatically before risky operations')).toBeTruthy();
+  });
+});
+
+// ── redesign: per-section creators, default shield, ahead/behind, filter ──────
+
+describe('BranchPane — per-section create actions', () => {
+  it('Tags header + calls onNewTag', async () => {
+    const onNewTag = vi.fn();
+    const { getByTitle } = render(BranchPane, { branches, stashes: [], activeBranch: 'main', onNewTag });
+    await fireEvent.click(getByTitle('New tag at HEAD'));
+    expect(onNewTag).toHaveBeenCalledOnce();
+  });
+
+  it('Stashes header + calls onNewStash', async () => {
+    const onNewStash = vi.fn();
+    const { getByTitle } = render(BranchPane, { branches, stashes: [], activeBranch: 'main', onNewStash });
+    await fireEvent.click(getByTitle('Stash working tree'));
+    expect(onNewStash).toHaveBeenCalledOnce();
+  });
+
+  it('Worktrees header + calls onNewWorktree', async () => {
+    const onNewWorktree = vi.fn();
+    const { getByTitle } = render(BranchPane, { branches, stashes: [], activeBranch: 'main', onNewWorktree });
+    await fireEvent.click(getByTitle('Add worktree'));
+    expect(onNewWorktree).toHaveBeenCalledOnce();
+  });
+
+  it('Snapshots header + calls onNewSnapshot', async () => {
+    const onNewSnapshot = vi.fn();
+    const { getByTitle } = render(BranchPane, { branches, stashes: [], activeBranch: 'main', onNewSnapshot });
+    await fireEvent.click(getByTitle('Take a snapshot now'));
+    expect(onNewSnapshot).toHaveBeenCalledOnce();
+  });
+
+  it('header + does not also toggle the section', async () => {
+    const onNewTag = vi.fn();
+    const { getByTitle, queryByText } = render(BranchPane, {
+      branches, stashes: [], tags: [{ name: 'v1.0', hash: 'abc' }], activeBranch: 'main', onNewTag,
+    });
+    await fireEvent.click(getByTitle('New tag at HEAD'));
+    // Tags section stays closed (it defaults closed) — the click must not bubble.
+    expect(queryByText('v1.0')).toBeNull();
+  });
+});
+
+describe('BranchPane — default branch shield', () => {
+  it('marks the branch flagged isDefault, regardless of its name', () => {
+    const withDefault = [
+      { name: 'develop', isCurrent: true, isRemote: false, isDefault: true },
+      { name: 'master', isCurrent: false, isRemote: false },
+    ] as any;
+    const { container } = render(BranchPane, { branches: withDefault, stashes: [], activeBranch: 'develop' });
+    const shields = container.querySelectorAll('.shield-wrap');
+    expect(shields.length).toBe(1);
+    expect(shields[0].closest('.titem')?.textContent).toContain('develop');
+  });
+
+  it('shows no shield when no branch is flagged (no remote — never guess by name)', () => {
+    const noDefault = [
+      { name: 'master', isCurrent: true, isRemote: false },
+      { name: 'main', isCurrent: false, isRemote: false },
+    ] as any;
+    const { container } = render(BranchPane, { branches: noDefault, stashes: [], activeBranch: 'master' });
+    expect(container.querySelectorAll('.shield-wrap').length).toBe(0);
+  });
+});
+
+describe('BranchPane — ahead/behind badges', () => {
+  it('renders ↑ahead and ↓behind counts', () => {
+    const tracked = [
+      { name: 'feat', isCurrent: true, isRemote: false, ahead: 2, behind: 1 },
+    ] as any;
+    const { getByText } = render(BranchPane, { branches: tracked, stashes: [], activeBranch: 'feat' });
+    expect(getByText('↑2')).toBeTruthy();
+    expect(getByText('↓1')).toBeTruthy();
+  });
+
+  it('an in-sync branch shows no badge at all', () => {
+    const inSync = [
+      { name: 'feat', isCurrent: true, isRemote: false, ahead: 0, behind: 0, trackShort: '=' },
+    ] as any;
+    const { container } = render(BranchPane, { branches: inSync, stashes: [], activeBranch: 'feat' });
+    expect(container.querySelector('.tkwrap')).toBeNull();
+    expect(container.textContent).not.toContain('=');
+  });
+
+  it('a gone upstream still shows the gone badge', () => {
+    const goneBranch = [
+      { name: 'feat', isCurrent: true, isRemote: false, gone: true },
+    ] as any;
+    const { getByText } = render(BranchPane, { branches: goneBranch, stashes: [], activeBranch: 'feat' });
+    expect(getByText('gone')).toBeTruthy();
+  });
+});
+
+describe('BranchPane — filter', () => {
+  it('filters branches across sections and forces them visible', async () => {
+    const { getByTitle, getByPlaceholderText, queryAllByText, queryByText } = render(BranchPane, {
+      branches, stashes: [], tags: [{ name: 'v1.0', hash: 'abc' }], activeBranch: 'main',
+    });
+
+    await fireEvent.click(getByTitle('Filter branches, tags, stashes…'));
+    await fireEvent.input(getByPlaceholderText('Filter refs…'), { target: { value: 'feature' } });
+
+    // local + remote feature-x still visible, main filtered out, tags section
+    // forced open but empty for this query
+    expect(queryAllByText('feature-x').length).toBe(2);
+    expect(queryAllByText('main').length).toBe(0);
+    expect(queryByText('v1.0')).toBeNull();
+  });
+
+  it('Escape closes the filter and restores the full list', async () => {
+    const { getByTitle, getByPlaceholderText, queryAllByText } = render(BranchPane, {
+      branches, stashes: [], activeBranch: 'main',
+    });
+
+    await fireEvent.click(getByTitle('Filter branches, tags, stashes…'));
+    const input = getByPlaceholderText('Filter refs…');
+    await fireEvent.input(input, { target: { value: 'zzz' } });
+    expect(queryAllByText('feature-x').length).toBe(0);
+
+    await fireEvent.keyDown(input, { key: 'Escape' });
+    expect(queryAllByText('feature-x').length).toBe(2);
   });
 });

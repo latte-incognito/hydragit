@@ -30,7 +30,7 @@ test.describe("Branch context menu", () => {
     // slash-named branches nest in collapsed folders — expand one and use a
     // leaf row; folder/HEAD rows don't carry the branch context menu.
     await frame.locator(".titem.folder-row", { hasText: "feature" }).first().click();
-    const row = frame.locator(".titem:not(.folder-row):not(.head)", { hasText: "auth" }).first();
+    const row = frame.locator(".titem:not(.folder-row):not(.timeline)", { hasText: "auth" }).first();
     await expect(row).toBeVisible({ timeout: 8000 });
     await row.click({ button: "right" });
 

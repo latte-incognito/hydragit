@@ -14,18 +14,25 @@ const branches = [
 const tags = [{ name: 'v1.0', hash: 'abc1234', date: '2026-01-01' }];
 const stashes = [{ index: 0, message: 'wip on main', ref: 'stash@{0}' }] as any;
 
-describe('BranchPane — HEAD row', () => {
-  it('clicking the HEAD row opens the undo timeline (onHead), not branch select', async () => {
+describe('BranchPane — Undo timeline row', () => {
+  it('clicking the timeline row opens the undo timeline (onHead), not branch select', async () => {
     const onHead = vi.fn();
     const onSelectBranch = vi.fn();
     const { container } = render(BranchPane, {
       branches, stashes: [], tags: [], activeBranch: 'main', onHead, onSelectBranch,
     });
-    const head = container.querySelector('.titem.head') as HTMLElement;
-    expect(head).toBeTruthy();
-    await fireEvent.click(head);
+    const row = container.querySelector('.titem.timeline') as HTMLElement;
+    expect(row).toBeTruthy();
+    await fireEvent.click(row);
     expect(onHead).toHaveBeenCalled();
     expect(onSelectBranch).not.toHaveBeenCalled();
+  });
+
+  it('reflects active reflog mode via headActive', () => {
+    const { container } = render(BranchPane, {
+      branches, stashes: [], tags: [], activeBranch: 'main', headActive: true,
+    });
+    expect(container.querySelector('.titem.timeline.active')).toBeTruthy();
   });
 });
 

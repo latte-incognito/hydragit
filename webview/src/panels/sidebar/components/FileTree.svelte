@@ -1,31 +1,61 @@
 <script lang="ts">
   import { send } from '$shared/messageBus';
   import type { GitFile } from '../types';
+  import HunkView from './HunkView.svelte';
 
 
   interface Props {
     files?: GitFile[];
-    stagedPaths?: Set<string>;
     loading?: boolean;
     noRepo?: boolean;
     collapsed?: Set<string>; // persisted by parent
-    onToggleStage?: (path: string) => void;
+    /** Repo root for hunk-diff fetches (scoped per repo); empty disables hunks. */
+    repoRoot?: string;
+    /** Bumped by the parent on every status change so open hunk views re-fetch. */
+    statusKey?: number;
+    onToggleStage?: (path: string, stage: boolean) => void;
     onToggleFolder?: (key: string) => void;
     onStageFolder?: (paths: string[], stage: boolean) => void;
     onOpenDiff?: (path: string) => void;
+    onOpenFile?: (path: string) => void;
+    onDiscard?: (paths: string[]) => void;
+    onHunkStage?: (patch: string) => void;
+    onHunkUnstage?: (patch: string) => void;
+    onHunkDiscard?: (patch: string) => void;
   }
 
   let {
     files = [],
-    stagedPaths = new Set(),
     loading = false,
     noRepo = false,
     collapsed = new Set(),
+    repoRoot = '',
+    statusKey = 0,
     onToggleStage = () => {},
     onToggleFolder = () => {},
     onStageFolder = () => {},
-    onOpenDiff = () => {}
+    onOpenDiff = () => {},
+    onOpenFile = () => {},
+    onDiscard = () => {},
+    onHunkStage = () => {},
+    onHunkUnstage = () => {},
+    onHunkDiscard = () => {}
   }: Props = $props();
+
+  // Which file rows have their inline hunk view expanded. Keyed by
+  // "staged|path" so the same file's two section rows expand independently.
+  let expanded: Set<string> = $state(new Set());
+  function hunkKey(path: string, staged: boolean) {
+    return (staged ? 's|' : 'w|') + path;
+  }
+  function toggleHunks(path: string, staged: boolean) {
+    const k = hunkKey(path, staged);
+    // Reassign a FRESH Set — Svelte 5 drops self-assignment (`x = x`) on the
+    // equality check, so an in-place mutate + self-assign never re-renders.
+    const next = new Set(expanded);
+    next.has(k) ? next.delete(k) : next.add(k);
+    expanded = next;
+  }
 
   // ── Types ─────────────────────────────────────────────────────────────────
   interface TreeFolder {
@@ -112,10 +142,13 @@
     return root;
   }
 
-  // Two sections: staged files (in stagedPaths) and the rest. Each gets its own
-  // folder tree; clicking a file's checkbox moves it between sections.
-  let stagedFiles  = $derived(files.filter((f) => stagedPaths.has(f.path)));
-  let changesFiles = $derived(files.filter((f) => !stagedPaths.has(f.path)));
+  // Real-index model (VS Code SCM semantics): the sections come from git's own
+  // index/worktree split, not a client-side set. A file edited after staging
+  // ("MM") appears in BOTH trees — the staged row shows the frozen snapshot's
+  // letter, the changes row the newer edits'. Each copy carries its side's
+  // letter as `status` so badges/colors render per-section.
+  let stagedFiles  = $derived(files.filter((f) => f.indexStatus).map((f) => ({ ...f, status: f.indexStatus! })));
+  let changesFiles = $derived(files.filter((f) => f.workStatus).map((f) => ({ ...f, status: f.workStatus! })));
   let stagedTree   = $derived(buildTree(stagedFiles));
   let changesTree  = $derived(buildTree(changesFiles));
 
@@ -130,14 +163,6 @@
     }
     walk(node);
     return paths;
-  }
-
-  function folderStagedState(node: TreeFolder): 'all' | 'some' | 'none' {
-    const paths = allFilesInFolder(node);
-    const stagedCount = paths.filter(p => stagedPaths.has(p)).length;
-    if (stagedCount === 0) return 'none';
-    if (stagedCount === paths.length) return 'all';
-    return 'some';
   }
 
   function countFiles(node: TreeFolder): number {
@@ -180,14 +205,121 @@
     return { oldName: null, newName: file.path.split('/').pop() ?? file.path };
   }
 
-  // ── Checkbox bind:indeterminate helper via action ─────────────────────────
-  function indeterminateAction(node: HTMLInputElement, value: boolean) {
-    node.indeterminate = value;
-    return {
-      update(v: boolean) { node.indeterminate = v; }
-    };
+  // ── Context menu (right-click on a file row) ──────────────────────────────
+  let ctxVisible = $state(false);
+  let ctxX = $state(0);
+  let ctxY = $state(0);
+  let ctxFile: GitFile | null = $state(null);
+
+  function showCtx(e: MouseEvent, file: GitFile) {
+    e.preventDefault();
+    e.stopPropagation();
+    ctxFile = file;
+    ctxX = e.clientX;
+    ctxY = e.clientY;
+    ctxVisible = true;
+  }
+
+  function closeCtx() {
+    ctxVisible = false;
+  }
+
+  function fitMenu(node: HTMLElement) {
+    requestAnimationFrame(() => {
+      const rect = node.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+      if (rect.right > vw) node.style.left = Math.max(0, vw - rect.width - 4) + 'px';
+      if (rect.bottom > vh) node.style.top = Math.max(0, parseFloat(node.style.top) - (rect.bottom - vh) - 4) + 'px';
+    });
+  }
+
+  function ctxShowDiff() {
+    closeCtx();
+    if (ctxFile) onOpenDiff(ctxFile.path);
+  }
+
+  function ctxOpenFile() {
+    closeCtx();
+    if (ctxFile) onOpenFile(ctxFile.path);
+  }
+
+  function ctxCopyPath() {
+    closeCtx();
+    if (ctxFile) navigator.clipboard?.writeText(ctxFile.path);
+  }
+
+  function ctxDiscard() {
+    closeCtx();
+    if (ctxFile && !isConflict(ctxFile)) onDiscard([ctxFile.path]);
+  }
+
+  function isConflict(f: GitFile): boolean {
+    return f.status === '!';
+  }
+
+  // Bulk discards skip conflicted files — the backend refuses a batch that
+  // contains one, and conflicts have their own resolution flow (the banner).
+  let fileByPath = $derived(new Map(files.map((f) => [f.path, f])));
+  function discardable(paths: string[]): string[] {
+    return paths.filter((p) => fileByPath.get(p)?.status !== '!');
+  }
+
+  // A deleted file has no working-tree copy to open or edit.
+  function isDeleted(f: GitFile): boolean {
+    return f.status?.toUpperCase() === 'D';
   }
 </script>
+
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') closeCtx(); }} />
+
+{#if ctxVisible && ctxFile}
+  {@const conflicted = isConflict(ctxFile)}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="ctx-overlay" onclick={closeCtx} oncontextmenu={(e) => { e.preventDefault(); closeCtx(); }}></div>
+  <div class="ctx-menu" style="left:{ctxX}px;top:{ctxY}px" use:fitMenu>
+    <div class="ctx-item" onclick={ctxShowDiff}>
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M3 4 L 7 4 M7 4 L 5 2 M7 4 L 5 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3 10 L 7 10 M7 10 L 5 8 M7 10 L 5 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">{conflicted ? 'Open Merge Editor' : 'Show Diff'}</span>
+    </div>
+    {#if !isDeleted(ctxFile)}
+      <div class="ctx-item" onclick={ctxOpenFile}>
+        <span class="ci-icon">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M2 12 L 5 11 L 11 5 L 9 3 L 3 9 Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" fill="none"/>
+            <line x1="8" y1="4" x2="10" y2="6" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+        </span>
+        <span class="ci-text">Open File</span>
+      </div>
+    {/if}
+    <div class="ctx-item" onclick={ctxCopyPath}>
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <rect x="4.5" y="4.5" width="7" height="8" rx="1" stroke="currentColor" stroke-width="1.1"/>
+          <path d="M9.5 4.5 V 3 a 1 1 0 0 0 -1 -1 H 3.5 a 1 1 0 0 0 -1 1 v 6.5 a 1 1 0 0 0 1 1 H 4.5" stroke="currentColor" stroke-width="1.1"/>
+        </svg>
+      </span>
+      <span class="ci-text">Copy Path</span>
+    </div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item" class:ctx-item--dim={conflicted} onclick={ctxDiscard}
+         title={conflicted ? 'Resolve or abort the conflict instead' : ''}>
+      <span class="ci-icon">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <path d="M3 6 L 6 3 M3 6 L 6 9 M3 6 H 9 a 3 3 0 0 1 0 6 H 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="ci-text">Discard Changes</span>
+    </div>
+  </div>
+{/if}
 
 <div class="tree-wrap" role="listbox" aria-label="Changed files">
   {#if noRepo}
@@ -206,11 +338,8 @@
     </div>
   {:else}
 
-    {#snippet renderFolder(node: TreeFolder, depth: number)}
+    {#snippet renderFolder(node: TreeFolder, depth: number, inStaged: boolean)}
       {#if node.fullPath !== '__root__'}
-        {@const state = folderStagedState(node)}
-        {@const isIndeterminate = state === 'some'}
-        {@const isChecked = state === 'all'}
         {@const folderPaths = allFilesInFolder(node)}
 
         <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -231,16 +360,25 @@
           </svg>
           <span class="folder-label">{node.label}</span>
           <span class="folder-count">{countFiles(node)}</span>
+          <button
+            class="row-act row-act--discard"
+            title="Discard all changes in {node.label} (snapshot saved first)"
+            aria-label="Discard all in {node.label}"
+            onclick={(e) => { e.stopPropagation(); onDiscard(discardable(folderPaths)); }}
+          >
+            <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+              <path d="M3 6 L 6 3 M3 6 L 6 9 M3 6 H 9 a 3 3 0 0 1 0 6 H 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
           <!-- Folder checkbox: stages/unstages all files in folder -->
           <input
             type="checkbox"
             class="hg-checkbox"
-            checked={isChecked}
-            use:indeterminateAction={isIndeterminate}
-            aria-label="Stage all in {node.label}"
+            checked={inStaged}
+            aria-label="{inStaged ? 'Unstage' : 'Stage'} all in {node.label}"
             onchange={(e) => {
               e.stopPropagation();
-              onStageFolder(folderPaths, (e.target as HTMLInputElement).checked);
+              onStageFolder(folderPaths, !inStaged);
             }}
             onclick={(e) => e.stopPropagation()}
           />
@@ -250,15 +388,17 @@
       {#if node.fullPath === '__root__' || !collapsed.has(node.fullPath)}
         {#each node.children as child}
           {#if child.kind === 'folder'}
-            {@render renderFolder(child, node.fullPath === '__root__' ? 0 : depth + 1)}
+            {@render renderFolder(child, node.fullPath === '__root__' ? 0 : depth + 1, inStaged)}
           {:else}
             {@const f = child.file}
             {@const s = cfg(f.status)}
             {@const isRename = f.status?.toUpperCase() === 'R'}
             {@const parsed = isRename ? parseRename(f) : null}
             {@const fname = f.path.split('/').pop() ?? f.path}
-            {@const staged = stagedPaths.has(f.path)}
+            {@const staged = inStaged}
             {@const indent = 8 + (node.fullPath === '__root__' ? 0 : depth + 1) * 14}
+            {@const canHunk = !!repoRoot && !isConflict(f)}
+            {@const hunksOpen = expanded.has(hunkKey(f.path, staged))}
 
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -267,12 +407,29 @@
               class:staged
               style="padding-left:{indent}px"
               onclick={() => onOpenDiff(f.path)}
+              oncontextmenu={(e) => showCtx(e, f)}
               role="option"
               aria-selected={staged}
               data-status={f.status}
               data-path={f.path}
               tabindex="0"
             >
+              {#if canHunk}
+                <button
+                  class="hunk-toggle"
+                  class:open={hunksOpen}
+                  title={hunksOpen ? 'Hide hunks' : 'Show hunks (stage part of this file)'}
+                  aria-label="Toggle hunks for {fname}"
+                  aria-expanded={hunksOpen}
+                  onclick={(e) => { e.stopPropagation(); toggleHunks(f.path, staged); }}
+                >
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                    <path d="M3 2l4 3-4 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              {:else}
+                <span class="hunk-toggle-spacer"></span>
+              {/if}
               <span class="badge {s.badgeClass}" title={s.label}>{s.label}</span>
 
               {#if isRename && parsed?.oldName}
@@ -285,15 +442,55 @@
                       title={f.path}>{fname}</span>
               {/if}
 
-              <input
-                type="checkbox"
-                class="hg-checkbox"
-                checked={staged}
-                aria-label="Stage {fname}"
-                onchange={(e) => { e.stopPropagation(); onToggleStage(f.path); }}
-                onclick={(e) => e.stopPropagation()}
-              />
+              {#if !isConflict(f)}
+                {#if !isDeleted(f)}
+                  <button
+                    class="row-act"
+                    title="Open file"
+                    aria-label="Open {fname}"
+                    onclick={(e) => { e.stopPropagation(); onOpenFile(f.path); }}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 12 L 5 11 L 11 5 L 9 3 L 3 9 Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" fill="none"/>
+                      <line x1="8" y1="4" x2="10" y2="6" stroke="currentColor" stroke-width="1.1"/>
+                    </svg>
+                  </button>
+                {/if}
+                <button
+                  class="row-act row-act--discard"
+                  title="Discard changes (snapshot saved first)"
+                  aria-label="Discard changes in {fname}"
+                  onclick={(e) => { e.stopPropagation(); onDiscard([f.path]); }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+                    <path d="M3 6 L 6 3 M3 6 L 6 9 M3 6 H 9 a 3 3 0 0 1 0 6 H 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              {/if}
+
+              {#if !isConflict(f)}
+                <input
+                  type="checkbox"
+                  class="hg-checkbox"
+                  checked={staged}
+                  aria-label="{staged ? 'Unstage' : 'Stage'} {fname}"
+                  onchange={(e) => { e.stopPropagation(); onToggleStage(f.path, !staged); }}
+                  onclick={(e) => e.stopPropagation()}
+                />
+              {/if}
             </div>
+
+            {#if canHunk && hunksOpen}
+              <HunkView
+                file={f.path}
+                {repoRoot}
+                {staged}
+                refreshKey={statusKey}
+                onStage={onHunkStage}
+                onUnstage={onHunkUnstage}
+                onDiscard={onHunkDiscard}
+              />
+            {/if}
           {/if}
         {/each}
       {/if}
@@ -302,6 +499,16 @@
     {#if stagedFiles.length > 0}
       <div class="group-header">
         <span class="group-label">Staged Changes</span>
+        <button
+          class="group-action group-action--discard"
+          title="Discard all staged changes (snapshot saved first)"
+          aria-label="Discard all staged changes"
+          onclick={() => onDiscard(discardable(stagedFiles.map((f) => f.path)))}
+        >
+          <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+            <path d="M3 6 L 6 3 M3 6 L 6 9 M3 6 H 9 a 3 3 0 0 1 0 6 H 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button
           class="group-action"
           title="Unstage all"
@@ -312,12 +519,22 @@
           </svg>
         </button>
       </div>
-      {@render renderFolder(stagedTree, 0)}
+      {@render renderFolder(stagedTree, 0, true)}
     {/if}
 
     {#if changesFiles.length > 0}
       <div class="group-header">
         <span class="group-label">Changes</span>
+        <button
+          class="group-action group-action--discard"
+          title="Discard all changes (snapshot saved first)"
+          aria-label="Discard all changes"
+          onclick={() => onDiscard(discardable(changesFiles.map((f) => f.path)))}
+        >
+          <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+            <path d="M3 6 L 6 3 M3 6 L 6 9 M3 6 H 9 a 3 3 0 0 1 0 6 H 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button
           class="group-action"
           title="Stage all"
@@ -328,7 +545,7 @@
           </svg>
         </button>
       </div>
-      {@render renderFolder(changesTree, 0)}
+      {@render renderFolder(changesTree, 0, false)}
     {/if}
   {/if}
 </div>
@@ -520,6 +737,123 @@
     flex-shrink: 0;
   }
 
+  /* ── Hunk expand toggle ── */
+  .hunk-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--vscode-descriptionForeground, #888);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.12s ease, color 0.1s;
+  }
+  .hunk-toggle.open { transform: rotate(90deg); }
+  .hunk-toggle:hover { color: var(--vscode-foreground, #ccc); }
+  .hunk-toggle-spacer {
+    width: 14px;
+    min-width: 14px;
+    flex-shrink: 0;
+  }
+
+  /* ── Row hover actions (discard / open file) ── */
+  .row-act {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--vscode-descriptionForeground, #999);
+    cursor: pointer;
+    opacity: 0;
+    flex-shrink: 0;
+    transition: opacity 0.1s, background 0.1s, color 0.1s;
+  }
+  .file-row:hover .row-act,
+  .folder-row:hover .row-act,
+  .row-act:focus-visible {
+    opacity: 1;
+  }
+  .row-act:hover {
+    background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.25));
+    color: var(--vscode-foreground, #ccc);
+  }
+  .row-act--discard:hover {
+    color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+  }
+
+  .group-action--discard:hover {
+    background: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+    border-color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+    color: #ffffff;
+  }
+
+  /* ── Context menu (same look as the detail pane's) ── */
+  .ctx-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+  }
+  .ctx-menu {
+    position: fixed;
+    z-index: 100;
+    background: var(--vscode-menu-background, #252526);
+    border: 0.5px solid var(--vscode-menu-border, #3a3a3a);
+    border-radius: 5px;
+    padding: 4px 0;
+    min-width: 200px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    font-family: var(--hg-font-family);
+    font-size: var(--hg-font-xs);
+  }
+  .ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 14px 5px 10px;
+    cursor: default;
+    color: var(--vscode-menu-foreground, #ccc);
+    white-space: nowrap;
+  }
+  .ctx-item:hover {
+    background: var(--vscode-menu-selectionBackground, #094771);
+    color: var(--vscode-menu-selectionForeground, #fff);
+  }
+  .ctx-item--dim {
+    color: var(--vscode-disabledForeground, #555);
+  }
+  .ctx-item--dim:hover {
+    background: transparent;
+    color: var(--vscode-disabledForeground, #555);
+  }
+  .ci-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+  }
+  .ci-text {
+    flex: 1;
+  }
+  .ctx-divider {
+    height: 0.5px;
+    background: var(--vscode-panel-border, #3a3a3a);
+    margin: 4px 0;
+  }
+
   /* ── Checkbox ── */
   .hg-checkbox {
     appearance: none;
@@ -535,8 +869,7 @@
     transition: background 0.1s, border-color 0.1s;
     margin-left: auto;
   }
-  .hg-checkbox:checked,
-  .hg-checkbox:indeterminate {
+  .hg-checkbox:checked {
     background: var(--vscode-checkbox-selectBackground, #0078d4);
     border-color: var(--vscode-checkbox-selectBackground, #0078d4);
   }
@@ -548,14 +881,6 @@
     border: 1.5px solid #fff;
     border-top: none; border-left: none;
     transform: rotate(45deg) scaleY(0.85);
-  }
-  .hg-checkbox:indeterminate::after {
-    content: '';
-    position: absolute;
-    left: 2px; top: 5px;
-    width: 7px; height: 1.5px;
-    background: #fff;
-    border: none; transform: none;
   }
   .hg-checkbox:focus-visible {
     outline: 1px solid var(--vscode-focusBorder, #007fd4);

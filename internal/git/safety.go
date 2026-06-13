@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 )
 
 // SafetyWarning is one pre-commit finding. Type is a stable identifier the UI
@@ -45,20 +46,25 @@ var secretContentPatterns = []*regexp.Regexp{
 
 var conflictMarkerPattern = regexp.MustCompile(`(?m)^(<{7}|>{7})( |$)`)
 
-// protectedBranches get a "committing straight to X" nudge.
-var protectedBranches = map[string]bool{"main": true, "master": true}
+// defaultProtectedBranches get a "committing straight to X" nudge when the
+// user hasn't configured hydragit.safety.protectedBranches.
+var defaultProtectedBranches = []string{"main", "master"}
 
 // CommitSafety inspects the files about to be committed and returns warnings —
 // never errors that block: per the safety-net thesis this is warn + proceed,
 // the UI decides whether to ask "commit anyway?". The enabled set (from user
 // settings, injected by the extension host) filters which checks run; an empty
-// set means all.
-func CommitSafety(repoPath string, paths []string, enabled map[string]bool) []SafetyWarning {
+// set means all. protected is the user's protected-branch list (also injected
+// from settings); empty means the main/master default.
+func CommitSafety(repoPath string, paths []string, enabled map[string]bool, protected []string) []SafetyWarning {
 	on := func(check string) bool { return len(enabled) == 0 || enabled[check] }
 	warnings := []SafetyWarning{}
 
 	if on("protectedBranch") {
-		if branch, err := run(repoPath, "rev-parse", "--abbrev-ref", "HEAD"); err == nil && protectedBranches[branch] {
+		if len(protected) == 0 {
+			protected = defaultProtectedBranches
+		}
+		if branch, err := run(repoPath, "rev-parse", "--abbrev-ref", "HEAD"); err == nil && slices.Contains(protected, branch) {
 			warnings = append(warnings, SafetyWarning{
 				Type:   "protectedBranch",
 				Detail: "committing directly to " + branch,

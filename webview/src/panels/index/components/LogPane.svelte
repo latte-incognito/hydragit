@@ -96,7 +96,9 @@
   let ctxVisible = $state(false);
   let ctxX = $state(0);
   let ctxY = $state(0);
-  let ctxIdx: number | null = null;
+  // $state: the unpushed gate below must re-evaluate when a second right-click
+  // retargets the already-open menu to a different commit.
+  let ctxIdx: number | null = $state(null);
 
   function showCtx(e: MouseEvent, i: number) {
     e.preventDefault();
@@ -326,6 +328,8 @@
       <span class="ci-shortcut">→</span>
     </div>
 
+    {#if ctxIdx === null || !commits[ctxIdx]?.unpushed}
+    <!-- Only for pushed commits — a local-only commit has no remote URL. -->
     <div class="ctx-divider"></div>
 
     <div class="ctx-item" onclick={() => runAction('view-in-browser')}>
@@ -336,6 +340,7 @@
       </span>
       <span class="ci-text">View in browser</span>
     </div>
+    {/if}
   </div>
 {/if}
 

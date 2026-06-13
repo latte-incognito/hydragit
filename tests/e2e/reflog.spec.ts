@@ -25,7 +25,7 @@ test.describe("HEAD undo timeline (reflog)", () => {
     const f = await main(mainWindow);
     await expect(f.locator(".crow").first()).toBeVisible({ timeout: 8000 });
 
-    await f.locator(".titem.head").click();
+    await f.locator(".titem.timeline").click();
 
     // Timeline appears with the three reset controls...
     await expect(f.locator(".reflog-pane")).toBeVisible({ timeout: 6000 });
@@ -38,7 +38,7 @@ test.describe("HEAD undo timeline (reflog)", () => {
 
   test("Back button fully restores the graph + detail pane", async ({ mainWindow }) => {
     const f = await main(mainWindow);
-    await f.locator(".titem.head").click();
+    await f.locator(".titem.timeline").click();
     await expect(f.locator(".reflog-pane")).toBeVisible({ timeout: 6000 });
 
     await f.locator(".rl-back").click();
@@ -50,11 +50,11 @@ test.describe("HEAD undo timeline (reflog)", () => {
 
   test("selecting a branch also exits the timeline", async ({ mainWindow }) => {
     const f = await main(mainWindow);
-    await f.locator(".titem.head").click();
+    await f.locator(".titem.timeline").click();
     await expect(f.locator(".reflog-pane")).toBeVisible({ timeout: 6000 });
 
     // Click a real branch row — leaf only; folder rows just expand/collapse.
-    await f.locator(".titem:not(.folder-row):not(.head)").first().click();
+    await f.locator(".titem:not(.folder-row):not(.timeline)").first().click();
 
     await expect(f.locator(".reflog-pane")).toHaveCount(0);
     await expect(f.locator(".crow").first()).toBeVisible({ timeout: 6000 });
@@ -62,7 +62,7 @@ test.describe("HEAD undo timeline (reflog)", () => {
 
   test("the timeline auto-updates when a commit lands while it is open", async ({ mainWindow }, testInfo) => {
     const f = await main(mainWindow);
-    await f.locator(".titem.head").click();
+    await f.locator(".titem.timeline").click();
     await expect(f.locator(".reflog-pane")).toBeVisible({ timeout: 6000 });
     // The marker isn't there yet.
     await expect(f.locator(".rl-subject").first()).not.toContainText("e2e-autoupdate-marker");
