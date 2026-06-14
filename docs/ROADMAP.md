@@ -107,9 +107,12 @@ every mutation) lives in `CLAUDE.md` → Testing approach.
 > what was fixed and when.
 
 Real bugs:
-3. Theme-token audit: ~76 hardcoded `color:`/`background:` declarations remain
-   across components — most have token fallbacks already, but audit the ones
-   without before 1.0.
+3. ~~Theme-token audit~~ — theme-breaking colors fixed (CHANGELOG Unreleased):
+   file-status colors moved to `gitDecoration.*` tokens, and solid dark
+   backgrounds that broke light/high-contrast themes moved to VS Code tokens or
+   translucent accent tints. Remaining bare colors are the intentional brand
+   accents (amber/cyan/purple/rose). Optional follow-up: centralise those into
+   `--hg-*` custom properties so the palette is editable in one place.
 
 Main panel UI:
 4. Ref pills eat the subject — `HEAD →` as icon, middle-truncate, `+N`

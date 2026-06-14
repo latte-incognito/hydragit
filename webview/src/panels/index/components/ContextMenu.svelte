@@ -221,7 +221,7 @@
     color: #f07070;
   }
   .ci.danger:hover {
-    background: #2e0d0d;
+    background: rgba(240,112,112,0.15);
   }
   .ci.disabled {
     color: var(--vscode-disabledForeground, #444);

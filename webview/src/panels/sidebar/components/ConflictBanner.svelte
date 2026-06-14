@@ -96,8 +96,8 @@
   }
   .cb-btn:hover { filter: brightness(1.15); }
   .cb-btn.merge { background: var(--vscode-button-background, #0e639c); color: var(--vscode-button-foreground, #fff); }
-  .cb-btn.current  { color: #4a9cd6; }
-  .cb-btn.incoming { color: #4ec94e; }
+  .cb-btn.current  { color: var(--vscode-gitDecoration-modifiedResourceForeground, #4a9cd6); }
+  .cb-btn.incoming { color: var(--vscode-gitDecoration-addedResourceForeground, #4ec94e); }
 
   .cb-foot { display: flex; gap: 6px; }
   .cb-cont {

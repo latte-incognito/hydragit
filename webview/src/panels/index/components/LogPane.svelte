@@ -593,9 +593,11 @@
     position: relative;
     top: -1px;
   }
-  :global(.pill-main)   { background: #0a3050; color: #56c8e8; border: 0.5px solid #1a5a7a; }
-  :global(.pill-remote) { background: #0a200a; color: #4e8c4e; border: 0.5px solid #1a4a1a; }
-  :global(.pill-tag)    { background: #1a1200; color: #c8a020; border: 0.5px solid #5a4000; }
+  /* Translucent accent tints so the ref pills read on any theme (the solid
+     fills assumed a dark background). Cyan/green/gold accents are brand. */
+  :global(.pill-main)   { background: rgba(86,200,232,0.12); color: #56c8e8; border: 0.5px solid rgba(86,200,232,0.4); }
+  :global(.pill-remote) { background: rgba(78,140,78,0.15); color: #4e8c4e; border: 0.5px solid rgba(78,140,78,0.4); }
+  :global(.pill-tag)    { background: rgba(200,160,32,0.13); color: #c8a020; border: 0.5px solid rgba(200,160,32,0.4); }
 
   /* ── Tooltip ── */
   .hg-tooltip {

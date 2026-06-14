@@ -851,13 +851,13 @@
   }
   .hunk-header {
     padding: 2px 8px;
-    background: #1a2535;
+    background: var(--vscode-editorGroupHeader-tabsBackground, #1a2535);
     color: #56c8e8;
     white-space: pre;
   }
   .hunk-line { padding: 0 8px; white-space: pre; }
-  .hunk-line--add { background: #0d2410; color: #4ec94e; }
-  .hunk-line--del { background: #2a0d0d; color: #f07070; }
+  .hunk-line--add { background: var(--vscode-diffEditor-insertedLineBackground, rgba(78,201,78,0.12)); color: var(--vscode-gitDecoration-addedResourceForeground, #4ec94e); }
+  .hunk-line--del { background: var(--vscode-diffEditor-removedLineBackground, rgba(240,112,112,0.12)); color: var(--vscode-gitDecoration-deletedResourceForeground, #f07070); }
   .hunk-line--ctx { color: var(--vscode-descriptionForeground, #888); }
 
   .detail-empty {
@@ -1034,12 +1034,12 @@
     font-family: var(--hg-font-family);
     font-size: var(--hg-font-xs);
   }
-  .fname-m { color: #4a9cd6; }
-  .fname-a, .fname-u { color: #4ec94e; }
+  .fname-m { color: var(--vscode-gitDecoration-modifiedResourceForeground, #4a9cd6); }
+  .fname-a, .fname-u { color: var(--vscode-gitDecoration-addedResourceForeground, #4ec94e); }
   .fname-d { color: var(--vscode-descriptionForeground, #888); text-decoration: line-through; }
   .fname-d-strike { text-decoration: line-through; }
-  .fname-r { color: #4a9cd6; }
-  .fname-c { color: #e0a030; }
+  .fname-r { color: var(--vscode-gitDecoration-renamedResourceForeground, #4a9cd6); }
+  .fname-c { color: var(--vscode-gitDecoration-renamedResourceForeground, #e0a030); }
   .fname-old {
     color: var(--vscode-descriptionForeground, #888);
     font-family: var(--hg-font-family);

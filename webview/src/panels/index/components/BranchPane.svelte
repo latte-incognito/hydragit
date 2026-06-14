@@ -572,10 +572,10 @@
               <span>stash@{'{'}{s.index ?? i}{'}'}</span>
               <span>{s.time ?? s.date ?? ''}</span>
               {#if s.add ?? s.additions}
-                <span style="color:#4ec94e">+{s.add ?? s.additions}</span>
+                <span style="color:var(--vscode-gitDecoration-addedResourceForeground, #4ec94e)">+{s.add ?? s.additions}</span>
               {/if}
               {#if s.rem ?? s.deletions}
-                <span style="color:#f07070">-{s.rem ?? s.deletions}</span>
+                <span style="color:var(--vscode-gitDecoration-deletedResourceForeground, #f07070)">-{s.rem ?? s.deletions}</span>
               {/if}
             </div>
           </div>
@@ -801,7 +801,7 @@
     color: var(--vscode-foreground, #ccc);
   }
   .titem.active {
-    background: #0e2535;
+    background: var(--vscode-list-activeSelectionBackground, #0e2535);
     color: var(--vscode-foreground, #ccc);
     border-left-color: #56c8e8;
   }
@@ -906,7 +906,7 @@
     padding-bottom: 5px;
     gap: 2px;
   }
-  .titem.stash.active { background: #0e2535; border-left-color: #9a7ae8; }
+  .titem.stash.active { background: var(--vscode-list-activeSelectionBackground, #0e2535); border-left-color: #9a7ae8; }
   .stash-msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
   .stash-meta {
     font-size: var(--hg-font-xxs);
@@ -939,6 +939,9 @@
     font-family: var(--hg-font-family);
   }
   .sab:hover { color: var(--vscode-foreground, #ccc); }
-  .sab.primary { background: #0e5a7c; border-color: #1a8ab0; color: #56c8e8; }
-  .sab.danger  { background: #2e0d0d; border-color: #6a1a1a; color: #f07070; }
+  /* Translucent accent tints, not solid dark fills — readable over any theme's
+     panel background (the fill colours assumed a dark theme). Brand cyan/red
+     foregrounds kept (Alpha Legion accent). */
+  .sab.primary { background: rgba(86,200,232,0.12); border-color: rgba(86,200,232,0.45); color: #56c8e8; }
+  .sab.danger  { background: rgba(240,112,112,0.12); border-color: rgba(240,112,112,0.45); color: #f07070; }
 </style>
