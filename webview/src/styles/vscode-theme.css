@@ -31,6 +31,18 @@
   --hg-editor-font-size: var(--vscode-editor-font-size, 12px);
   --hg-editor-font-weight: var(--vscode-editor-font-weight, 400);
   --hg-editor-line-height: var(--vscode-editor-line-height, 1.5);
+
+  /* Brand accent palette (Alpha Legion) — HydraGit's own semantic accents, used
+     where VS Code has no equivalent token, so these are a FIXED palette (they do
+     NOT track the user's theme — that's intentional). Defined once here and
+     referenced as var(--hg-*) instead of repeating the literals across
+     components; edit a colour here and it changes everywhere. NB: the rgba()
+     tints derived from these (translucent backgrounds) stay inline, and the
+     flash() colour arguments are sentinels, not CSS — neither uses these vars. */
+  --hg-warn: #e0a030;   /* amber  — undo / reflog timeline / protected / ahead / rebase pause */
+  --hg-info: #56c8e8;   /* cyan   — behind / active-row accents / HEAD pill / info */
+  --hg-author: #9a7ae8; /* purple — author search scope / stash accent */
+  --hg-code: #e8648a;   /* rose   — code (pickaxe) search */
 }
 
 body {

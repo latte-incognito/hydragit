@@ -149,7 +149,7 @@
   }
   .ir-sha {
     font-family: var(--hg-font-mono, monospace);
-    color: #c08a3e;
+    color: var(--hg-warn);
     flex-shrink: 0;
   }
   .ir-subject {
@@ -172,7 +172,7 @@
     margin: 0 16px 8px;
     padding: 5px 9px;
     font-size: var(--hg-font-xs);
-    color: #e0a030;
+    color: var(--hg-warn);
     background: rgba(224, 160, 48, 0.1);
     border-radius: 3px;
   }

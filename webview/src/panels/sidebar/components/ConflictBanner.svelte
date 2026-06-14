@@ -67,7 +67,7 @@
     font-size: var(--hg-font-xs);
   }
   .cb-head { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; }
-  .cb-title { color: #e0a030; font-size: var(--hg-font-sm); }
+  .cb-title { color: var(--hg-warn); font-size: var(--hg-font-sm); }
   .cb-sub { color: var(--vscode-descriptionForeground, #999); }
 
   .cb-files { display: flex; flex-direction: column; gap: 3px; margin-bottom: 7px; }

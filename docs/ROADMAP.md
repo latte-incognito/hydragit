@@ -106,23 +106,12 @@ every mutation) lives in `CLAUDE.md` → Testing approach.
 > Fixed bugs are removed from this queue — `CHANGELOG.md` is the record of
 > what was fixed and when.
 
-Real bugs:
-3. ~~Theme-token audit~~ — theme-breaking colors fixed (CHANGELOG Unreleased):
-   file-status colors moved to `gitDecoration.*` tokens, and solid dark
-   backgrounds that broke light/high-contrast themes moved to VS Code tokens or
-   translucent accent tints. Remaining bare colors are the intentional brand
-   accents (amber/cyan/purple/rose). Optional follow-up: centralise those into
-   `--hg-*` custom properties so the palette is editable in one place.
-
-Main panel UI:
-4. Ref pills eat the subject — `HEAD →` as icon, middle-truncate, `+N`
+1. Ref pills eat the subject — `HEAD →` as icon, middle-truncate, `+N`
    overflow. *(pill markup pass)*
-5. ~~Detail action row~~ shipped (redesign + 5.1–5.4 follow-up fixes — see
-   CHANGELOG Unreleased). 5.5 (cherry-pick) verified wired end-to-end
-   (chip → `commitMenuAction` → `cherrypick` cmd → `git cherry-pick`; failures
-   flash git's error). Remaining nice-to-have: a conflicted cherry-pick only
-   flashes the error — no resolve/continue bar like merge/rebase have.
-6. Token-search polish (smart detection): paste 7–40 hex chars → "jump to
+2. Conflicted cherry-pick only flashes git's error — no resolve/continue bar
+   like merge/rebase have. *(the happy path is wired end-to-end and works; this
+   is the conflict-pause UI it's missing)*
+3. Token-search polish (smart detection): paste 7–40 hex chars → "jump to
    commit" suggestion; `@` → author autocomplete from loaded commits;
    multi-line paste → offer code search. *(follow-up to the toolbar redesign)*
 
