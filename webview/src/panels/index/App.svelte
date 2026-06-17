@@ -1815,7 +1815,7 @@
     padding: 5px 12px;
     background: rgba(224, 160, 48, 0.13);
     border-bottom: 0.5px solid rgba(224, 160, 48, 0.4);
-    color: var(--hg-warn);
+    color: var(--hg-warn, #e0a030);
     font-size: var(--hg-font-sm);
     flex-shrink: 0;
   }

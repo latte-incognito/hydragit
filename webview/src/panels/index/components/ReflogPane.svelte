@@ -122,7 +122,7 @@
   }
   .rl-hash {
     font-family: var(--hg-font-mono, monospace);
-    color: var(--hg-warn);
+    color: var(--hg-warn, #e0a030);
     flex-shrink: 0;
   }
   .rl-date {

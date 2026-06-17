@@ -72,7 +72,7 @@
   }
   .divider:hover,
   .divider:global(.dragging) {
-    background: var(--vscode-focusBorder, var(--hg-info));
+    background: var(--vscode-focusBorder, var(--hg-info, #56c8e8));
     opacity: 0.5;
   }
 </style>
