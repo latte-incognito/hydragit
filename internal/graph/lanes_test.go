@@ -13,6 +13,32 @@ func assert(t *testing.T, cond bool, msg string) {
 	}
 }
 
+// TestLaneColors_contract pins the graph lane palette to its exact values — the
+// Go-side counterpart of the webview theme contract (styles/theme-tokens.test.ts).
+// The fuzz test only checks that drawn colours are *members* of the palette; this
+// freezes the palette itself so a refactor can't silently recolour the graph.
+// Changing a colour is intentional: update this list in the same commit.
+func TestLaneColors_contract(t *testing.T) {
+	want := []string{
+		"#e8873e", // orange
+		"#56c8e8", // teal
+		"#e85680", // pink
+		"#4ec94e", // green
+		"#9a7ae8", // purple
+		"#e3b341", // amber
+		"#56e8c8", // mint
+		"#7898e8", // blue
+	}
+	if len(LaneColors) != len(want) {
+		t.Fatalf("lane palette size changed: got %d colours, want %d", len(LaneColors), len(want))
+	}
+	for i, c := range want {
+		if LaneColors[i] != c {
+			t.Errorf("LaneColors[%d] = %s, want %s (update the contract if intentional)", i, LaneColors[i], c)
+		}
+	}
+}
+
 // ── single branch ─────────────────────────────────────────────────────────────
 
 func TestSingleBranch(t *testing.T) {

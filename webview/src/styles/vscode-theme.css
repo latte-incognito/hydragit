@@ -24,6 +24,7 @@
   --hg-font-xxs: calc(var(--hg-font-size) - 2px);
   --hg-font-xs: calc(var(--hg-font-size) - 1px);
   --hg-font-sm: var(--hg-font-size);
+  --hg-font-md: calc(var(--hg-font-size) + 2px); /* section/dialog titles */
   --hg-font-lg: calc(var(--hg-font-size) + 1px);
 
   /* Editor font — double fallback covers all VSCode versions */
@@ -31,6 +32,9 @@
   --hg-editor-font-size: var(--vscode-editor-font-size, 12px);
   --hg-editor-font-weight: var(--vscode-editor-font-weight, 400);
   --hg-editor-line-height: var(--vscode-editor-line-height, 1.5);
+  /* Monospace alias — the editor font; components pass `, monospace` as a
+     belt-and-suspenders fallback. */
+  --hg-font-mono: var(--hg-editor-font-family);
 
   /* Brand accent palette (Alpha Legion) — HydraGit's own semantic accents, used
      where VS Code has no equivalent token, so these are a FIXED palette (they do
