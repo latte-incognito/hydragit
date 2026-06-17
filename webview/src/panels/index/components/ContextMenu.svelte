@@ -84,30 +84,36 @@
 <!-- Branch context menu -->
 {#if branchMenu.visible}
   <div class="ctx show" style="left:{branchMenu.x}px;top:{branchMenu.y}px" use:fitMenu>
-    <div class="ci" class:disabled={branchMenu.isCurrent} onclick={() => onBranchAction('checkout')}>Switch to Branch</div>
+    {#if !branchMenu.isCurrent}
+      <div class="ci" onclick={() => onBranchAction('checkout')}>Switch to Branch</div>
+    {/if}
     <div class="ci" onclick={() => onBranchAction('new-from')}>
       New Branch from '{branchMenu.branch}'…
     </div>
     <div class="ci" onclick={() => onBranchAction('rename')}>
       Rename…
     </div>
-    <div class="ci" class:disabled={branchMenu.isCurrent} onclick={() => onBranchAction('checkout-rebase')}>
-      Checkout and Rebase onto '{branchMenu.current}'
-    </div>
-    <div class="ctx-sep"></div>
-    <div class="ci" onclick={() => onBranchAction('compare')}>
-      Compare with '{branchMenu.current}'
-    </div>
+    {#if !branchMenu.isCurrent}
+      <div class="ci" onclick={() => onBranchAction('checkout-rebase')}>
+        Checkout and Rebase onto '{branchMenu.current}'
+      </div>
+      <div class="ctx-sep"></div>
+      <div class="ci" onclick={() => onBranchAction('compare')}>
+        Compare with '{branchMenu.current}'
+      </div>
+    {/if}
     <div class="ci" onclick={() => onBranchAction('diff-working')}>
       Show Diff with Working Tree
     </div>
-    <div class="ctx-sep"></div>
-    <div class="ci" class:disabled={branchMenu.isCurrent} onclick={() => onBranchAction('rebase')}>
-      Rebase '{branchMenu.current}' onto '{branchMenu.branch}'
-    </div>
-    <div class="ci" class:disabled={branchMenu.isCurrent} onclick={() => onBranchAction('merge')}>
-      Merge '{branchMenu.branch}' into '{branchMenu.current}'
-    </div>
+    {#if !branchMenu.isCurrent}
+      <div class="ctx-sep"></div>
+      <div class="ci" onclick={() => onBranchAction('rebase')}>
+        Rebase '{branchMenu.current}' onto '{branchMenu.branch}'
+      </div>
+      <div class="ci" onclick={() => onBranchAction('merge')}>
+        Merge '{branchMenu.branch}' into '{branchMenu.current}'
+      </div>
+    {/if}
     <div class="ctx-sep"></div>
     <div class="ci" onclick={() => onBranchAction('pull-rebase')}>
       Pull into '{branchMenu.current}' Using Rebase
@@ -115,14 +121,12 @@
     <div class="ci" onclick={() => onBranchAction('pull-merge')}>
       Pull into '{branchMenu.current}' Using Merge
     </div>
-    <div class="ctx-sep"></div>
-    <div
-      class="ci danger"
-      class:disabled={branchMenu.isCurrent}
-      onclick={() => onBranchAction('delete')}
-    >
-      Delete
-    </div>
+    {#if !branchMenu.isCurrent}
+      <div class="ctx-sep"></div>
+      <div class="ci danger" onclick={() => onBranchAction('delete')}>
+        Delete
+      </div>
+    {/if}
   </div>
 {/if}
 
