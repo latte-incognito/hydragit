@@ -6,10 +6,13 @@ const FORK3_REPO_DIR = "/tmp/hydragit-fork3-repo";
 const FORK50_REPO_DIR = "/tmp/hydragit-fork50-repo";
 const CONFLICT_REPO_DIR = "/tmp/hydragit-conflict-repo";
 const DIRTY_REPO_DIR = "/tmp/hydragit-dirty-repo";
+const MULTI_REPO_DIR = "/tmp/hydragit-multi-repo";
 const EXTENSION_DIR = __dirname;
 
 // Specs that belong to their own dedicated-fixture project, not the default one.
-const DEDICATED_SPECS = /graph-perf\.spec\.ts|graph-fork\d+\.spec\.ts|conflict\.spec\.ts|journeys-dirty\.spec\.ts|safety-settings\.spec\.ts|hunks\.spec\.ts/;
+// (The e2e-* cluster files for staging/hunks/discard run on the dirty project;
+// e2e-multi-repo runs on its own two-repo workspace.)
+const DEDICATED_SPECS = /graph-perf\.spec\.ts|graph-fork\d+\.spec\.ts|conflict\.spec\.ts|journeys-dirty\.spec\.ts|safety-settings\.spec\.ts|hunks\.spec\.ts|e2e-commit-staging\.spec\.ts|e2e-discard\.spec\.ts|e2e-multi-repo\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -84,11 +87,22 @@ export default defineConfig({
       // Dirty project: repo with uncommitted changes. Exercises stage / commit /
       // stash journeys (S10, S11) and the protected-branch settings (SS1–SS3).
       name: "vscode-dirty",
-      testMatch: /journeys-dirty\.spec\.ts|safety-settings\.spec\.ts|hunks\.spec\.ts/,
+      testMatch: /journeys-dirty\.spec\.ts|safety-settings\.spec\.ts|hunks\.spec\.ts|e2e-commit-staging\.spec\.ts|e2e-discard\.spec\.ts/,
       use: {
         extensionPath: EXTENSION_DIR,
         repoPath: DIRTY_REPO_DIR,
         fixtureScript: "tests/fixtures/create-dirty-repo.sh",
+      } as any,
+    },
+    {
+      // Multi-repo project: a parent folder with two nested git repos (repo-a,
+      // repo-b). Exercises the grouped sidebar + focused main panel + isolation.
+      name: "vscode-multi",
+      testMatch: /e2e-multi-repo\.spec\.ts/,
+      use: {
+        extensionPath: EXTENSION_DIR,
+        repoPath: MULTI_REPO_DIR,
+        fixtureScript: "tests/fixtures/create-multi-repo.sh",
       } as any,
     },
   ],

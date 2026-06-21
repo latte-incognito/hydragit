@@ -1,5 +1,7 @@
-import { Page, FrameLocator } from "@playwright/test";
+import { Page, FrameLocator, expect } from "@playwright/test";
 import { execSync } from "child_process";
+import fs from "fs";
+import os from "os";
 
 /**
  * The per-worker fixture repo path (vscode-fixture.ts builds the repo at
@@ -147,4 +149,128 @@ export async function graphLaneCount(frame: FrameLocator): Promise<number> {
   const w = await frame.locator(".graph-col svg").first().getAttribute("width");
   const width = Number(w ?? 0);
   return Math.round((width - PAD * 2) / LANE_W);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared journey helpers — frame getters, dialog seam, error-message contract,
+// and remote simulation. Centralised here so the cluster/epic specs don't each
+// redefine answerPrompt/confirmModal (the older specs did inline).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Resolve the main-panel webview frame (the commit log / branch tree). */
+export async function mainFrame(page: Page): Promise<FrameLocator> {
+  const f = await getWebviewFrame(page, "main");
+  expect(f, "main webview frame").not.toBeNull();
+  return f!;
+}
+
+/** Resolve the sidebar webview frame (staging / commit). */
+export async function sidebarFrame(page: Page): Promise<FrameLocator> {
+  const f = (await getSidebarFrame(page)) ?? (await getWebviewFrame(page, "sidebar"));
+  expect(f, "sidebar webview frame").not.toBeNull();
+  return f!;
+}
+
+/** The App.flash() success indicator ("⚡ …" in the status bar). */
+export function flash(frame: FrameLocator) {
+  return frame.getByText("⚡", { exact: false }).first();
+}
+
+/** An error flash ("⚠ …"). Surfaced when a command fails. */
+export function errorFlash(frame: FrameLocator) {
+  return frame.getByText("⚠", { exact: false }).first();
+}
+
+/** Answer a VS Code showInputBox (the dialog seam's uiPrompt). */
+export async function answerPrompt(page: Page, text: string) {
+  const input = page.locator(".quick-input-box input");
+  await input.waitFor({ state: "visible", timeout: 5000 });
+  await input.fill(text);
+  await page.keyboard.press("Enter");
+}
+
+/** Pick an item from a VS Code quick-pick by visible label. */
+export async function quickPick(page: Page, label: string) {
+  const input = page.locator(".quick-input-box input");
+  await input.waitFor({ state: "visible", timeout: 5000 });
+  await page.locator(".quick-input-list .monaco-list-row", { hasText: label }).first().click();
+}
+
+/** Click a button on a VS Code modal warning (the dialog seam's uiConfirm). */
+export async function confirmModal(page: Page, label = "Yes") {
+  await page
+    .locator(".monaco-dialog-box .monaco-button", { hasText: label })
+    .first()
+    .click({ timeout: 6000 });
+}
+
+/** Dismiss a modal if one is showing (best-effort; never throws). */
+export async function dismissModalIfAny(page: Page, label = "Cancel") {
+  await page
+    .locator(".monaco-dialog-box .monaco-button", { hasText: label })
+    .first()
+    .click({ timeout: 3000 })
+    .catch(() => {});
+}
+
+/**
+ * The [msg] contract: a surfaced error/warning must read like a human sentence
+ * and be accurate — not a raw `fatal:`/`error:` git dump or a stack trace.
+ */
+export function expectReadableError(text: string, opts: { mentions?: string } = {}) {
+  const t = (text ?? "").trim();
+  expect(t.length, `error text too short to be readable: ${JSON.stringify(t)}`).toBeGreaterThanOrEqual(12);
+  expect(t.split("\n").length, `error text should be one coherent line: ${JSON.stringify(t)}`).toBeLessThanOrEqual(3);
+  expect(/^(fatal:|error:|usage:|warning:)/i.test(t), `error leaks a raw git prefix: ${JSON.stringify(t)}`).toBe(false);
+  expect(/\bat\s+\S+:\d+/.test(t), `error leaks a stack frame: ${JSON.stringify(t)}`).toBe(false);
+  if (opts.mentions) {
+    expect(t.includes(opts.mentions), `error should mention ${JSON.stringify(opts.mentions)}: ${JSON.stringify(t)}`).toBe(true);
+  }
+}
+
+// ── Remote simulation ────────────────────────────────────────────────────────
+// The default fixture wires a bare repo as `origin` (create-test-repo.sh). These
+// helpers advance that remote "behind the user's back" — the only way to drive
+// non-FF rejection, smart-sync, and stale-lease scenarios for real.
+
+/** The origin URL of a working repo. */
+export function remoteOf(repo: string): string {
+  return git(repo, "remote get-url origin");
+}
+
+/**
+ * Clone `origin`, push one new commit from the clone, and clean up — advancing
+ * the remote so the local repo becomes non-fast-forwardable. Mirrors the Go
+ * tests' pushOtherCommit. Returns the temp clone dir (already pushed).
+ */
+export function pushFromClone(repo: string, branch: string, file: string, content: string): void {
+  const remote = remoteOf(repo);
+  const tmp = fs.mkdtempSync(`${os.tmpdir()}/hydragit-other-`);
+  try {
+    execSync(`git clone --branch "${branch}" "${remote}" "${tmp}"`, { stdio: "pipe" });
+    execSync(`git -C "${tmp}" config user.email other@x.com`, { stdio: "pipe" });
+    execSync(`git -C "${tmp}" config user.name Other`, { stdio: "pipe" });
+    fs.writeFileSync(`${tmp}/${file}`, content);
+    execSync(`git -C "${tmp}" add "${file}"`, { stdio: "pipe" });
+    execSync(`git -C "${tmp}" commit -m "other: ${file}"`, { stdio: "pipe" });
+    execSync(`git -C "${tmp}" push origin "${branch}"`, { stdio: "pipe" });
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+/** Current branch name of a repo. */
+export function currentBranch(repo: string): string {
+  return git(repo, "rev-parse --abbrev-ref HEAD");
+}
+
+/** The fixture's default branch (main or master). */
+export function defaultBranch(repo: string): string {
+  // origin/HEAD resolves to the remote's default; fall back to current.
+  try {
+    const sym = git(repo, "symbolic-ref --short refs/remotes/origin/HEAD");
+    return sym.replace(/^origin\//, "");
+  } catch {
+    return currentBranch(repo);
+  }
 }
