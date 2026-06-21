@@ -2,22 +2,17 @@ import { execSync } from "child_process";
 import fs from "fs";
 import { test, expect } from "./vscode-fixture";
 import {
-  mainFrame, flash, answerPrompt, dismissModalIfAny,
+  mainFrame, flash, answerPrompt, dismissModalIfAny, openStatus, rightClickBranch,
   workerRepo, git, defaultBranch, expectReadableError,
 } from "./webview-helpers";
 
 // Cluster D — branch lifecycle (main panel branch tree + rail). Default project.
 
 const repo = () => workerRepo(test.info());
-const flashText = async (f: any) => (await f.locator(".sb-right").innerText()).replace(/^⚡\s*/, "");
-
-async function rightClickBranch(f: any, folder: string, leaf: string) {
-  await f.locator(".titem.folder-row", { hasText: folder }).first().click();
-  const row = f.locator(".titem:not(.folder-row):not(.timeline)", { hasText: leaf }).first();
-  await expect(row).toBeVisible({ timeout: 8000 });
-  await row.click({ button: "right" });
-  return f.locator(".ctx");
-}
+const flashText = async (f: any) => {
+  await openStatus(f);
+  return (await f.locator(".sb-right").innerText()).replace(/^⚡\s*/, "");
+};
 
 // 21 ── new branch from current → it exists and is checked out ───────────────────
 test("D21 create a branch from the rail and switch back", async ({ mainWindow }) => {
@@ -30,7 +25,7 @@ test("D21 create a branch from the rail and switch back", async ({ mainWindow })
   await expect(() => expect(git(r, "branch --list journey/d21")).toContain("journey/d21")).toPass({ timeout: 8000 });
 
   // Switch back to the base branch via the context menu.
-  const menu = await rightClickBranch(f, base.includes("/") ? base.split("/")[0] : base, base);
+  const menu = await rightClickBranch(f, base);
   await menu.getByText("Switch to Branch", { exact: true }).click().catch(() => {});
 });
 
@@ -42,7 +37,7 @@ test("D22 a dirty conflicting file blocks checkout until stashed", async ({ main
   fs.writeFileSync(`${r}/src/auth.go`, "package auth\n// local uncommitted edit\n");
   const f = await mainFrame(mainWindow);
 
-  const menu = await rightClickBranch(f, "feature", "auth");
+  const menu = await rightClickBranch(f, "feature/auth");
   await menu.getByText("Switch to Branch", { exact: true }).click();
   // Blocked: an error flash appears and HEAD did not move.
   await expect(async () => {
@@ -50,10 +45,12 @@ test("D22 a dirty conflicting file blocks checkout until stashed", async ({ main
   }).toPass({ timeout: 6000 });
   expectReadableError(await flashText(f));
 
-  // Stash, then the switch succeeds.
+  // Clear any leftover menu/modal so the rail is clickable, then stash → retry.
+  await dismissModalIfAny(mainWindow, "Cancel");
+  await mainWindow.keyboard.press("Escape");
   await f.locator('button.rail-btn[aria-label="Stash changes"]').click();
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
-  const menu2 = await rightClickBranch(f, "feature", "auth");
+  const menu2 = await rightClickBranch(f, "feature/auth");
   await menu2.getByText("Switch to Branch", { exact: true }).click();
   await expect(() => expect(git(r, "rev-parse --abbrev-ref HEAD")).toBe("feature/auth")).toPass({ timeout: 8000 });
 });
@@ -83,15 +80,15 @@ test("D25 the current branch's context menu omits Delete", async ({ mainWindow }
   const r = repo();
   const base = defaultBranch(r);
   const f = await mainFrame(mainWindow);
-  const menu = await rightClickBranch(f, base.includes("/") ? base.split("/")[0] : base, base);
+  const menu = await rightClickBranch(f, base);
   await expect(menu).toBeVisible({ timeout: 4000 });
   await expect(menu.getByText("Delete", { exact: true })).toHaveCount(0);
 });
 
-// 26 ── [±] delete an unmerged branch (force path) ───────────────────────────────
-test("D26 deleting an unmerged branch goes through and removes it", async ({ mainWindow }) => {
+// 26 ── [−][msg] deleting an unmerged branch is refused (delete is force:false) ──
+test("D26 deleting an unmerged branch is refused with a readable error", async ({ mainWindow }) => {
   const r = repo();
-  // An unmerged branch with a unique commit.
+  // An unmerged branch with a unique commit (not reachable from HEAD).
   execSync(`git -C "${r}" branch d26-unmerged && git -C "${r}" commit --allow-empty -qm x`, { stdio: "pipe" });
   execSync(`git -C "${r}" branch -f d26-unmerged HEAD && git -C "${r}" reset -q --hard HEAD~1`, { stdio: "pipe" });
   const f = await mainFrame(mainWindow);
@@ -101,16 +98,18 @@ test("D26 deleting an unmerged branch goes through and removes it", async ({ mai
   await expect(row).toBeVisible({ timeout: 8000 });
   await row.click({ button: "right" });
   await f.locator(".ctx").getByText("Delete", { exact: true }).click();
-  await dismissModalIfAny(mainWindow, "Yes"); // force/confirm
 
-  await expect(() => expect(git(r, "branch --list d26-unmerged")).toBe("")).toPass({ timeout: 8000 });
+  // HydraGit deletes with force:false, so git refuses an unmerged branch — it
+  // survives and the user gets a readable "Delete failed" flash.
+  await expect(() => expect(git(r, "branch --list d26-unmerged")).toContain("d26-unmerged")).toPass({ timeout: 8000 });
+  expectReadableError(await flashText(f));
 });
 
 // 27 ── rename a branch ──────────────────────────────────────────────────────────
 test("D27 rename a branch", async ({ mainWindow }) => {
   const r = repo();
   const f = await mainFrame(mainWindow);
-  const menu = await rightClickBranch(f, "release", "2.0.0");
+  const menu = await rightClickBranch(f, "release/2.0.0");
   await menu.getByText("Rename", { exact: false }).first().click();
   await answerPrompt(mainWindow, "release/2.1.0");
   await expect(flash(f)).toBeVisible({ timeout: 6000 });

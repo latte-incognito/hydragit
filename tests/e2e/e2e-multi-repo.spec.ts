@@ -1,6 +1,6 @@
 import { execSync } from "child_process";
 import { test, expect } from "./vscode-fixture";
-import { sidebarFrame, mainFrame, quickPick, workerRepo, git } from "./webview-helpers";
+import { sidebarFrame, mainFrame, openStatus, quickPick, workerRepo, git } from "./webview-helpers";
 
 // Cluster P — multi-repo (grouped sidebar, focused main panel). Runs on the
 // vscode-multi project: the parent folder contains repo-a + repo-b, both git
@@ -29,7 +29,8 @@ test("P98 the sidebar groups both repos; a commit in A leaves B untouched", asyn
 test("P99 switching the active repo refocuses the main panel log", async ({ mainWindow }) => {
   const f = await mainFrame(mainWindow);
   await expect(f.locator(".crow").first()).toBeVisible({ timeout: 10000 });
-  // The status-bar repo switcher picks the active repo.
+  // The status-bar repo switcher picks the active repo (open the bar first).
+  await openStatus(f);
   await f.locator(".sb-repo").click();
   await quickPick(mainWindow, "repo-b").catch(() => {});
   // The log now shows repo-b's history.

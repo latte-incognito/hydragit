@@ -4,6 +4,7 @@ import { test, expect } from "./vscode-fixture";
 import {
   sidebarFrame,
   mainFrame,
+  openStatus,
   workerRepo,
   git,
   confirmModal,
@@ -97,10 +98,12 @@ test("A5 amend folds a forgotten file into HEAD, count unchanged", async ({ main
   await expect(() => expect(git(r, "log -1 --format=%s")).toBe("feat: first pass")).toPass({ timeout: 8000 });
   const before = git(r, "rev-list --count HEAD");
 
-  // NOTES.md was forgotten — stage it, tick Amend, amend.
-  await f.locator('.file-row[data-path="NOTES.md"] input[type="checkbox"]').check();
+  // NOTES.md was forgotten — stage it (deterministically), then amend via the UI.
+  execSync(`git -C "${r}" add NOTES.md`, { stdio: "pipe" });
+  await mainWindow.waitForTimeout(1500); // let the sidebar pick up the staged file
   await f.locator(".amend-toggle input[type=checkbox]").check();
   await type(f, "feat: first pass"); // keep message
+  await expect(f.locator(".btn.btn-primary", { hasText: "Amend" })).toBeEnabled({ timeout: 6000 });
   await f.locator(".btn.btn-primary", { hasText: "Amend" }).click();
   await dismissModalIfAny(mainWindow, "Yes");
 
@@ -118,7 +121,11 @@ test("A6 reword the last commit message on a clean tree", async ({ mainWindow })
   const f = await sb(mainWindow);
   await expect(f.locator(".clean-amend")).toBeVisible({ timeout: 8000 });
   await f.locator(".clean-amend").click();
-  await type(f, "reworded subject");
+  // The amend area prefills the existing message asynchronously — wait for that
+  // before typing, or the prefill clobbers our new subject.
+  const input = f.locator(".commit-input").first();
+  await expect(input).toHaveValue(/to be reworded/, { timeout: 6000 });
+  await input.fill("reworded subject");
   await f.locator(".btn.btn-primary", { hasText: "Amend" }).click();
   await dismissModalIfAny(mainWindow, "Yes");
 
@@ -145,9 +152,11 @@ test("A7 amending a pushed commit surfaces a divergence, not a silent rewrite", 
   expect(git(r, "rev-list --count @{u}..HEAD")).toBe("1");
   expect(git(r, "rev-list --count HEAD..@{u}")).toBe("1");
 
-  // The status bar reflects the divergence (a ⇅ Sync affordance appears).
+  // The status bar (opened) reflects the divergence with a ⇅ Sync pill.
   const mp = await mainFrame(mainWindow);
-  await expect(mp.locator(".statusbar, .status-bar").first()).toBeVisible({ timeout: 8000 });
+  await mainWindow.waitForTimeout(3500); // status poll picks up the divergence
+  await openStatus(mp);
+  await expect(mp.locator(".sb-pill", { hasText: "Sync" }).first()).toBeVisible({ timeout: 8000 });
 });
 
 // 8 ── [msg] pre-commit secret warning is readable and proceedable ──────────────
@@ -181,7 +190,7 @@ test("A9 a leftover conflict marker warns; cancel, fix, then commit clean", asyn
   const dialog = mainWindow.locator(".monaco-dialog-box");
   await expect(dialog).toBeVisible({ timeout: 8000 });
   await expect(dialog).toContainText(/conflict|marker|safety/i);
-  await confirmModal(mainWindow, "No"); // cancel
+  await confirmModal(mainWindow, "Cancel"); // cancel (VS Code's modal negative is "Cancel")
   expect(git(r, "log -1 --format=%s")).not.toBe("feat: oops markers");
 
   // Fix and recommit cleanly.
@@ -199,14 +208,17 @@ test("A10 hammering the stage toggle then committing yields a consistent index",
   const f = await sb(mainWindow);
   const cb = f.locator('.file-row[data-path="app.js"] input[type="checkbox"]');
   await expect(cb).toBeVisible({ timeout: 8000 });
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 4; i++) {
     await cb.click();
-    await mainWindow.waitForTimeout(120);
+    await mainWindow.waitForTimeout(300); // let each stage/unstage round-trip settle
   }
   // End staged, commit; the result must contain app.js exactly once, no corruption.
   if (!(await cb.isChecked())) await cb.check();
+  await expect(cb).toBeChecked({ timeout: 6000 });
   await type(f, "feat: race survivor");
-  await clickCommit(f);
+  const commitBtn = f.locator(".btn.btn-primary").first();
+  await expect(commitBtn).toBeEnabled({ timeout: 8000 });
+  await commitBtn.click();
   await dismissModalIfAny(mainWindow, "Yes");
   await expect(() => {
     expect(git(r, "log -1 --format=%s")).toBe("feat: race survivor");

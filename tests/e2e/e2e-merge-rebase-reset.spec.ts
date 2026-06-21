@@ -2,21 +2,17 @@ import { execSync } from "child_process";
 import { test, expect } from "./vscode-fixture";
 import {
   mainFrame, sidebarFrame, flash, answerPrompt, confirmModal, dismissModalIfAny,
+  openStatus, rightClickBranch,
   workerRepo, git, defaultBranch, expectReadableError,
 } from "./webview-helpers";
 
 // Cluster E — merge / rebase / reset (main panel). Default project.
 
 const repo = () => workerRepo(test.info());
-const flashText = async (f: any) => (await f.locator(".sb-right").innerText()).replace(/^⚡\s*/, "");
-
-async function rightClickBranch(f: any, folder: string, leaf: string) {
-  await f.locator(".titem.folder-row", { hasText: folder }).first().click();
-  const row = f.locator(".titem:not(.folder-row):not(.timeline)", { hasText: leaf }).first();
-  await expect(row).toBeVisible({ timeout: 8000 });
-  await row.click({ button: "right" });
-  return f.locator(".ctx");
-}
+const flashText = async (f: any) => {
+  await openStatus(f);
+  return (await f.locator(".sb-right").innerText()).replace(/^⚡\s*/, "");
+};
 
 // 29 ── clean fast-forward merge advances HEAD without a merge commit ────────────
 test("E29 a fast-forward merge advances HEAD by one, no merge commit", async ({ mainWindow }) => {
@@ -28,7 +24,7 @@ test("E29 a fast-forward merge advances HEAD by one, no merge commit", async ({ 
   const f = await mainFrame(mainWindow);
   await mainWindow.waitForTimeout(1500);
 
-  const menu = await rightClickBranch(f, "e29-ff".includes("/") ? "e29" : "e29-ff", "e29-ff");
+  const menu = await rightClickBranch(f, "e29-ff");
   await menu.getByText("Merge", { exact: false }).first().click();
   await dismissModalIfAny(mainWindow, "Yes"); // merge preview confirm
 
@@ -43,7 +39,7 @@ test("E29 a fast-forward merge advances HEAD by one, no merge commit", async ({ 
 test("E30 a non-fast-forward merge creates a merge commit", async ({ mainWindow }) => {
   const r = repo();
   const f = await mainFrame(mainWindow);
-  const menu = await rightClickBranch(f, "feature", "diverged");
+  const menu = await rightClickBranch(f, "feature/diverged");
   await menu.getByText("Merge", { exact: false }).first().click();
   await confirmModal(mainWindow, "Yes");
   await expect(flash(f)).toBeVisible({ timeout: 8000 });
@@ -58,10 +54,10 @@ test("E31 merging a nonexistent branch reports a readable error", async ({ mainW
   const r = repo();
   const head = git(r, "rev-parse HEAD");
   const f = await mainFrame(mainWindow);
+  await openStatus(f); // keep the status bar open so the error flash is readable
   await f.locator('button.rail-btn[aria-label="Merge branch"]').click();
   await answerPrompt(mainWindow, "no-such-branch-xyz");
-  await expect(flash(f)).toBeVisible({ timeout: 6000 });
-  expectReadableError(await flashText(f));
+  await expect(async () => expectReadableError(await flashText(f))).toPass({ timeout: 8000 });
   expect(git(r, "rev-parse HEAD")).toBe(head); // nothing happened
 });
 
@@ -70,11 +66,11 @@ test("E32 the merge preview modal appears and can be cancelled", async ({ mainWi
   const r = repo();
   const head = git(r, "rev-parse HEAD");
   const f = await mainFrame(mainWindow);
-  const menu = await rightClickBranch(f, "feature", "diverged");
+  const menu = await rightClickBranch(f, "feature/diverged");
   await menu.getByText("Merge", { exact: false }).first().click();
   const dialog = mainWindow.locator(".monaco-dialog-box");
   await expect(dialog).toBeVisible({ timeout: 8000 });
-  await confirmModal(mainWindow, "No"); // decline
+  await confirmModal(mainWindow, "Cancel"); // decline
   expect(git(r, "rev-parse HEAD")).toBe(head);
 });
 
@@ -98,9 +94,9 @@ test("E35 a conflicting rebase pauses and Abort restores the branch", async ({ m
   const r = repo();
   const base = defaultBranch(r);
   // Two branches edit the same file → rebasing one onto the other conflicts.
-  execSync(`git -C "${r}" checkout -q ${base} && printf 'A\\n' > e35.txt && git -C "${r}" add e35.txt && git -C "${r}" commit -qm "base e35"`, { stdio: "pipe" });
-  execSync(`git -C "${r}" checkout -q -b e35-feat HEAD~0 && printf 'FEAT\\n' > e35.txt && git -C "${r}" commit -qam "feat e35"`, { stdio: "pipe" });
-  execSync(`git -C "${r}" checkout -q ${base} && printf 'MAIN\\n' > e35.txt && git -C "${r}" commit -qam "main e35"`, { stdio: "pipe" });
+  execSync(`git -C "${r}" checkout -q ${base} && printf 'A\\n' > "${r}/e35.txt" && git -C "${r}" add e35.txt && git -C "${r}" commit -qm "base e35"`, { stdio: "pipe" });
+  execSync(`git -C "${r}" checkout -q -b e35-feat && printf 'FEAT\\n' > "${r}/e35.txt" && git -C "${r}" commit -qam "feat e35"`, { stdio: "pipe" });
+  execSync(`git -C "${r}" checkout -q ${base} && printf 'MAIN\\n' > "${r}/e35.txt" && git -C "${r}" commit -qam "main e35"`, { stdio: "pipe" });
   execSync(`git -C "${r}" checkout -q e35-feat`, { stdio: "pipe" });
   const before = git(r, "rev-parse HEAD");
 
@@ -109,12 +105,16 @@ test("E35 a conflicting rebase pauses and Abort restores the branch", async ({ m
   await f.locator('button.rail-btn[aria-label="Rebase"]').click();
   await answerPrompt(mainWindow, base);
 
-  // Paused mid-rebase — assert real git state, then abort.
+  // Paused mid-rebase — the conflict banner surfaces in the sidebar. Abort there.
+  const sb = await sidebarFrame(mainWindow);
+  await expect(sb.locator(".cb")).toBeVisible({ timeout: 12000 });
+  await expect(sb.locator(".cb-title")).toContainText(/rebase/i);
+  await sb.locator(".cb-abort").click();
+
   await expect(() => {
-    expect(git(r, "rev-parse --git-path rebase-merge").length).toBeGreaterThan(0);
+    expect(git(r, "status --porcelain")).not.toContain("UU");
+    expect(git(r, "rev-parse HEAD")).toBe(before); // branch restored
   }).toPass({ timeout: 8000 });
-  execSync(`git -C "${r}" rebase --abort`, { stdio: "pipe" }); // abort via git (UI banner path covered in conflicts cluster)
-  expect(git(r, "rev-parse HEAD")).toBe(before);
 });
 
 // 36 ── reset to a commit via the mode prompt ────────────────────────────────────

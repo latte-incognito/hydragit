@@ -1,4 +1,5 @@
 import { execSync } from "child_process";
+import fs from "fs";
 import { test, expect } from "./vscode-fixture";
 import {
   mainFrame, flash, answerPrompt, confirmModal, dismissModalIfAny,
@@ -8,26 +9,18 @@ import {
 // Cluster N — undo / reflog / snapshots (main panel). Default project.
 
 const repo = () => workerRepo(test.info());
-const flashText = async (f: any) => (await f.locator(".sb-right").innerText()).replace(/^⚡\s*/, "");
-
-async function rightClickBranch(f: any, folder: string, leaf: string) {
-  await f.locator(".titem.folder-row", { hasText: folder }).first().click();
-  const row = f.locator(".titem:not(.folder-row):not(.timeline)", { hasText: leaf }).first();
-  await expect(row).toBeVisible({ timeout: 8000 });
-  await row.click({ button: "right" });
-  return f.locator(".ctx");
-}
 
 // 88 ── Undo rewinds the last panel-driven merge to ORIG_HEAD ────────────────────
 test("N88 Undo reverts the last merge to ORIG_HEAD", async ({ mainWindow }) => {
   const r = repo();
   const before = git(r, "rev-parse HEAD");
   const f = await mainFrame(mainWindow);
-  const menu = await rightClickBranch(f, "feature", "diverged");
-  await menu.getByText("Merge", { exact: false }).first().click();
-  await confirmModal(mainWindow, "Yes");
+  // The contextual Undo button only appears for a *rail*-driven op (the rail
+  // merge sets undoableOp; the context-menu merge does not). So merge via the rail.
+  await f.locator('button.rail-btn[aria-label="Merge branch"]').click();
+  await answerPrompt(mainWindow, "feature/diverged");
+  await confirmModal(mainWindow, "Yes"); // rail merge shows a merge-preview confirm
   await expect(flash(f)).toBeVisible({ timeout: 8000 });
-  // The contextual Undo button appears after an ORIG_HEAD-setting op.
   const undo = f.locator(".undo-btn");
   await expect(undo).toBeVisible({ timeout: 8000 });
   await undo.click();
@@ -43,6 +36,7 @@ test("N89 a hard reset is fully recoverable via Undo", async ({ mainWindow }) =>
   await f.locator(".crow", { hasText: "docs: add contributing section" }).first().click({ button: "right" });
   await f.locator(".ctx-menu").getByText("Reset Current Branch to Here", { exact: false }).click();
   await answerPrompt(mainWindow, "hard");
+  await confirmModal(mainWindow, "Yes"); // hard mode asks a second confirm ("Hard reset to …?")
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
   await expect(() => expect(git(r, "log -1 --format=%s")).toBe("docs: add contributing section")).toPass({ timeout: 8000 });
 
@@ -72,22 +66,35 @@ test("N90 the reflog timeline resets HEAD to an earlier entry", async ({ mainWin
 // 91 ── snapshot take → restore → drop round-trip ────────────────────────────────
 test("N91 snapshots can be taken, restored, and dropped", async ({ mainWindow }) => {
   const r = repo();
+  // SnapshotCreate is a deliberate no-op on a clean tree ("nothing to lose"), so
+  // make a working-tree change first — otherwise no snapshot is recorded.
+  fs.writeFileSync(`${r}/README.md`, "# Test Project\n\nN91 snapshot change\n");
   const f = await mainFrame(mainWindow);
-  // Open the Snapshots section and take one via the section's add button.
-  await f.getByText("Snapshots", { exact: false }).first().click().catch(() => {});
-  await f.locator('[title="Take a snapshot now"]').first().click();
+  // Open the Snapshots section, then take one via its add button. The +button is
+  // visibility:hidden until the *header* (.tgroup-hdr) is hovered, so scope to it.
+  const hdr = f.locator(".tgroup-hdr", { hasText: "Snapshots" }).first();
+  await hdr.click(); // expand
+  // The +button is visibility:hidden until header hover, so force-click hit-tests
+  // to the element behind it — dispatchEvent fires its onclick directly.
+  await hdr.locator(".tgroup-add").dispatchEvent("click");
+  await answerPrompt(mainWindow, "e2e snapshot"); // newSnapshot() prompts for a label
   const snap = f.locator(".titem.snapshot").first();
   await expect(snap).toBeVisible({ timeout: 8000 });
   expect(Number(git(r, "for-each-ref --count=99 refs/hydragit/snapshots | wc -l").trim())).toBeGreaterThan(0);
 
-  // Restore, then drop it.
-  await snap.hover();
-  await snap.locator(".snap-act").first().click(); // restore
-  await dismissModalIfAny(mainWindow, "Yes");
-  await snap.hover();
-  await snap.locator(".snap-act").last().click(); // drop
-  await dismissModalIfAny(mainWindow, "Yes");
-  await expect(f.locator(".titem.snapshot")).toHaveCount(0, { timeout: 8000 });
+  // Restore (confirm). Restore deliberately takes a *safety* snapshot of the
+  // current state first, so the count grows — assert that, then drop one and
+  // confirm the count goes back down. (.snap-act is display:none until row hover →
+  // dispatchEvent fires its onclick directly.)
+  await snap.locator(".snap-act").first().dispatchEvent("click"); // restore
+  await confirmModal(mainWindow, "Yes");
+  await expect(flash(f)).toBeVisible({ timeout: 8000 });
+
+  const beforeDrop = await f.locator(".titem.snapshot").count();
+  expect(beforeDrop).toBeGreaterThanOrEqual(1);
+  await f.locator(".titem.snapshot").first().locator(".snap-act").last().dispatchEvent("click"); // drop
+  await confirmModal(mainWindow, "Yes");
+  await expect(f.locator(".titem.snapshot")).toHaveCount(beforeDrop - 1, { timeout: 8000 });
 });
 
 // 92 ── [−][msg] restoring a missing snapshot errors readably ─────────────────────

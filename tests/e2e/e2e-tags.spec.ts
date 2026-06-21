@@ -38,11 +38,16 @@ test("M86 a duplicate tag name reports a readable error", async ({ mainWindow })
 test("M87 delete a tag from its context menu", async ({ mainWindow }) => {
   const r = repo();
   const f = await mainFrame(mainWindow);
-  await f.getByText("Tags", { exact: false }).first().click().catch(() => {}); // expand
-  const tagRow = f.locator(".titem", { hasText: "v1.2.0" }).first();
+  await f.locator(".tgroup-label", { hasText: "Tags" }).first().click(); // expand the Tags section
+  const tagRow = f.locator(".titem.tag-row", { hasText: "v1.2.0" }).first();
   await expect(tagRow).toBeVisible({ timeout: 8000 });
   await tagRow.click({ button: "right" });
-  await f.locator(".ctx").getByText("Delete", { exact: true }).click();
+  // Wait for the tag context menu, then fire its Delete item. dispatchEvent
+  // triggers the Svelte onclick directly — a normal/force click flakes on the
+  // menu's open transition (resolves the node but never lands the handler).
+  const menu = f.locator(".ctx");
+  await expect(menu).toBeVisible({ timeout: 6000 });
+  await menu.locator(".ci", { hasText: "Delete" }).first().dispatchEvent("click");
   await dismissModalIfAny(mainWindow, "Yes");
   await expect(() => expect(git(r, "tag -l v1.2.0")).toBe("")).toPass({ timeout: 8000 });
 });

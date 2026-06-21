@@ -60,11 +60,14 @@ test("J62 selecting a version row updates the revision header", async ({ mainWin
   await runCommand(mainWindow, "HydraGit: File History");
   const f = await historyFrame(mainWindow);
   expect(f).not.toBeNull();
-  const rows = f!.locator(".sel-list .srow, .hist-row, .crow");
-  // At least one version row exists; clicking it keeps the panel coherent.
+  const rows = f!.locator(".hist-list .row");
+  // src/auth.go has several commits → multiple version rows; clicking one keeps
+  // the panel coherent (file mode has no .rev header — that's selection mode).
   await expect(rows.first()).toBeVisible({ timeout: 10000 });
-  await rows.first().click().catch(() => {});
-  await expect(f!.locator(".rev").first()).toBeVisible({ timeout: 6000 });
+  expect(await rows.count()).toBeGreaterThan(1);
+  await rows.nth(1).click().catch(() => {});
+  await expect(f!.locator(".hist-list .row").first()).toBeVisible({ timeout: 6000 });
+  await expect(f!.locator(".hist-header, .hist-title").first()).toBeVisible({ timeout: 6000 });
 });
 
 // 63 ── selection history opens the selection viewer ─────────────────────────────
@@ -74,7 +77,7 @@ test("J63 Selection History opens for a highlighted range", async ({ mainWindow 
   await mainWindow.locator(".monaco-editor .view-line").first().click();
   await mainWindow.keyboard.press("Shift+ArrowDown");
   await mainWindow.keyboard.press("Shift+ArrowDown");
-  await runCommand(mainWindow, "HydraGit: Selection History");
+  await runCommand(mainWindow, "HydraGit: History for Selection");
   const f = await historyFrame(mainWindow);
   expect(f).not.toBeNull();
   await expect(f!.locator(".history--selection, .sel-list, .hist-msg").first()).toBeVisible({ timeout: 10000 });
@@ -108,7 +111,7 @@ test("J66 opening a version from File History opens an editor", async ({ mainWin
   await runCommand(mainWindow, "HydraGit: File History");
   const f = await historyFrame(mainWindow);
   expect(f).not.toBeNull();
-  await f!.locator(".sel-list .srow, .hist-row, .crow").first().dblclick().catch(() => {});
+  await f!.locator(".hist-list .row").first().dblclick().catch(() => {});
   // An editor/diff opens at the workbench level.
   await expect(mainWindow.locator(".editor-instance, .monaco-diff-editor").first()).toBeVisible({ timeout: 8000 });
 });

@@ -16,7 +16,9 @@ function snapshotCount(r: string): number {
 
 async function discardFile(f: any, mainWindow: any, fname: string) {
   await f.locator(`.file-row[data-path="${fname}"]`).hover();
-  await f.locator(`button[aria-label="Discard changes in ${fname}"]`).click();
+  // The ↶ button is revealed on row hover — force the click so visibility timing
+  // doesn't flake it, then wait for the confirm modal.
+  await f.locator(`button[aria-label="Discard changes in ${fname}"]`).click({ force: true });
 }
 
 // 16 ── discard a single modified file → reverts + snapshot saved ───────────────
@@ -42,9 +44,10 @@ test("C17 bulk discard confirm names the file count", async ({ mainWindow }) => 
   const f = await sidebarFrame(mainWindow);
   await expect(f.locator('.file-row[data-path="app.js"]')).toBeVisible({ timeout: 8000 });
 
-  // The Changes-section header carries a "Discard all" action.
-  await f.locator(".tree-wrap").hover();
-  await f.locator('button[aria-label^="Discard all"]').last().click();
+  // The Changes-section header carries a "Discard all changes" action (reveals on
+  // header hover).
+  await f.locator(".group-header", { hasText: "Changes" }).first().hover();
+  await f.locator('button[aria-label="Discard all changes"]').click();
 
   const dialog = mainWindow.locator(".monaco-dialog-box");
   await expect(dialog).toBeVisible({ timeout: 8000 });
@@ -62,21 +65,21 @@ test("C18 a conflicted file survives a bulk discard (skipped)", async ({ mainWin
   const r = repo();
   // Commit the dirty state, then manufacture a real conflict.
   execSync(`git -C "${r}" add -A && git -C "${r}" commit -qm base`, { stdio: "pipe" });
-  execSync(`git -C "${r}" checkout -qb other && printf 'theirs\\n' > c.txt && git -C "${r}" add c.txt && git -C "${r}" commit -qm theirs`, { stdio: "pipe" });
-  execSync(`git -C "${r}" checkout -q - && printf 'mine\\n' > c.txt && git -C "${r}" add c.txt && git -C "${r}" commit -qm mine`, { stdio: "pipe" });
+  execSync(`git -C "${r}" checkout -qb other && printf 'theirs\\n' > "${r}/c.txt" && git -C "${r}" add c.txt && git -C "${r}" commit -qm theirs`, { stdio: "pipe" });
+  execSync(`git -C "${r}" checkout -q - && printf 'mine\\n' > "${r}/c.txt" && git -C "${r}" add c.txt && git -C "${r}" commit -qm mine`, { stdio: "pipe" });
   execSync(`git -C "${r}" merge other || true`, { stdio: "pipe" });
-  expect(git(r, "status --porcelain c.txt")).toContain("UU");
+  expect(git(r, "status --porcelain c.txt")).toMatch(/(UU|AA)/);
 
   const f = await sidebarFrame(mainWindow);
   await expect(f.locator('[data-path="c.txt"]').first()).toBeVisible({ timeout: 8000 });
 
   // Attempt a bulk discard — conflicted files are filtered out and stay conflicted.
-  await f.locator(".tree-wrap").hover();
-  await f.locator('button[aria-label^="Discard all"]').last().click().catch(() => {});
+  await f.locator(".group-header", { hasText: "Changes" }).first().hover();
+  await f.locator('button[aria-label="Discard all changes"]').click().catch(() => {});
   await mainWindow.locator(".monaco-dialog-box .monaco-button", { hasText: "Yes" }).click({ timeout: 4000 }).catch(() => {});
 
   await expect(() => {
-    expect(git(r, "status --porcelain c.txt")).toContain("UU"); // still conflicted
+    expect(git(r, "status --porcelain c.txt")).toMatch(/(UU|AA)/); // still conflicted
   }).toPass({ timeout: 8000 });
 });
 
@@ -105,7 +108,7 @@ test("C20 cancelling the discard confirm leaves the file untouched", async ({ ma
   await expect(f.locator('.file-row[data-path="app.js"]')).toBeVisible({ timeout: 8000 });
 
   await discardFile(f, mainWindow, "app.js");
-  await mainWindow.locator(".monaco-dialog-box .monaco-button", { hasText: "No" }).click({ timeout: 5000 });
+  await mainWindow.locator(".monaco-dialog-box .monaco-button", { hasText: "Cancel" }).click({ timeout: 5000 });
 
   // Still modified — nothing happened.
   expect(git(r, "status --porcelain app.js")).toContain("M app.js");

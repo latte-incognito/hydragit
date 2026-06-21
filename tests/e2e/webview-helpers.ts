@@ -176,6 +176,32 @@ export function flash(frame: FrameLocator) {
   return frame.getByText("⚡", { exact: false }).first();
 }
 
+// The status bar (pills: Publish/Push/Pull/Sync, the repo switcher, ahead/behind
+// counts) is collapsed by default — App.svelte renders it only when statusOpen
+// or a flash is active. Open it before reading any .sb-* element.
+export async function openStatus(frame: FrameLocator) {
+  const toggle = frame.locator(".status-toggle");
+  if ((await toggle.count()) === 0) return;
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+    await toggle.click();
+  }
+}
+
+// Right-click a branch row by full name, expanding its folder first when the
+// name is slash-nested. Flat branches (main/master, plain names) have no
+// folder-row, so we only click a folder when one actually exists.
+export async function rightClickBranch(frame: FrameLocator, name: string) {
+  if (name.includes("/")) {
+    const folder = frame.locator(".titem.folder-row", { hasText: name.split("/")[0] }).first();
+    if (await folder.count()) await folder.click();
+  }
+  const leaf = name.includes("/") ? name.split("/").slice(1).join("/") : name;
+  const row = frame.locator(".titem:not(.folder-row):not(.timeline)", { hasText: leaf }).first();
+  await row.waitFor({ state: "visible", timeout: 8000 });
+  await row.click({ button: "right" });
+  return frame.locator(".ctx");
+}
+
 /** An error flash ("⚠ …"). Surfaced when a command fails. */
 export function errorFlash(frame: FrameLocator) {
   return frame.getByText("⚠", { exact: false }).first();

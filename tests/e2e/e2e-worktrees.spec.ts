@@ -1,7 +1,7 @@
 import { execSync } from "child_process";
 import fs from "fs";
 import { test, expect } from "./vscode-fixture";
-import { mainFrame, answerPrompt, workerRepo, git } from "./webview-helpers";
+import { mainFrame, answerPrompt, quickPick, workerRepo, git } from "./webview-helpers";
 
 // Cluster O — worktrees (main panel Worktrees section + rail). Default project.
 // Complements worktree.spec.ts (list/menu) with add-new / dirty-remove / lock.
@@ -41,9 +41,10 @@ test("O94 New worktree creates a branch and a linked tree", async ({ mainWindow 
   fs.rmSync(dir, { recursive: true, force: true });
   const f = await mainFrame(mainWindow);
   await f.locator("button.rail-btn.worktree").click();
-  // The rail flow prompts for a branch name then a path (dialog seam).
+  // Flow: quick-pick a branch → "Create new branch…" → name → folder path.
+  await quickPick(mainWindow, "Create new branch");
   await answerPrompt(mainWindow, "o94-wt");
-  await answerPrompt(mainWindow, dir).catch(() => {});
+  await answerPrompt(mainWindow, dir); // overrides the prefilled default path
   await expect(() => {
     expect(git(r, "worktree list")).toContain("o94-wt");
   }).toPass({ timeout: 12000 });

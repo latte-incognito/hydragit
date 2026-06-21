@@ -59,7 +59,7 @@ test("G46 revert a commit creates a revert commit", async ({ mainWindow }) => {
 test("G47 a conflicting revert pauses and can be completed after resolve", async ({ mainWindow }) => {
   const r = repo();
   // Build a commit whose revert will conflict with a later change to the same file.
-  execSync(`git -C "${r}" checkout -qb g47 && printf 'one\\n' > g47.txt && git -C "${r}" add g47.txt && git -C "${r}" commit -qm "g47 add"`, { stdio: "pipe" });
+  execSync(`git -C "${r}" checkout -qb g47 && printf 'one\\n' > "${r}/g47.txt" && git -C "${r}" add g47.txt && git -C "${r}" commit -qm "g47 add"`, { stdio: "pipe" });
   const target = git(r, "rev-parse HEAD");
   execSync(`printf 'one\\ntwo\\n' > "${r}/g47.txt" && git -C "${r}" commit -qam "g47 extend"`, { stdio: "pipe" });
 
