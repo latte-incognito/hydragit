@@ -39,14 +39,6 @@
 </script>
 
 <div class="statusbar" id="statusbar">
-  <svg class="sb-logo" width="12" height="14" viewBox="0 0 12 16" fill="none">
-    <circle cx="2.5" cy="1.8" r="1.5" fill="currentColor"/>
-    <circle cx="6"   cy="1.8" r="1.5" fill="currentColor"/>
-    <circle cx="9.5" cy="1.8" r="1.5" fill="currentColor"/>
-    <circle cx="6"   cy="14.2" r="1.5" fill="currentColor"/>
-    <path d="M2.5 3.3C2.5 6.5 6 8 6 8M9.5 3.3C9.5 6.5 6 8 6 8M6 3.3V8M6 8v4.7"
-          stroke="currentColor" stroke-width="1.4" stroke-linecap="round" fill="none"/>
-  </svg>
   {#if repo}
     <button class="sb-repo" title="Active repository — click to switch" onclick={onRepoClick}>
       {repo}
@@ -112,11 +104,6 @@
     border-bottom: 0.5px solid var(--vscode-statusBar-border, var(--vscode-panel-border, #0a3a5a));
     flex-shrink: 0;
     overflow: hidden;
-  }
-  .sb-logo {
-    flex-shrink: 0;
-    color: inherit;
-    margin-right: -4px;
   }
   .sb-repo {
     background: transparent;

@@ -40,6 +40,27 @@ describe('Toolbar — rendering', () => {
   });
 });
 
+// ── hydra bloom logo ──────────────────────────────────────────────────────────
+
+describe('Toolbar — hydra bloom logo', () => {
+  it('renders the head + full bloom imgs when head/icon URIs are provided', () => {
+    render(Toolbar, { headUri: 'head.png', iconUri: 'full.png' });
+
+    const bloom = document.querySelector('.hydra-bloom');
+    expect(bloom).toBeTruthy();
+    expect((bloom!.querySelector('.hb-head') as HTMLImageElement).src).toContain('head.png');
+    expect((bloom!.querySelector('.hb-full') as HTMLImageElement).src).toContain('full.png');
+    // the inline-SVG fallback is not rendered when we have a head asset
+    expect(document.querySelector('.st-logo')).toBeNull();
+  });
+
+  it('falls back to the inline-SVG glyph when no head URI is present', () => {
+    render(Toolbar, {});
+    expect(document.querySelector('.hydra-bloom')).toBeNull();
+    expect(document.querySelector('.st-logo')).toBeTruthy();
+  });
+});
+
 // ── scope dropdown ────────────────────────────────────────────────────────────
 
 describe('Toolbar — scope dropdown', () => {

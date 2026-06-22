@@ -71,6 +71,7 @@
   let sbCounts = $state('');
   let sbNoUpstream = $state(false); // on a branch with no upstream → show Publish
   let iconUri  = document.body.dataset.iconUri ?? '';
+  let headUri  = document.body.dataset.headUri ?? '';
   // Multi-repo breadcrumb: the active repo's name, shown before the branch in
   // the status bar (repo ▸ branch). Empty in single-repo workspaces → hidden.
   let repoName = $derived(
@@ -1623,6 +1624,7 @@
   <Toolbar
     {repoName}
     {iconUri}
+    {headUri}
     {activeBranch}
     {branches}
     {hasPending}

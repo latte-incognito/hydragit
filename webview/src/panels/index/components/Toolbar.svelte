@@ -4,6 +4,7 @@
   interface Props {
     repoName?: string;
     iconUri?: string;
+    headUri?: string;
     activeBranch?: string;
     branches?: import('../types').Branch[];
     hasPending?: boolean;
@@ -26,6 +27,7 @@
   let {
     repoName = 'HydraGit',
     iconUri = '',
+    headUri = '',
     activeBranch = '',
     branches = [],
     hasPending = false,
@@ -234,21 +236,32 @@
     aria-expanded={statusOpen}
     title={statusOpen ? 'Hide repository status' : 'Show repository status'}
   >
-    <svg class="st-logo" width="12" height="14" viewBox="0 0 12 16" fill="none">
-      <defs>
-        <linearGradient id="st-hydra-grad" x1="0" y1="0" x2="12" y2="16" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stop-color="#2fbdb3"/>
-          <stop offset="55%"  stop-color="#1e8f8f"/>
-          <stop offset="100%" stop-color="#c0c8cc"/>
-        </linearGradient>
-      </defs>
-      <circle cx="2.5" cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
-      <circle cx="6"   cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
-      <circle cx="9.5" cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
-      <circle cx="6"   cy="14.2" r="1.5" fill="url(#st-hydra-grad)"/>
-      <path d="M2.5 3.3C2.5 6.5 6 8 6 8M9.5 3.3C9.5 6.5 6 8 6 8M6 3.3V8M6 8v4.7"
-            stroke="url(#st-hydra-grad)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
-    </svg>
+    {#if headUri}
+      <!-- Hydra Bloom: a single head at rest; on hover the side heads "grow"
+           in and it scales up into the full three-head logo — cut one head,
+           two grow back. Both imgs are absolute so the bloom floats over the
+           toolbar without shifting layout. -->
+      <span class="hydra-bloom">
+        <img class="hb-head" src={headUri} alt="" draggable="false" />
+        <img class="hb-full" src={iconUri} alt="" draggable="false" />
+      </span>
+    {:else}
+      <svg class="st-logo" width="12" height="14" viewBox="0 0 12 16" fill="none">
+        <defs>
+          <linearGradient id="st-hydra-grad" x1="0" y1="0" x2="12" y2="16" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"   stop-color="#2fbdb3"/>
+            <stop offset="55%"  stop-color="#1e8f8f"/>
+            <stop offset="100%" stop-color="#c0c8cc"/>
+          </linearGradient>
+        </defs>
+        <circle cx="2.5" cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
+        <circle cx="6"   cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
+        <circle cx="9.5" cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
+        <circle cx="6"   cy="14.2" r="1.5" fill="url(#st-hydra-grad)"/>
+        <path d="M2.5 3.3C2.5 6.5 6 8 6 8M9.5 3.3C9.5 6.5 6 8 6 8M6 3.3V8M6 8v4.7"
+              stroke="url(#st-hydra-grad)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      </svg>
+    {/if}
   </button>
 
   <!-- Branch view picker (which branch(es) the log shows — not a checkout) -->
@@ -461,6 +474,52 @@
   .status-toggle.active .st-logo {
     opacity: 1;
     filter: drop-shadow(0 0 2px #2fbdb3);
+  }
+
+  /* ── Hydra Bloom ── single head → full three-head logo on hover */
+  .hydra-bloom {
+    position: relative;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+  .hydra-bloom .hb-head,
+  .hydra-bloom .hb-full {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    transform-origin: center center;
+    transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  /* rest: head shown, full mark hidden + shrunk */
+  .hydra-bloom .hb-head { opacity: 0.9; transform: scale(1); }
+  .hydra-bloom .hb-full { opacity: 0; transform: scale(0.55); }
+  /* active (status panel open): show the full mark in place — no overflow */
+  .status-toggle.active .hb-head { opacity: 0; transform: scale(1.2); }
+  .status-toggle.active .hb-full {
+    opacity: 1;
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 2px rgba(47, 189, 179, 0.5));
+  }
+  /* hover: dramatic bloom — declared after .active so it wins on equal specificity */
+  .status-toggle:hover .hb-head { opacity: 0; transform: scale(1.35); }
+  .status-toggle:hover .hb-full {
+    opacity: 1;
+    transform: scale(1.95);
+    filter: drop-shadow(0 0 4px rgba(47, 189, 179, 0.65));
+    z-index: 2;
+  }
+  /* respect reduced-motion: instant crossfade, no scaling */
+  @media (prefers-reduced-motion: reduce) {
+    .hydra-bloom .hb-head,
+    .hydra-bloom .hb-full {
+      transition: opacity 0.12s linear;
+      transform: none !important;
+    }
   }
 
   .toolbar {

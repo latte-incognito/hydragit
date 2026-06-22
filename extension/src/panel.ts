@@ -361,7 +361,13 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     const iconUri = webviewView.webview.asWebviewUri(
       vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon-fat-transparent.png'))
     );
-    webviewView.webview.html = this.getHtml(webviewView.webview, iconUri);
+    // Single hydra head — the toolbar's resting brand mark; on hover it blooms
+    // into the full three-head logo (iconUri). Same source art, so the morph is
+    // seamless. Both are colored-on-transparent → visible on light + dark.
+    const headUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon-head.png'))
+    );
+    webviewView.webview.html = this.getHtml(webviewView.webview, iconUri, headUri);
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       // Reject any repo root the host hasn't discovered (see repoAllowed).
@@ -548,7 +554,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     vscode.commands.executeCommand('hydragit.mainView.focus');
   }
 
-  private getHtml(webview: vscode.Webview, iconUri: vscode.Uri): string {
+  private getHtml(webview: vscode.Webview, iconUri: vscode.Uri, headUri: vscode.Uri): string {
     const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'index.html');
     let html = fs.readFileSync(htmlPath, 'utf8');
 
@@ -578,7 +584,10 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     );
     html = html.replace('./index.js', scriptUri.toString());
     html = html.replace('</head>', `<link rel="stylesheet" href="${styleUri}"></head>`);
-    html = html.replace('<body>', `<body data-icon-uri="${iconUri.toString()}">`);
+    html = html.replace(
+      '<body>',
+      `<body data-icon-uri="${iconUri.toString()}" data-head-uri="${headUri.toString()}">`
+    );
     html = html.replace(
       '</head>',
       `<style>
