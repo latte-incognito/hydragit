@@ -11,7 +11,7 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
-## [Unreleased]
+## [0.2.9] — 2026-06-22
 
 ### Added
 - **Wired up "History Up to Here" and "Show Changes to Parents"** — the two commit file context-menu items in the detail pane were enabled but dead (no handler). *History Up to Here* now opens the File History panel for that file truncated to the selected revision and older (new `openFileHistory` webview message → `hydragit.fileHistoryAt` command → `HistoryPanelManager.openFileHistoryRel`, threading an `atRef` through `HistoryInit` into the `file.history` cmd, which Go's `FileHistory(repo, ref, path)` already supported). *Show Changes to Parents* diffs the file against the commit's parent — one diff for an ordinary commit, **one diff editor per parent for a merge** (each opened in its own tab so they don't replace each other). `DetailPane.fileCtx.test.ts` gains explicit coverage for both, including the merge fan-out, and its regression guard now asserts every enabled menu item still fires.
@@ -226,6 +226,7 @@ The MVP was replaced with the real foundation in this range (~8 400 insertions).
 
 Everything HydraGit ships today, by topic. Each entry links to its full
 documentation (UI entry point → what happens next) in
+[0.2.9]: https://github.com/latte-incognito/hydragit/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/latte-incognito/hydragit/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/latte-incognito/hydragit/compare/v0.2.6...v0.2.7
 [`documentation/`](documentation/index.html).
