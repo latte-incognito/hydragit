@@ -5,7 +5,7 @@ import { GoProcess } from './goProcess';
 import { openDiff, openFile } from './panel';
 
 type HistoryInit =
-  | { mode: 'file'; file: string }
+  | { mode: 'file'; file: string; atRef?: string }
   | { mode: 'selection'; file: string; start: number; end: number };
 
 // HistoryPanelManager owns the editor-area webview tabs for File History and
@@ -26,9 +26,16 @@ export class HistoryPanelManager {
     private readonly goProcess: GoProcess
   ) {}
 
-  openFileHistory(uri: vscode.Uri): void {
-    const file = this.toRelative(uri);
-    this.reveal(`History: ${path.basename(file)}`, { mode: 'file', file });
+  // atRef truncates the history to that revision and older ("History Up to
+  // Here"); omitted, the full history from HEAD is shown.
+  openFileHistory(uri: vscode.Uri, atRef?: string): void {
+    this.openFileHistoryRel(this.toRelative(uri), atRef);
+  }
+
+  // Same as openFileHistory but the file is already repo-relative — used by the
+  // main panel's "History Up to Here", which holds the path, not a Uri.
+  openFileHistoryRel(file: string, atRef?: string): void {
+    this.reveal(`History: ${path.basename(file)}`, { mode: 'file', file, atRef });
   }
 
   openSelectionHistory(uri: vscode.Uri, start: number, end: number): void {

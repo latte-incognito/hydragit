@@ -14,6 +14,7 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 ## [Unreleased]
 
 ### Added
+- **Wired up "History Up to Here" and "Show Changes to Parents"** — the two commit file context-menu items in the detail pane were enabled but dead (no handler). *History Up to Here* now opens the File History panel for that file truncated to the selected revision and older (new `openFileHistory` webview message → `hydragit.fileHistoryAt` command → `HistoryPanelManager.openFileHistoryRel`, threading an `atRef` through `HistoryInit` into the `file.history` cmd, which Go's `FileHistory(repo, ref, path)` already supported). *Show Changes to Parents* diffs the file against the commit's parent — one diff for an ordinary commit, **one diff editor per parent for a merge** (each opened in its own tab so they don't replace each other). `DetailPane.fileCtx.test.ts` gains explicit coverage for both, including the merge fan-out, and its regression guard now asserts every enabled menu item still fires.
 - **Actionable status-bar pills** (ROADMAP §4.1) — the main-panel status bar's ahead/behind text became clickable pills, each reusing the exact action-rail handler:
   - **↑ Publish** when on a branch with no upstream → `doPush()` → Go's `Push("")`, which retries `push -u origin HEAD` (push + set upstream in one click). Only on a branch — a detached HEAD keeps its own &ldquo;create a branch&rdquo; banner.
   - **↓ N Pull** when behind → `tbAction('pull')`.

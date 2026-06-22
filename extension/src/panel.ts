@@ -393,6 +393,17 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
         await openWorkingDiff(msg.params, msg.repo);
         return;
       }
+      // "History Up to Here" — open the dedicated File History panel for this
+      // file, truncated to the given revision. Routed through a command so the
+      // panel needn't hold a HistoryPanelManager reference.
+      if (msg.cmd === 'openFileHistory') {
+        await vscode.commands.executeCommand(
+          'hydragit.fileHistoryAt',
+          msg.params?.file,
+          msg.params?.ref
+        );
+        return;
+      }
       if (msg.cmd === 'savePatch') {
         await savePatch(msg.params, msg.repo);
         return;

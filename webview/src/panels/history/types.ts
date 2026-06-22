@@ -9,7 +9,7 @@ export interface Commit {
 }
 
 export type HistoryInit =
-  | { mode: 'file'; file: string }
+  | { mode: 'file'; file: string; atRef?: string }
   | { mode: 'selection'; file: string; start: number; end: number };
 
 export interface HunkLine {

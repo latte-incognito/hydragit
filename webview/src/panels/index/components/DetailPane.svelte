@@ -398,6 +398,40 @@
     if (commit) onCommitMenuAction('cherry-pick', commit);
   }
 
+  // Open File History for this file *as of the selected revision* — the list is
+  // truncated to this commit and everything older (git log <ref> --follow). The
+  // host opens the dedicated history panel; the ref is the commit (or stash).
+  function ctxHistoryHere() {
+    closeCtx();
+    if (!ctxFile) return;
+    const ref = isStash && stash ? `stash@{${stash.index ?? 0}}` : commit?.hash;
+    if (!ref) return;
+    send('openFileHistory', { file: ctxFile, ref });
+  }
+
+  // Diff this file against the commit's parent(s). For an ordinary commit that's
+  // a single diff (vs the first parent); for a merge it opens one diff per
+  // parent so you can see what each side contributed. newTab keeps them from
+  // replacing one another in the shared preview tab.
+  function ctxShowChangesToParents() {
+    closeCtx();
+    if (!ctxFile) return;
+    if (isStash && stash) {
+      const ref = `stash@{${stash.index ?? 0}}`;
+      send('openDiff', { commit: ref, parent: ref + '^', file: ctxFile, newTab: true });
+      return;
+    }
+    if (!commit) return;
+    const parents = commit.parents ?? [];
+    if (parents.length <= 1) {
+      send('openDiff', { commit: commit.hash, parent: parents[0] ?? '', file: ctxFile, newTab: true });
+      return;
+    }
+    for (const p of parents) {
+      send('openDiff', { commit: commit.hash, parent: p, file: ctxFile, newTab: true });
+    }
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') closeCtx();
   }
@@ -486,7 +520,7 @@
       </span>
       <span class="ci-text">Get from Revision</span>
     </div>
-    <div class="ctx-item">
+    <div class="ctx-item" onclick={ctxHistoryHere}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.1"/>
@@ -495,7 +529,7 @@
       </span>
       <span class="ci-text">History Up to Here</span>
     </div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Show Changes to Parents</span></div>
+    <div class="ctx-item" onclick={ctxShowChangesToParents}><span class="ci-icon"></span><span class="ci-text">Show Changes to Parents</span></div>
   </div>
 {/if}
 
