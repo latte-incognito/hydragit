@@ -89,6 +89,14 @@ code, kbd { font-family: var(--mono); }
 }
 .brand:hover { text-decoration: none; color: #fff; }
 .brand .hex { color: var(--teal); font-size: 19px; }
+.brand-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 3px rgba(86, 200, 232, 0.35));
+}
 .brand span { color: var(--amber); font-weight: 600; }
 .crumbs { color: var(--fg-3); font-size: 13px; }
 .crumbs a { color: var(--fg-2); }
@@ -160,8 +168,51 @@ code, kbd { font-family: var(--mono); }
 .hero {
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: 64px 26px 30px;
+  padding: 48px 26px 30px;
 }
+/* Banner as the hero backdrop: hydra art sits on the left, copy overlays the
+   empty right half. The left→right gradient darkens the right so text reads,
+   and feathers the seam between the artwork and the copy. */
+.hero-stage {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  aspect-ratio: 1280 / 640;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(15, 20, 23, 0) 30%,
+      rgba(15, 20, 23, 0.55) 50%,
+      rgba(15, 20, 23, 0.92) 68%
+    ),
+    url("hydragit-banner.png") left center / cover,
+    var(--bg-1);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.03) inset,
+    0 24px 60px -28px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(86, 200, 232, 0.06);
+}
+.hero-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(120% 160% at 100% 0%, var(--teal-bg), transparent 45%),
+    radial-gradient(120% 160% at 100% 100%, var(--amber-bg), transparent 45%);
+}
+.hero-copy {
+  position: relative;
+  z-index: 1;
+  width: 50%;
+  padding: 0 40px 0 12px;
+}
+.hero-copy .pills { margin-top: 18px; }
 .hero h1 {
   font-size: 46px;
   letter-spacing: -1px;
@@ -431,4 +482,21 @@ footer a { color: var(--fg-3); }
   .page { grid-template-columns: 1fr; }
   .toc { display: none; }
   .entrypoints > li { grid-template-columns: 1fr; gap: 4px; }
+
+  /* Stack: banner art on top, copy beneath on a solid panel. */
+  .hero-stage {
+    aspect-ratio: auto;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    background:
+      url("hydragit-banner.png") top center / contain no-repeat,
+      var(--bg-1);
+    padding-top: 52%;
+  }
+  .hero-copy {
+    width: 100%;
+    padding: 22px 22px 26px;
+    background: linear-gradient(180deg, rgba(15, 20, 23, 0) 0%, var(--bg-0) 22%);
+  }
 }

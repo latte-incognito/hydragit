@@ -11,6 +11,17 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
+## [Unreleased]
+
+### Changed
+
+- **Docs site branding** — `documentation/index.html` hero now uses the
+  HydraGit banner (`assets/hydragit-banner.png`) as the backdrop with the
+  headline + pills overlaid on its empty right half (`.hero-stage` /
+  `.hero-copy`, responsive stack under 880px). The top-bar brand glyph swaps
+  the `⬡` octagon for the real app icon (`assets/icon.png`, `.brand-icon`),
+  and the version label is synced to v0.3.0. Styles in `assets/style.css`.
+
 ## [0.2.9] — 2026-06-22
 
 ### Added
