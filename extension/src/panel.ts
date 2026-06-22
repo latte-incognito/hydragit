@@ -354,8 +354,12 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       ],
     };
 
+    // Colored mark on transparent — this <img> renders un-tinted in the webview
+    // (DetailPane empty state), so it must stay visible on light *and* dark
+    // themes. The activity-bar container icon stays icon-tight.png (white
+    // silhouette), which VS Code tints itself.
     const iconUri = webviewView.webview.asWebviewUri(
-      vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon-tight.png'))
+      vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon-fat-transparent.png'))
     );
     webviewView.webview.html = this.getHtml(webviewView.webview, iconUri);
 

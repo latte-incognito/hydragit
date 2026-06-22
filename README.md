@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/hydragit-banner.png" alt="HydraGit" width="100%">
+</p>
+
 # HydraGit
 
 > IntelliJ-style git panel inside VS Code. Branch tree, commit log, diff — all in one place. No paywalls.
