@@ -158,14 +158,14 @@
     opacity: 1;
   }
   .rail-btn.pending {
-    color: #56c8e8;
+    color: var(--hg-info, #56c8e8);
   }
   .rail-btn.pending:hover {
     background: rgba(86,200,232,0.1);
   }
   /* Worktree — purple accent, matching the active-stash highlight elsewhere. */
   .rail-btn.worktree {
-    color: #9a7ae8;
+    color: var(--hg-author, #9a7ae8);
     opacity: 0.75;
   }
   .rail-btn.worktree:hover {

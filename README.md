@@ -1,3 +1,15 @@
+<!--
+  BANNER — currently broken in the VS Code Details view / Marketplace because
+  the README renderer only loads ABSOLUTE https URLs; relative paths never
+  resolve there (the file ships in the .vsix, but markdown can't reach it).
+  FIX once the GitHub repo is PUBLIC — replace the line below with:
+  <p align="center">
+    <img src="https://raw.githubusercontent.com/latte-incognito/hydragit/develop/images/hydragit-banner.png" alt="HydraGit" width="100%">
+  </p>
+  (raw URLs 404 while the repo is private.)
+-->
+![HydraGit](images/hydragit-banner.png)
+
 # HydraGit
 
 > IntelliJ-style git panel inside VS Code. Branch tree, commit log, diff — all in one place. No paywalls.

@@ -689,21 +689,23 @@
   }
 
   /* ── Badge ── */
+  /* Bare colored letters, VS Code's own SCM colors (gitDecoration.* tokens) —
+     matches the detail pane and tracks the user's theme. The Alpha-Legion hexes
+     are fallbacks only, used when a token is absent. */
   .badge {
     font-size: var(--hg-font-xxs);
     font-family: var(--hg-font-family);
     font-weight: 600;
     width: 14px; height: 14px;
-    border-radius: 3px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
-  .badge-m { background: rgba(74,156,214,0.15); color: #4a9cd6; border: 0.5px solid rgba(74,156,214,0.35); }
-  .badge-a, .badge-u { background: rgba(78,201,78,0.13); color: #4ec94e; border: 0.5px solid rgba(78,201,78,0.3); }
-  .badge-d { background: rgba(160,160,160,0.1); color: #888; border: 0.5px solid rgba(160,160,160,0.25); }
-  .badge-r { background: rgba(74,156,214,0.15); color: #4a9cd6; border: 0.5px solid rgba(74,156,214,0.35); }
-  .badge-c { background: rgba(224,160,48,0.13); color: #e0a030; border: 0.5px solid rgba(224,160,48,0.3); }
-  .badge-conflict { background: rgba(224,72,72,0.15); color: #e04848; border: 0.5px solid rgba(224,72,72,0.4); }
+  .badge-m { color: var(--vscode-gitDecoration-modifiedResourceForeground, #4a9cd6); }
+  .badge-a, .badge-u { color: var(--vscode-gitDecoration-addedResourceForeground, #4ec94e); }
+  .badge-d { color: var(--vscode-gitDecoration-deletedResourceForeground, #888); }
+  .badge-r { color: var(--vscode-gitDecoration-renamedResourceForeground, #4a9cd6); }
+  .badge-c { color: var(--vscode-gitDecoration-renamedResourceForeground, #e0a030); }
+  .badge-conflict { color: var(--vscode-gitDecoration-conflictingResourceForeground, #e04848); }
 
   /* ── File name ── */
   .fname {
@@ -714,13 +716,13 @@
     font-family: var(--hg-font-family);
     font-size: var(--hg-font-xs);
   }
-  .fname-m { color: #4a9cd6; }
-  .fname-a, .fname-u { color: #4ec94e; }
+  .fname-m { color: var(--vscode-gitDecoration-modifiedResourceForeground, #4a9cd6); }
+  .fname-a, .fname-u { color: var(--vscode-gitDecoration-addedResourceForeground, #4ec94e); }
   .fname-d { color: var(--vscode-descriptionForeground, #888); text-decoration: line-through; }
   .fname-d-strike { text-decoration: line-through; }
-  .fname-r { color: #4a9cd6; }
-  .fname-c { color: #e0a030; }
-  .fname-conflict { color: #e04848; }
+  .fname-r { color: var(--vscode-gitDecoration-renamedResourceForeground, #4a9cd6); }
+  .fname-c { color: var(--vscode-gitDecoration-renamedResourceForeground, #e0a030); }
+  .fname-conflict { color: var(--vscode-gitDecoration-conflictingResourceForeground, #e04848); }
   .fname-old {
     color: var(--vscode-descriptionForeground, #888);
     font-family: var(--hg-font-family);

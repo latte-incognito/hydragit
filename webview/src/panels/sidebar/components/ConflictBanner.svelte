@@ -67,7 +67,7 @@
     font-size: var(--hg-font-xs);
   }
   .cb-head { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; }
-  .cb-title { color: #e0a030; font-size: var(--hg-font-sm); }
+  .cb-title { color: var(--hg-warn, #e0a030); font-size: var(--hg-font-sm); }
   .cb-sub { color: var(--vscode-descriptionForeground, #999); }
 
   .cb-files { display: flex; flex-direction: column; gap: 3px; margin-bottom: 7px; }
@@ -96,8 +96,8 @@
   }
   .cb-btn:hover { filter: brightness(1.15); }
   .cb-btn.merge { background: var(--vscode-button-background, #0e639c); color: var(--vscode-button-foreground, #fff); }
-  .cb-btn.current  { color: #4a9cd6; }
-  .cb-btn.incoming { color: #4ec94e; }
+  .cb-btn.current  { color: var(--vscode-gitDecoration-modifiedResourceForeground, #4a9cd6); }
+  .cb-btn.incoming { color: var(--vscode-gitDecoration-addedResourceForeground, #4ec94e); }
 
   .cb-foot { display: flex; gap: 6px; }
   .cb-cont {

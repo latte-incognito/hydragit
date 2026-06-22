@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Commit &amp; Staging</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.5</span>
+    <span class="ver">v0.2.8</span>
   </header>
 
   <div class="page">
@@ -38,11 +38,11 @@
         </ul>
         <h3 class="lbl">What happens next</h3>
         <ol class="flow">
-          <li>The <b>Commit</b> button is enabled only when <code>stagedCount &gt; 0</code> and the message is non-empty — a message alone is not enough.</li>
-          <li>Go runs <span class="cmd amber">commit</span> with <code>{ message, paths[] }</code> — it stages the chosen paths and commits in one step.</li>
+          <li>The <b>Commit</b> button is enabled only when something is staged and the message is non-empty — a message alone is not enough.</li>
+          <li>Ticking a checkbox already staged the file in git's index (<span class="cmd amber">stage</span> / <span class="cmd amber">unstage</span>); <b>Commit</b> sends <span class="cmd amber">commit</span> with the message and <b>no paths</b> — it commits the index as it stands.</li>
           <li>On success the message clears, the file list empties, and status refreshes.</li>
         </ol>
-        <div class="note teal"><span class="ic">i</span><span>Staged paths are <b>webview-only state</b> (a <code>Set&lt;string&gt;</code> in <code>Sidebar.svelte</code>), pruned on each status refresh to paths still present.</span></div>
+        <div class="note teal"><span class="ic">i</span><span>Staging is the <b>real git index</b>, not webview state — checking a file runs <code>git add</code>, unchecking <code>git restore --staged</code>. Edit a staged file and the new edits show as a second row under Changes while the commit still takes the frozen snapshot. See <a href="sidebar.html#staging">real-index staging</a> and <a href="sidebar.html#hunks">hunk staging</a>.</span></div>
       </section>
 
       <section class="feature" id="push">
@@ -88,11 +88,12 @@
           <tr><td><span class="chip r">secretContent</span></td><td>High-precision token shapes (AWS / GitHub / Slack / OpenAI / Google keys, PEM private keys).</td><td><code>hydragit.safety.secretContent</code></td></tr>
           <tr><td><span class="chip a">conflictMarker</span></td><td>Leftover <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code> / <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code> lines.</td><td><code>hydragit.safety.conflictMarker</code></td></tr>
           <tr><td><span class="chip a">largeFile</span></td><td>Files over 5&nbsp;MB.</td><td><code>hydragit.safety.largeFile</code></td></tr>
-          <tr><td><span class="chip g">protectedBranch</span></td><td>Committing directly to <code>main</code> / <code>master</code>.</td><td><code>hydragit.safety.protectedBranch</code></td></tr>
+          <tr><td><span class="chip g">protectedBranch</span></td><td>Committing directly to a protected branch (default <code>main</code> / <code>master</code>).</td><td><code>hydragit.safety.protectedBranch</code></td></tr>
         </table>
+        <div class="note teal"><span class="ic">i</span><span>The protected-branch list is configurable via <code>hydragit.safety.protectedBranches</code> (default <code>["main", "master"]</code>). The list <b>replaces</b> the default — set <code>["develop"]</code> to protect <code>develop</code> instead, or include main/master to keep them. The <code>protectedBranch</code> boolean above stays the on/off switch.</span></div>
         <h3 class="lbl">What happens next</h3>
         <ol class="flow">
-          <li>Commit / Commit &amp; Push first sends <span class="cmd amber">commit.precheck</span> with the staged paths; the extension host injects which checks are enabled from settings.</li>
+          <li>Commit / Commit &amp; Push first sends <span class="cmd amber">commit.precheck</span> with the staged paths; the extension host injects which checks are enabled <b>and the protected-branch list</b> from settings.</li>
           <li>No findings → the commit proceeds silently. Findings → a native modal lists them; <b>Yes</b> commits anyway, anything else cancels.</li>
           <li>All checks disabled → the host answers "no warnings" without calling Go at all.</li>
         </ol>

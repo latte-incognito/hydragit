@@ -357,6 +357,48 @@ func PushForce(repoPath, branch string) error {
 	return err
 }
 
+// DivergenceIsRewrite reports whether the current branch's divergence from its
+// upstream is caused by a LOCAL history rewrite (amend / rebase / reword /
+// squash of already-pushed commits) rather than genuine new work on the remote.
+//
+// The test: every commit the upstream has that we don't (HEAD..@{u}) must be an
+// OLD version of our own history — present in this branch's reflog. If so, the
+// remote holds nothing but commits we rewrote past, and the correct reconcile
+// is a force-with-lease push, NOT a rebase (rebasing would pull the pre-rewrite
+// commits back). If any "behind" commit is absent from our reflog, it's a real
+// push from elsewhere → genuine divergence → rebase.
+//
+// Conservative by construction: no upstream, not behind, or a reflog too short
+// to vouch for a commit all yield false (rebase), the non-destructive choice.
+func DivergenceIsRewrite(repoPath string) (bool, error) {
+	if _, err := run(repoPath, "rev-parse", "--abbrev-ref", "@{u}"); err != nil {
+		return false, nil // no upstream — nothing to reconcile against
+	}
+	behind, err := run(repoPath, "rev-list", "HEAD..@{u}")
+	if err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(behind) == "" {
+		return false, nil // not behind — not a divergence to classify
+	}
+	reflog, err := run(repoPath, "reflog", "show", "--format=%H")
+	if err != nil {
+		return false, err
+	}
+	refs := strings.Fields(reflog)
+	if len(refs) == 0 {
+		return false, nil
+	}
+	// Behind-commits NOT reachable from any past tip of this branch. Empty set
+	// ⇒ all behind-commits are our own rewritten history ⇒ force-with-lease.
+	args := append([]string{"rev-list", "HEAD..@{u}", "--not"}, refs...)
+	leftover, err := run(repoPath, args...)
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(leftover) == "", nil
+}
+
 // Fetch updates all remotes and prunes remote-tracking refs whose branches
 // were deleted on the remote — otherwise they linger in the branch pane forever.
 func Fetch(repoPath string) error {

@@ -398,6 +398,40 @@
     if (commit) onCommitMenuAction('cherry-pick', commit);
   }
 
+  // Open File History for this file *as of the selected revision* — the list is
+  // truncated to this commit and everything older (git log <ref> --follow). The
+  // host opens the dedicated history panel; the ref is the commit (or stash).
+  function ctxHistoryHere() {
+    closeCtx();
+    if (!ctxFile) return;
+    const ref = isStash && stash ? `stash@{${stash.index ?? 0}}` : commit?.hash;
+    if (!ref) return;
+    send('openFileHistory', { file: ctxFile, ref });
+  }
+
+  // Diff this file against the commit's parent(s). For an ordinary commit that's
+  // a single diff (vs the first parent); for a merge it opens one diff per
+  // parent so you can see what each side contributed. newTab keeps them from
+  // replacing one another in the shared preview tab.
+  function ctxShowChangesToParents() {
+    closeCtx();
+    if (!ctxFile) return;
+    if (isStash && stash) {
+      const ref = `stash@{${stash.index ?? 0}}`;
+      send('openDiff', { commit: ref, parent: ref + '^', file: ctxFile, newTab: true });
+      return;
+    }
+    if (!commit) return;
+    const parents = commit.parents ?? [];
+    if (parents.length <= 1) {
+      send('openDiff', { commit: commit.hash, parent: parents[0] ?? '', file: ctxFile, newTab: true });
+      return;
+    }
+    for (const p of parents) {
+      send('openDiff', { commit: commit.hash, parent: p, file: ctxFile, newTab: true });
+    }
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') closeCtx();
   }
@@ -486,7 +520,7 @@
       </span>
       <span class="ci-text">Get from Revision</span>
     </div>
-    <div class="ctx-item">
+    <div class="ctx-item" onclick={ctxHistoryHere}>
       <span class="ci-icon">
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
           <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.1"/>
@@ -495,7 +529,7 @@
       </span>
       <span class="ci-text">History Up to Here</span>
     </div>
-    <div class="ctx-item"><span class="ci-icon"></span><span class="ci-text">Show Changes to Parents</span></div>
+    <div class="ctx-item" onclick={ctxShowChangesToParents}><span class="ci-icon"></span><span class="ci-text">Show Changes to Parents</span></div>
   </div>
 {/if}
 
@@ -851,13 +885,13 @@
   }
   .hunk-header {
     padding: 2px 8px;
-    background: #1a2535;
-    color: #56c8e8;
+    background: var(--vscode-editorGroupHeader-tabsBackground, #1a2535);
+    color: var(--hg-info, #56c8e8);
     white-space: pre;
   }
   .hunk-line { padding: 0 8px; white-space: pre; }
-  .hunk-line--add { background: #0d2410; color: #4ec94e; }
-  .hunk-line--del { background: #2a0d0d; color: #f07070; }
+  .hunk-line--add { background: var(--vscode-diffEditor-insertedLineBackground, rgba(78,201,78,0.12)); color: var(--vscode-gitDecoration-addedResourceForeground, #4ec94e); }
+  .hunk-line--del { background: var(--vscode-diffEditor-removedLineBackground, rgba(240,112,112,0.12)); color: var(--vscode-gitDecoration-deletedResourceForeground, #f07070); }
   .hunk-line--ctx { color: var(--vscode-descriptionForeground, #888); }
 
   .detail-empty {
@@ -913,7 +947,7 @@
     color: var(--vscode-disabledForeground, #3a3a3a);
     font-family: var(--hg-font-family);
   }
-  .tree-count-pickaxe { color: #e8648a; }
+  .tree-count-pickaxe { color: var(--hg-code, #e8648a); }
   .tt-wrap {
     display: flex;
     align-items: center;
@@ -1034,12 +1068,12 @@
     font-family: var(--hg-font-family);
     font-size: var(--hg-font-xs);
   }
-  .fname-m { color: #4a9cd6; }
-  .fname-a, .fname-u { color: #4ec94e; }
+  .fname-m { color: var(--vscode-gitDecoration-modifiedResourceForeground, #4a9cd6); }
+  .fname-a, .fname-u { color: var(--vscode-gitDecoration-addedResourceForeground, #4ec94e); }
   .fname-d { color: var(--vscode-descriptionForeground, #888); text-decoration: line-through; }
   .fname-d-strike { text-decoration: line-through; }
-  .fname-r { color: #4a9cd6; }
-  .fname-c { color: #e0a030; }
+  .fname-r { color: var(--vscode-gitDecoration-renamedResourceForeground, #4a9cd6); }
+  .fname-c { color: var(--vscode-gitDecoration-renamedResourceForeground, #e0a030); }
   .fname-old {
     color: var(--vscode-descriptionForeground, #888);
     font-family: var(--hg-font-family);
@@ -1129,9 +1163,9 @@
     line-height: 1.5;
     white-space: nowrap;
   }
-  .dm-pill--head   { color: #56c8e8; background: rgba(86,200,232,0.12);  border: 0.5px solid rgba(86,200,232,0.35); }
+  .dm-pill--head   { color: var(--hg-info, #56c8e8); background: rgba(86,200,232,0.12);  border: 0.5px solid rgba(86,200,232,0.35); }
   .dm-pill--branch { color: #4ec94e; background: rgba(78,201,78,0.1);    border: 0.5px solid rgba(78,201,78,0.3); }
-  .dm-pill--tag    { color: #e0a030; background: rgba(224,160,48,0.1);   border: 0.5px solid rgba(224,160,48,0.3); }
+  .dm-pill--tag    { color: var(--hg-warn, #e0a030); background: rgba(224,160,48,0.1);   border: 0.5px solid rgba(224,160,48,0.3); }
   .dm-stats {
     display: flex;
     gap: 8px;

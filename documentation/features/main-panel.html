@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Views &amp; Layout<span class="sep">/</span>Main panel</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.5</span>
+    <span class="ver">v0.2.8</span>
   </header>
 
   <div class="page">
@@ -53,13 +53,15 @@
 
       <section class="feature" id="branchpane">
         <h2>Branch tree <span class="cmd">BranchPane</span></h2>
-        <p>The left region. Local + remote branches, folder-style grouping for <code>slashed/names</code>, tags and stashes.</p>
+        <p>The left region (Discord/Linear-style). Local + remote branches, folder-style grouping for <code>slashed/names</code>, tags, stashes, worktrees and snapshots — each its own collapsible section.</p>
         <ul class="plain">
-          <li><b>HEAD row</b> (top) — click it to open the <a href="reflog.html">undo timeline (reflog)</a>; it shows <code>HEAD · &lt;branch&gt;</code>.</li>
-          <li><b>Current-branch marker</b> (★) and an ahead/behind track string per branch.</li>
+          <li><b>Undo-timeline row</b> (top) — labelled <b>↺ Undo timeline</b> (amber, highlighted while active); click it to open the <a href="reflog.html">reflog</a>. It no longer masquerades as a <code>HEAD · &lt;branch&gt;</code> branch row.</li>
+          <li><b>One hydra head = one branch</b> — branch rows use a single-head hydra icon (gradient on the checked-out branch). The default branch is marked with a <b>shield</b> (resolved from <code>origin/HEAD</code>), not a guessed ★.</li>
+          <li><b>Ahead/behind counts</b> — <code>↑2 ↓1</code> (amber/cyan) per branch; in-sync branches show nothing.</li>
+          <li><b>Per-section <code>+</code></b> on hover — new branch, tag at HEAD, stash, worktree, or manual snapshot.</li>
+          <li><b>Type-to-filter</b> (⌕ in the pane header) filters every section at once, auto-expanding matches.</li>
           <li><b>Folder grouping</b> — <code>feature/login</code>, <code>feature/signup</code> collapse under a <code>feature/</code> node; right-click the folder to <a href="branches.html#rename">rename the whole prefix</a>.</li>
-          <li><b>Right-click</b> any branch, tag, folder or stash for its <a href="context-menus.html">context menu</a>.</li>
-          <li><b>All-branches toggle</b> in the toolbar switches between current-branch scope and <code>--all</code>.</li>
+          <li><b>Right-click</b> any branch, tag, folder, stash, worktree or snapshot for its <a href="context-menus.html">context menu</a>.</li>
         </ul>
         <div class="related"><b>Related</b><a href="branches.html">Branches</a><a href="reflog.html">Reflog</a><a href="tags.html">Tags</a><a href="stash.html">Stash</a></div>
       </section>
@@ -78,18 +80,23 @@
 
       <section class="feature" id="detailpane">
         <h2>Commit detail <span class="cmd">DetailPane</span></h2>
-        <p>The right region. For the selected commit it shows metadata (author, date, full message, refs), the changed-file tree, and an inline diff. Selecting a file opens its hunks; it also hosts the multi-file <a href="compare.html">compare</a> view.</p>
+        <p>The right region. For the selected commit it shows a metadata card, the changed-file tree (no synthetic repo-root node), and an inline diff. Selecting a file opens its hunks; it also hosts the multi-file <a href="compare.html">compare</a> view.</p>
+        <ul class="plain">
+          <li><b>Click the hash to copy it</b> (GitHub-style, ✓ feedback) — the separate Copy-hash button is gone.</li>
+          <li><b>Refs render as pills</b> — <code>HEAD → develop</code> splits into a HEAD pill and a branch pill; tags amber.</li>
+          <li><b>Action row</b> — visible chips Cherry-pick · Branch here · Tag · ↗ View on remote (↗ shown only on pushed commits), plus a <b>⋯ overflow</b> with Checkout at commit (detached), Copy commit message, Save as patch, and Revert (separated, red). Every action routes through the same handler as the log's right-click menu.</li>
+          <li><b>File status letters</b> use VS Code's own SCM colours (<code>gitDecoration.*</code>) as bare letters; +/− totals sit in the tree toolbar.</li>
+        </ul>
         <div class="related"><b>Related</b><a href="diff.html">Commit diff</a><a href="compare.html">Compare</a></div>
       </section>
 
       <section class="feature" id="toolbar">
         <h2>Toolbar <span class="cmd">Toolbar</span></h2>
-        <p>The strip across the top of the panel:</p>
+        <p>The strip across the top of the panel, built around one token-search input (Slack/Gmail-style):</p>
         <ul class="plain">
-          <li><b>Branch pill</b> (left) — opens a searchable branch picker; pick one to scope the log to it.</li>
-          <li><b>Search box</b> with a four-way mode switch: <span class="chip">Message</span> <span class="chip a">Hash</span> <span class="chip g">File</span> <span class="chip p">Author</span>.</li>
-          <li><b>All branches / This branch</b> toggle pill.</li>
-          <li><b>Undo</b> button (right) — the <a href="undo-squash.html#undo">undo last operation</a> express lane.</li>
+          <li><b>Branch pill</b> (left) — opens a searchable branch picker with a pinned <b>All branches</b> entry; the pill label reflects the active scope, so the old This-branch/All-branches toggle is gone.</li>
+          <li><b>One search box</b> — focusing it opens a scope dropdown (Author / File / Hash / Code); typing a prefix (<code>author:</code>, <code>file:</code>, <code>hash:</code>, <code>code:</code>, or <code>@</code> for author) turns it into a removable coloured chip inside the input. The old icon mode-tabs are gone.</li>
+          <li><b>Contextual undo</b> — an amber &ldquo;Undo merge / rebase / reset / pull&rdquo; button slides in only when something is actually undoable, instead of a permanently visible Undo.</li>
         </ul>
         <div class="related"><b>Related</b><a href="search-filter.html">Search &amp; filter</a><a href="undo-squash.html#undo">Undo last operation</a></div>
       </section>

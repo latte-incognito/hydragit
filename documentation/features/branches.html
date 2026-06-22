@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Branches</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.5</span>
+    <span class="ver">v0.2.8</span>
   </header>
 
   <div class="page">
@@ -43,10 +43,12 @@
         </ul>
         <h3 class="lbl">What it shows per branch</h3>
         <ul class="plain">
-          <li><b>Current marker</b> (★) on the checked-out branch.</li>
-          <li><b>Upstream + ahead/behind</b> track string (e.g. <code>↑2 ↓1</code>).</li>
+          <li><b>Hydra-head icon</b> on every branch, with a gradient fill on the checked-out branch (the current-branch marker).</li>
+          <li><b>Default-branch shield</b> — resolved from <code>origin/HEAD</code> (real data, never guessed by name; absent when there's no remote). <code>fetch</code> refreshes <code>origin/HEAD</code> so a remote default change heals itself.</li>
+          <li><b>Ahead/behind counts</b> — <code>↑2 ↓1</code> (amber ahead / cyan behind); in-sync branches show nothing.</li>
           <li><b>Gone / orphan detection</b> for branches whose upstream was deleted.</li>
           <li><b>Folder nodes</b> for shared prefixes; expand/collapse to navigate.</li>
+          <li><b>Type-to-filter</b> from the pane header filters every section at once.</li>
         </ul>
         <div class="related"><b>Related</b><a href="search-filter.html#scope">Branch scope</a><a href="context-menus.html#branch">Branch context menu</a></div>
       </section>

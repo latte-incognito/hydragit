@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Undo &amp; Safety<span class="sep">/</span>Undo &amp; squash</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.5</span>
+    <span class="ver">v0.2.8</span>
   </header>
 
   <div class="page">
@@ -33,8 +33,9 @@
         <p>The toolbar express lane that does the right thing depending on repo state.</p>
         <h3 class="lbl">Entry points</h3>
         <ul class="entrypoints">
-          <li><span class="where">Toolbar</span><span class="what">The <b>Undo</b> button (right side, amber on hover).</span></li>
+          <li><span class="where">Toolbar</span><span class="what">A <b>contextual</b> amber "Undo merge / rebase / reset / pull" button — it slides in only when something is actually undoable (an op paused mid-rebase, or after a completed merge / rebase / reset / pull / un-pushed sync) and disappears after undoing. (The permanently-visible Undo was removed in 0.2.7.)</span></li>
         </ul>
+        <div class="note teal"><span class="ic">i</span><span>Operations that don't set <code>ORIG_HEAD</code> (e.g. cherry-pick) deliberately never offer it — undo rewinds to <code>ORIG_HEAD</code>, which would be a stale target. The <a href="reflog.html">reflog</a> remains the deep-history recovery tool.</span></div>
         <h3 class="lbl">What happens next</h3>
         <ol class="flow">
           <li>If a merge / rebase / cherry-pick / revert is in progress, it <b>aborts</b> that operation.</li>

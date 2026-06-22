@@ -7,9 +7,11 @@
     onCancel?: () => void;
   }
 
+  import { REBASE_ACTIONS, isRebasePlanInvalid, buildRebasePlan } from '../interactiveRebasePlan';
+
   let { commits = [], onStart = () => {}, onCancel = () => {} }: Props = $props();
 
-  const ACTIONS = ['pick', 'squash', 'fixup', 'drop'] as const;
+  const ACTIONS = REBASE_ACTIONS;
 
   // Working copy the user edits — never mutate the incoming prop.
   let rows = $state(commits.map((c) => ({ ...c, action: 'pick' as string })));
@@ -40,13 +42,12 @@
   }
 
   // The first kept (non-drop) commit must be a pick — squash/fixup need a commit
-  // above them to fold into.
-  let firstKept = $derived(rows.find((r) => r.action !== 'drop'));
-  let invalid = $derived(firstKept ? firstKept.action !== 'pick' : true);
+  // above them to fold into. Rule lives in interactiveRebasePlan.ts (unit-tested).
+  let invalid = $derived(isRebasePlanInvalid(rows));
 
   function start() {
     if (invalid) return;
-    onStart(rows.map((r) => ({ sha: r.sha, action: r.action })));
+    onStart(buildRebasePlan(rows));
   }
 </script>
 
@@ -149,7 +150,7 @@
   }
   .ir-sha {
     font-family: var(--hg-font-mono, monospace);
-    color: #c08a3e;
+    color: var(--hg-warn, #e0a030);
     flex-shrink: 0;
   }
   .ir-subject {
@@ -172,7 +173,7 @@
     margin: 0 16px 8px;
     padding: 5px 9px;
     font-size: var(--hg-font-xs);
-    color: #e0a030;
+    color: var(--hg-warn, #e0a030);
     background: rgba(224, 160, 48, 0.1);
     border-radius: 3px;
   }

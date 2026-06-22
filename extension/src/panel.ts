@@ -354,10 +354,20 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       ],
     };
 
+    // Colored mark on transparent — this <img> renders un-tinted in the webview
+    // (DetailPane empty state), so it must stay visible on light *and* dark
+    // themes. The activity-bar container icon stays icon-tight.png (white
+    // silhouette), which VS Code tints itself.
     const iconUri = webviewView.webview.asWebviewUri(
-      vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon-tight.png'))
+      vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon-fat-transparent.png'))
     );
-    webviewView.webview.html = this.getHtml(webviewView.webview, iconUri);
+    // Single hydra head — the toolbar's resting brand mark; on hover it blooms
+    // into the full three-head logo (iconUri). Same source art, so the morph is
+    // seamless. Both are colored-on-transparent → visible on light + dark.
+    const headUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.file(path.join(this.ctx.extensionPath, 'images', 'icon-head.png'))
+    );
+    webviewView.webview.html = this.getHtml(webviewView.webview, iconUri, headUri);
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       // Reject any repo root the host hasn't discovered (see repoAllowed).
@@ -381,6 +391,17 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
       }
       if (msg.cmd === 'openWorkingDiff') {
         await openWorkingDiff(msg.params, msg.repo);
+        return;
+      }
+      // "History Up to Here" — open the dedicated File History panel for this
+      // file, truncated to the given revision. Routed through a command so the
+      // panel needn't hold a HistoryPanelManager reference.
+      if (msg.cmd === 'openFileHistory') {
+        await vscode.commands.executeCommand(
+          'hydragit.fileHistoryAt',
+          msg.params?.file,
+          msg.params?.ref
+        );
         return;
       }
       if (msg.cmd === 'savePatch') {
@@ -544,7 +565,7 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     vscode.commands.executeCommand('hydragit.mainView.focus');
   }
 
-  private getHtml(webview: vscode.Webview, iconUri: vscode.Uri): string {
+  private getHtml(webview: vscode.Webview, iconUri: vscode.Uri, headUri: vscode.Uri): string {
     const htmlPath = path.join(this.ctx.extensionPath, 'webview', 'index.html');
     let html = fs.readFileSync(htmlPath, 'utf8');
 
@@ -574,7 +595,10 @@ export class HydraViewProvider implements vscode.WebviewViewProvider {
     );
     html = html.replace('./index.js', scriptUri.toString());
     html = html.replace('</head>', `<link rel="stylesheet" href="${styleUri}"></head>`);
-    html = html.replace('<body>', `<body data-icon-uri="${iconUri.toString()}">`);
+    html = html.replace(
+      '<body>',
+      `<body data-icon-uri="${iconUri.toString()}" data-head-uri="${headUri.toString()}">`
+    );
     html = html.replace(
       '</head>',
       `<style>

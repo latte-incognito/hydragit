@@ -4,6 +4,7 @@
   interface Props {
     repoName?: string;
     iconUri?: string;
+    headUri?: string;
     activeBranch?: string;
     branches?: import('../types').Branch[];
     hasPending?: boolean;
@@ -26,6 +27,7 @@
   let {
     repoName = 'HydraGit',
     iconUri = '',
+    headUri = '',
     activeBranch = '',
     branches = [],
     hasPending = false,
@@ -234,21 +236,32 @@
     aria-expanded={statusOpen}
     title={statusOpen ? 'Hide repository status' : 'Show repository status'}
   >
-    <svg class="st-logo" width="12" height="14" viewBox="0 0 12 16" fill="none">
-      <defs>
-        <linearGradient id="st-hydra-grad" x1="0" y1="0" x2="12" y2="16" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stop-color="#2fbdb3"/>
-          <stop offset="55%"  stop-color="#1e8f8f"/>
-          <stop offset="100%" stop-color="#c0c8cc"/>
-        </linearGradient>
-      </defs>
-      <circle cx="2.5" cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
-      <circle cx="6"   cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
-      <circle cx="9.5" cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
-      <circle cx="6"   cy="14.2" r="1.5" fill="url(#st-hydra-grad)"/>
-      <path d="M2.5 3.3C2.5 6.5 6 8 6 8M9.5 3.3C9.5 6.5 6 8 6 8M6 3.3V8M6 8v4.7"
-            stroke="url(#st-hydra-grad)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
-    </svg>
+    {#if headUri}
+      <!-- Hydra Bloom: a single head at rest; on hover the side heads "grow"
+           in and it scales up into the full three-head logo — cut one head,
+           two grow back. Both imgs are absolute so the bloom floats over the
+           toolbar without shifting layout. -->
+      <span class="hydra-bloom">
+        <img class="hb-head" src={headUri} alt="" draggable="false" />
+        <img class="hb-full" src={iconUri} alt="" draggable="false" />
+      </span>
+    {:else}
+      <svg class="st-logo" width="12" height="14" viewBox="0 0 12 16" fill="none">
+        <defs>
+          <linearGradient id="st-hydra-grad" x1="0" y1="0" x2="12" y2="16" gradientUnits="userSpaceOnUse">
+            <stop offset="0%"   stop-color="#2fbdb3"/>
+            <stop offset="55%"  stop-color="#1e8f8f"/>
+            <stop offset="100%" stop-color="#c0c8cc"/>
+          </linearGradient>
+        </defs>
+        <circle cx="2.5" cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
+        <circle cx="6"   cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
+        <circle cx="9.5" cy="1.8" r="1.5" fill="url(#st-hydra-grad)"/>
+        <circle cx="6"   cy="14.2" r="1.5" fill="url(#st-hydra-grad)"/>
+        <path d="M2.5 3.3C2.5 6.5 6 8 6 8M9.5 3.3C9.5 6.5 6 8 6 8M6 3.3V8M6 8v4.7"
+              stroke="url(#st-hydra-grad)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+      </svg>
+    {/if}
   </button>
 
   <!-- Branch view picker (which branch(es) the log shows — not a checkout) -->
@@ -463,6 +476,52 @@
     filter: drop-shadow(0 0 2px #2fbdb3);
   }
 
+  /* ── Hydra Bloom ── single head → full three-head logo on hover */
+  .hydra-bloom {
+    position: relative;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+  .hydra-bloom .hb-head,
+  .hydra-bloom .hb-full {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    transform-origin: center center;
+    transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  /* rest: head shown, full mark hidden + shrunk */
+  .hydra-bloom .hb-head { opacity: 0.9; transform: scale(1); }
+  .hydra-bloom .hb-full { opacity: 0; transform: scale(0.55); }
+  /* active (status panel open): show the full mark in place — no overflow */
+  .status-toggle.active .hb-head { opacity: 0; transform: scale(1.2); }
+  .status-toggle.active .hb-full {
+    opacity: 1;
+    transform: scale(1.05);
+    filter: drop-shadow(0 0 2px rgba(47, 189, 179, 0.5));
+  }
+  /* hover: dramatic bloom — declared after .active so it wins on equal specificity */
+  .status-toggle:hover .hb-head { opacity: 0; transform: scale(1.35); }
+  .status-toggle:hover .hb-full {
+    opacity: 1;
+    transform: scale(1.95);
+    filter: drop-shadow(0 0 4px rgba(47, 189, 179, 0.65));
+    z-index: 2;
+  }
+  /* respect reduced-motion: instant crossfade, no scaling */
+  @media (prefers-reduced-motion: reduce) {
+    .hydra-bloom .hb-head,
+    .hydra-bloom .hb-full {
+      transition: opacity 0.12s linear;
+      transform: none !important;
+    }
+  }
+
   .toolbar {
     background: var(--vscode-editorGroupHeader-tabsBackground, #2d2d2d);
     height: 34px;
@@ -579,7 +638,7 @@
   .bd-item:hover { background: var(--vscode-list-hoverBackground, #2a2d2e); }
   .bd-item--current {
     color: var(--vscode-foreground, #fff);
-    border-left: 2px solid #56c8e8;
+    border-left: 2px solid var(--hg-info, #56c8e8);
     padding-left: 8px;
   }
   .bd-item--remote { color: var(--vscode-descriptionForeground, #888); }
@@ -627,10 +686,10 @@
     font-family: var(--hg-font-family);
     line-height: 1.4;
   }
-  .scope-chip-hash   { color: #e0a030; background: rgba(224,160,48,0.12); }
+  .scope-chip-hash   { color: var(--hg-warn, #e0a030); background: rgba(224,160,48,0.12); }
   .scope-chip-file   { color: #4ec94e; background: rgba(78,201,78,0.12);  }
-  .scope-chip-author { color: #a07ae8; background: rgba(160,122,232,0.12);}
-  .scope-chip-code   { color: #e8648a; background: rgba(232,100,138,0.12);}
+  .scope-chip-author { color: var(--hg-author, #9a7ae8); background: rgba(160,122,232,0.12);}
+  .scope-chip-code   { color: var(--hg-code, #e8648a); background: rgba(232,100,138,0.12);}
   .chip-x {
     background: none; border: none; padding: 1px; display: flex;
     align-items: center; cursor: pointer; color: inherit; opacity: 0.6;
@@ -668,10 +727,10 @@
   }
   .sd-item--hi { background: var(--vscode-list-hoverBackground, #2a2d2e); }
   .sd-label { width: 64px; flex-shrink: 0; }
-  .sd-label-author { color: #a07ae8; }
+  .sd-label-author { color: var(--hg-author, #9a7ae8); }
   .sd-label-file   { color: #4ec94e; }
-  .sd-label-hash   { color: #e0a030; }
-  .sd-label-code   { color: #e8648a; }
+  .sd-label-hash   { color: var(--hg-warn, #e0a030); }
+  .sd-label-code   { color: var(--hg-code, #e8648a); }
   .sd-example {
     color: var(--vscode-disabledForeground, #555);
     font-family: var(--vscode-editor-font-family, monospace);
@@ -753,7 +812,7 @@
     flex-shrink: 0;
   }
   .csr-icon {
-    color: #e8648a;
+    color: var(--hg-code, #e8648a);
     flex-shrink: 0;
     margin-top: 4px;
   }
@@ -773,7 +832,7 @@
     white-space: pre;
     overflow-x: auto;
   }
-  .code-box:focus { border-color: #e8648a; }
+  .code-box:focus { border-color: var(--hg-code, #e8648a); }
   .code-box::placeholder {
     color: var(--vscode-disabledForeground, #3a3a3a);
     font-family: var(--hg-font-family);
@@ -791,12 +850,12 @@
     font-size: var(--hg-font-xxs);
     font-family: var(--hg-font-family);
     cursor: pointer;
-    color: #e8648a;
+    color: var(--hg-code, #e8648a);
     background: rgba(232,100,138,0.08);
     transition: all 0.12s;
     white-space: nowrap;
   }
-  .csr-run:hover:not(:disabled) { border-color: #e8648a; background: rgba(232,100,138,0.16); }
+  .csr-run:hover:not(:disabled) { border-color: var(--hg-code, #e8648a); background: rgba(232,100,138,0.16); }
   .csr-run:disabled { opacity: 0.4; cursor: default; }
   .csr-clear {
     border: 0.5px solid var(--vscode-widget-border, #3a3a3a);
@@ -826,10 +885,10 @@
     border-radius: 3px; padding: 2px 8px;
     font-size: var(--hg-font-xxs); font-family: var(--hg-font-family);
     cursor: pointer; white-space: nowrap; flex-shrink: 0;
-    color: #e0a030;
+    color: var(--hg-warn, #e0a030);
     background: rgba(224,160,48,0.08); transition: all 0.12s;
   }
-  .undo-btn:hover { border-color: #e0a030; background: rgba(224,160,48,0.16); }
+  .undo-btn:hover { border-color: var(--hg-warn, #e0a030); background: rgba(224,160,48,0.16); }
 
   /* ── Tooltip ── */
   .hg-tooltip {

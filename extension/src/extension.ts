@@ -217,6 +217,13 @@ export function activate(ctx: vscode.ExtensionContext): void {
       historyPanel.openFileHistory(target);
     }),
 
+    // "History Up to Here" from the main panel's file context menu: open File
+    // History for an already repo-relative path, truncated to a revision.
+    vscode.commands.registerCommand('hydragit.fileHistoryAt', (file?: string, ref?: string) => {
+      if (!file) return;
+      historyPanel.openFileHistoryRel(file, ref);
+    }),
+
     vscode.commands.registerCommand('hydragit.selectionHistory', () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {

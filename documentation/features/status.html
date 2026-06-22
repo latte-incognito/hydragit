@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Views &amp; Layout<span class="sep">/</span>Repository status</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.5</span>
+    <span class="ver">v0.2.8</span>
   </header>
 
   <div class="page">
@@ -51,6 +51,8 @@
       <section class="feature" id="badge">
         <h2>Status bar &amp; activity-bar badge</h2>
         <p>The <code>StatusBar</code> component and the badge carrier surface branch, ahead/behind and the modified count. The badge on the HydraGit activity-bar icon shows the number of changed files at a glance.</p>
+        <p>The in-panel status bar lives <b>at the top of the main panel and is collapsible</b> (hidden by default — it duplicated VS Code's own status bar, where HydraGit already shows repo · branch). A teal/silver hydra icon in the toolbar, before the branch pill, slides it in and out; it auto-peeks while a transient ⚡ message is showing.</p>
+        <div class="note teal"><span class="ic">i</span><span>Errors also raise a <b>native VS Code error toast</b> (not just the in-panel ⚡ flash), so a collapsed status bar can't swallow a failure (<code>ui.notify</code> with <code>error</code> severity).</span></div>
       </section>
 
       <section class="feature" id="poll">

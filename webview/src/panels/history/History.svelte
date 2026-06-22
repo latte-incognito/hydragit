@@ -7,6 +7,9 @@
 
   let mode: 'file' | 'selection' = $state('file');
   let file = $state('');
+  // Non-empty when launched via "History Up to Here" — the file log is truncated
+  // to this revision and older. Empty → full history from HEAD.
+  let atRef = $state('');
   let start = 0;
   let end = 0;
 
@@ -35,7 +38,7 @@
       const result =
         mode === 'selection'
           ? await send<LineCommit[]>('line.history', { path: file, start, end })
-          : await send<Commit[]>('file.history', { path: file });
+          : await send<Commit[]>('file.history', { path: file, ref: atRef });
       commits = result ?? [];
       if (commits.length) selectRow(0);
     } catch (e) {
@@ -105,6 +108,9 @@
       const init = data as HistoryInit;
       mode = init.mode;
       file = init.file;
+      // Reset between launches: a plain File History must not inherit a previous
+      // "Up to Here" truncation.
+      atRef = init.mode === 'file' ? (init.atRef ?? '') : '';
       if (init.mode === 'selection') {
         start = init.start;
         end = init.end;

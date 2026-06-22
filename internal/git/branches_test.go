@@ -339,6 +339,84 @@ func TestPullMode_rebaseConflict_pausesAndErrors(t *testing.T) {
 	}
 }
 
+// pushOtherCommit clones the remote of `local`, pushes one new commit from the
+// clone, and returns — advancing the remote behind `local`'s back.
+func pushOtherCommit(t *testing.T, local, file, content string) {
+	t.Helper()
+	out, err := exec.Command("git", "-C", local, "remote", "get-url", "origin").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := t.TempDir()
+	exec.Command("git", "clone", strings.TrimSpace(string(out)), other).Run()
+	exec.Command("git", "-C", other, "config", "user.email", "o@o.com").Run()
+	exec.Command("git", "-C", other, "config", "user.name", "Other").Run()
+	os.WriteFile(filepath.Join(other, file), []byte(content), 0o644)
+	exec.Command("git", "-C", other, "add", file).Run()
+	exec.Command("git", "-C", other, "commit", "-m", "other commit").Run()
+	exec.Command("git", "-C", other, "push").Run()
+}
+
+func TestDivergenceIsRewrite_amend(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	os.WriteFile(filepath.Join(local, "f.txt"), []byte("v1\n"), 0o644)
+	exec.Command("git", "-C", local, "add", "f.txt").Run()
+	exec.Command("git", "-C", local, "commit", "-m", "A").Run()
+	exec.Command("git", "-C", local, "push").Run()
+
+	// Amend the pushed commit → diverged (ahead 1, behind 1), but the "behind"
+	// commit is the pre-amend version of our own work.
+	os.WriteFile(filepath.Join(local, "f.txt"), []byte("v1-fixed\n"), 0o644)
+	exec.Command("git", "-C", local, "commit", "-a", "--amend", "-m", "A amended").Run()
+	exec.Command("git", "-C", local, "fetch").Run()
+
+	rewrite, err := DivergenceIsRewrite(local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rewrite {
+		t.Fatal("amended pushed commit must be classified as a rewrite (force-with-lease)")
+	}
+}
+
+func TestDivergenceIsRewrite_genuineDivergence(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	os.WriteFile(filepath.Join(local, "f.txt"), []byte("base\n"), 0o644)
+	exec.Command("git", "-C", local, "add", "f.txt").Run()
+	exec.Command("git", "-C", local, "commit", "-m", "A").Run()
+	exec.Command("git", "-C", local, "push").Run()
+
+	// Someone else pushes; meanwhile we make our own local commit → diverged
+	// with a commit on the remote we never had.
+	pushOtherCommit(t, local, "g.txt", "theirs\n")
+	os.WriteFile(filepath.Join(local, "h.txt"), []byte("mine\n"), 0o644)
+	exec.Command("git", "-C", local, "add", "h.txt").Run()
+	exec.Command("git", "-C", local, "commit", "-m", "B mine").Run()
+	exec.Command("git", "-C", local, "fetch").Run()
+
+	rewrite, err := DivergenceIsRewrite(local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rewrite {
+		t.Fatal("a real remote push must NOT be classified as a rewrite (should rebase)")
+	}
+}
+
+func TestDivergenceIsRewrite_inSyncOrAhead(t *testing.T) {
+	local := makeRepoWithRemote(t)
+	// In sync right after the seeded push.
+	exec.Command("git", "-C", local, "fetch").Run()
+	if r, err := DivergenceIsRewrite(local); err != nil || r {
+		t.Fatalf("in-sync branch is not a rewrite-divergence, got %v (err %v)", r, err)
+	}
+	// Purely ahead (a local unpushed commit) is a normal push, not a rewrite.
+	exec.Command("git", "-C", local, "commit", "--allow-empty", "-m", "ahead").Run()
+	if r, err := DivergenceIsRewrite(local); err != nil || r {
+		t.Fatalf("purely-ahead branch is not a rewrite-divergence, got %v (err %v)", r, err)
+	}
+}
+
 func TestPush(t *testing.T) {
 	local := makeRepoWithRemote(t)
 

@@ -46,14 +46,27 @@ describe('ContextMenu — branch', () => {
     expect(onBranchAction).toHaveBeenCalledWith('delete');
   });
 
-  it('disables checkout/rebase/merge/delete when isCurrent', () => {
+  it('hides self-referential actions when isCurrent', () => {
+    const menu = { ...baseBranchMenu, isCurrent: true };
+    const { queryByText } = render(ContextMenu, { branchMenu: menu });
+    // Switching to / rebasing onto / merging into / deleting the current
+    // branch are all no-ops or impossible, so they're omitted entirely.
+    expect(queryByText('Switch to Branch')).toBeFalsy();
+    expect(queryByText('Delete')).toBeFalsy();
+    expect(queryByText("Checkout and Rebase onto 'main'")).toBeFalsy();
+    expect(queryByText("Compare with 'main'")).toBeFalsy();
+    expect(queryByText("Rebase 'main' onto 'feature/auth'")).toBeFalsy();
+    expect(queryByText("Merge 'feature/auth' into 'main'")).toBeFalsy();
+  });
+
+  it('still offers branch-from / rename / pull / working-tree diff when isCurrent', () => {
     const menu = { ...baseBranchMenu, isCurrent: true };
     const { getByText } = render(ContextMenu, { branchMenu: menu });
-    expect(getByText('Switch to Branch').classList.contains('disabled')).toBe(true);
-    expect(getByText('Delete').classList.contains('disabled')).toBe(true);
-    expect(getByText("Checkout and Rebase onto 'main'").classList.contains('disabled')).toBe(true);
-    expect(getByText("Rebase 'main' onto 'feature/auth'").classList.contains('disabled')).toBe(true);
-    expect(getByText("Merge 'feature/auth' into 'main'").classList.contains('disabled')).toBe(true);
+    expect(getByText("New Branch from 'feature/auth'…")).toBeTruthy();
+    expect(getByText('Rename…')).toBeTruthy();
+    expect(getByText('Show Diff with Working Tree')).toBeTruthy();
+    expect(getByText("Pull into 'main' Using Rebase")).toBeTruthy();
+    expect(getByText("Pull into 'main' Using Merge")).toBeTruthy();
   });
 
   it('does not render when visible is false', () => {

@@ -78,4 +78,36 @@ describe('planSync', () => {
     expect(planSync(1, 1, false).steps[0]).toBe('rebase your 1 commit onto the 1 incoming change');
     expect(planSync(3, 2, false).steps[0]).toBe('rebase your 3 commits onto the 2 incoming changes');
   });
+
+  // ── rewrite divergence (amend/rebase of pushed commits) — ROADMAP §4.2 ──
+  describe('rewrite divergence → force-with-lease, never rebase', () => {
+    it('diverged + rewrite → confirm: force-push with lease, no pull, no stash', () => {
+      const p = planSync(1, 1, false, true);
+      expect(p).toMatchObject({ kind: 'confirm', pull: 'none', push: true, force: true, stash: false });
+      expect(p.steps[0]).toBe('force-push your 1 rewritten commit with lease, replacing the old version on the remote');
+    });
+
+    it('rewrite forces even when dirty — a force-push never touches the tree, so no stash', () => {
+      const p = planSync(2, 3, true, true);
+      expect(p).toMatchObject({ force: true, pull: 'none', stash: false, push: true });
+    });
+
+    it('the rewrite flag only matters when diverged — purely ahead ignores it', () => {
+      const p = planSync(2, 0, false, true);
+      expect(p.force).toBe(false);
+      expect(p.push).toBe(true);
+      expect(p.steps).toEqual(['push your 2 commits']);
+    });
+
+    it('behind-only + rewrite flag → still a plain ff pull (no divergence to force past)', () => {
+      const p = planSync(0, 3, false, true);
+      expect(p).toMatchObject({ kind: 'silent', pull: 'ff', force: false });
+    });
+
+    it('without the rewrite flag, divergence still rebases (genuine collab case)', () => {
+      const p = planSync(1, 1, false, false);
+      expect(p.pull).toBe('rebase');
+      expect(p.force).toBe(false);
+    });
+  });
 });

@@ -7,6 +7,7 @@
   import { fullDate } from '$shared/dates';
   import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Snapshot, Tag, Worktree } from './types';
   import { planSync } from './syncPlan';
+  import { stashRedirectTarget } from './stashRedirect';
 
   import Toolbar     from './components/Toolbar.svelte';
   import ActionRail  from './components/ActionRail.svelte';
@@ -65,18 +66,12 @@
   let hasPending    = $state(false);   // ahead > 0 → pull button lit
 
   let sbBranch = $state('master');
-  let sbInfo   = $state('');
-  let sbInfoTitle = $state(''); // raw ↑/↓ symbols, shown as a tooltip for git pros
+  let sbAhead  = $state(0); // commits to push → Push pill
+  let sbBehind = $state(0); // commits to pull → Pull pill
   let sbCounts = $state('');
-
-  // Plain-language ahead/behind (ideas.md): "↑2 ↓1" → "2 to push, 1 to pull".
-  function aheadBehindText(ahead: number, behind: number): string {
-    const parts: string[] = [];
-    if (ahead) parts.push(`${ahead} to push`);
-    if (behind) parts.push(`${behind} to pull`);
-    return parts.length ? ' · ' + parts.join(', ') : '';
-  }
+  let sbNoUpstream = $state(false); // on a branch with no upstream → show Publish
   let iconUri  = document.body.dataset.iconUri ?? '';
+  let headUri  = document.body.dataset.headUri ?? '';
   // Multi-repo breadcrumb: the active repo's name, shown before the branch in
   // the status bar (repo ▸ branch). Empty in single-repo workspaces → hidden.
   let repoName = $derived(
@@ -151,10 +146,12 @@
       const rawCommits = await send<Commit[]>('log', { branch: allBranches ? '' : activeBranch, limit: 0 });
 
       sbBranch    = status.branch || activeBranch;
-      sbInfo      = aheadBehindText(status.ahead ?? 0, status.behind ?? 0);
-      sbInfoTitle = status.ahead || status.behind ? `↑${status.ahead} ↓${status.behind}` : '';
+      sbAhead     = status.ahead ?? 0;
+      sbBehind    = status.behind ?? 0;
       hasPending  = (status.behind ?? 0) > 0;
       detached    = !!status.detached;
+      // Unpublished branch: on a branch (not detached) with no upstream set.
+      sbNoUpstream = !status.detached && !!status.branch && !status.hasUpstream;
       identityMissing = !user?.name || !user?.email;
       branches    = brs;
       commits     = rawCommits;
@@ -431,7 +428,7 @@
   // ── Stash ─────────────────────────────────────────────────────────────────
   async function selectStash(i: number) {
     compare = null;
-    selStashIdx = i;
+    selStashIdx = i; // highlight the row immediately, before the fetch
     const s = stashes[i];
     const idx = s.index ?? i;
     try {
@@ -439,17 +436,28 @@
         send<DiffFile[]>('stash.files', { index: idx }),
         send<DiffHunk[]>('stash.show', { index: idx }),
       ]);
+      // Best-effort redirect to the stash's origin branch — and FIRST, because
+      // selectBranch clears diffFiles/diffHunks/selStashIdx as a side effect.
+      // The guard (stashRedirectTarget) skips a deleted/absent branch so opening
+      // the stash never depends on its branch still existing. Branch gone → stay
+      // put, just show the stash (its "On <branch>:" label keeps the context).
+      const target = stashRedirectTarget(
+        s.msg ?? s.message ?? '',
+        activeBranch,
+        branches.map((b) => b.name),
+      );
+      if (target) {
+        await selectBranch(target, false);
+      }
+      // Show the stash content LAST and unconditionally — it's keyed by index,
+      // never needs a branch, and is exactly what the user clicked on. Setting
+      // it after the redirect means selectBranch can't wipe it.
+      selStashIdx = i;
+      selCommitIdx = null;
+      selFile = null;
       diffFiles = files;
       diffHunks = hunks;
       diffFilesSnippetOnly = false;
-      selCommitIdx = null;
-      selFile = null;
-      // Stash message: "On <branch>: ..." or "WIP on <branch>: ..."
-      const stashMsg = s.msg ?? s.message ?? '';
-      const branchMatch = stashMsg.match(/^(?:WIP )?[Oo]n (.+?):/);
-      if (branchMatch && branchMatch[1] !== activeBranch) {
-        await selectBranch(branchMatch[1], false);
-      }
     } catch (e: unknown) {
       flash('Show failed: ' + (e instanceof Error ? e.message : String(e)), '#f07070');
     }
@@ -607,7 +615,16 @@
 
     const ahead = st.ahead ?? 0;
     const behind = st.behind ?? 0;
-    const plan = planSync(ahead, behind, (st.modified ?? 0) > 0);
+    // A divergence caused by amending/rebasing already-pushed commits must be
+    // reconciled by force-with-lease, not a rebase (which would pull the old
+    // commits back). Only worth asking Go when actually diverged.
+    let rewrite = false;
+    if (ahead > 0 && behind > 0) {
+      rewrite = await send<{ rewrite: boolean }>('branch.divergeRewrite')
+        .then((r) => !!r?.rewrite)
+        .catch(() => false);
+    }
+    const plan = planSync(ahead, behind, (st.modified ?? 0) > 0, rewrite);
     const branch = st.branch || activeBranch;
 
     if (plan.kind === 'noop') {
@@ -624,6 +641,25 @@
         `yourself? Cancel and use the Pull / Push buttons.`
       );
       if (!ok) { flash('Sync cancelled', '#e0a030'); return; }
+    }
+
+    // Rewrite divergence: a single force-with-lease push, no pull/stash.
+    if (plan.force) {
+      flash('Force-pushing…');
+      try {
+        await send('push.force');
+        flash(`Force-pushed ${ahead} rewritten commit${ahead === 1 ? '' : 's'} (with lease)`, '#4ec94e');
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // --force-with-lease aborts if the remote moved since our fetch.
+        if (/stale info|force-with-lease|\brejected\b|non-fast-forward/i.test(msg)) {
+          flash('Remote changed since fetch — Sync again to re-check before force-pushing.', '#e0a030');
+        } else {
+          flash('Force-push failed: ' + msg, '#f07070');
+        }
+      }
+      loadAll();
+      return;
     }
 
     flash('Syncing…');
@@ -1588,6 +1624,7 @@
   <Toolbar
     {repoName}
     {iconUri}
+    {headUri}
     {activeBranch}
     {branches}
     {hasPending}
@@ -1611,10 +1648,15 @@
         repo={repoName}
         onRepoClick={openRepoPicker}
         branch={sbBranch}
-        info={sbInfo}
-        infoTitle={sbInfoTitle}
         countsText={flashMsg ? `⚡ ${flashMsg}` : sbCounts}
         {iconUri}
+        noUpstream={sbNoUpstream}
+        onPublish={() => doPush()}
+        ahead={sbAhead}
+        behind={sbBehind}
+        onPush={() => doPush()}
+        onPull={() => tbAction('pull')}
+        onSync={() => railAction('sync')}
       />
     </div>
   {/if}
@@ -1775,7 +1817,7 @@
     padding: 5px 12px;
     background: rgba(224, 160, 48, 0.13);
     border-bottom: 0.5px solid rgba(224, 160, 48, 0.4);
-    color: #e0a030;
+    color: var(--hg-warn, #e0a030);
     font-size: var(--hg-font-sm);
     flex-shrink: 0;
   }

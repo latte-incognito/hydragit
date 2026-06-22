@@ -428,7 +428,7 @@
     border-bottom: 0.5px solid var(--vscode-panel-border, #1a1a1a);
     flex-shrink: 0;
   }
-  .file-search-bar em { color: #56c8e8; font-style: normal; }
+  .file-search-bar em { color: var(--hg-info, #56c8e8); font-style: normal; }
 
   /* ── Header ── */
   .log-col-hdr {
@@ -532,7 +532,7 @@
   /* Selection = themed fill (reads as selection, not a focus ring) — ROADMAP §4.11 */
   .crow.sel {
     background: var(--vscode-list-activeSelectionBackground, #0e2030);
-    border-left-color: var(--vscode-focusBorder, #56c8e8);
+    border-left-color: var(--vscode-focusBorder, var(--hg-info, #56c8e8));
   }
   .crow.sel .csubject,
   .crow.sel .cauthor,
@@ -593,9 +593,11 @@
     position: relative;
     top: -1px;
   }
-  :global(.pill-main)   { background: #0a3050; color: #56c8e8; border: 0.5px solid #1a5a7a; }
-  :global(.pill-remote) { background: #0a200a; color: #4e8c4e; border: 0.5px solid #1a4a1a; }
-  :global(.pill-tag)    { background: #1a1200; color: #c8a020; border: 0.5px solid #5a4000; }
+  /* Translucent accent tints so the ref pills read on any theme (the solid
+     fills assumed a dark background). Cyan/green/gold accents are brand. */
+  :global(.pill-main)   { background: rgba(86,200,232,0.12); color: var(--hg-info, #56c8e8); border: 0.5px solid rgba(86,200,232,0.4); }
+  :global(.pill-remote) { background: rgba(78,140,78,0.15); color: #4e8c4e; border: 0.5px solid rgba(78,140,78,0.4); }
+  :global(.pill-tag)    { background: rgba(200,160,32,0.13); color: #c8a020; border: 0.5px solid rgba(200,160,32,0.4); }
 
   /* ── Tooltip ── */
   .hg-tooltip {
