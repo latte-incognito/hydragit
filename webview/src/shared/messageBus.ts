@@ -41,7 +41,11 @@ window.addEventListener('message', (e: MessageEvent) => {
     const p = _pending.get(msg.id);
     if (!p) return;
     _pending.delete(msg.id);
-    msg.ok ? p.resolve(msg.data) : p.reject(new Error(msg.error ?? 'Unknown error'));
+    if (msg.ok) {
+      p.resolve(msg.data);
+    } else {
+      p.reject(new Error(msg.error ?? 'Unknown error'));
+    }
   }
 });
 

@@ -90,15 +90,15 @@ func MarkResolved(repoPath, file string) error {
 	return err
 }
 
-// MergeContinue finalizes a merge once conflicts are resolved (uses the prepared
+// mergeContinue finalizes a merge once conflicts are resolved (uses the prepared
 // MERGE_MSG, no editor). Rebase/cherry-pick use their own continue.
-func MergeContinue(repoPath string) error {
+func mergeContinue(repoPath string) error {
 	_, err := runEnv(repoPath, noEditorEnv, "commit", "--no-edit")
 	return err
 }
 
-// MergeAbort restores the pre-merge state.
-func MergeAbort(repoPath string) error {
+// mergeAbort restores the pre-merge state.
+func mergeAbort(repoPath string) error {
 	_, err := run(repoPath, "merge", "--abort")
 	return err
 }
@@ -111,7 +111,7 @@ func ContinueConflict(repoPath, op string) (conflict bool, err error) {
 	if op == "rebase" {
 		return RebaseContinue(repoPath)
 	}
-	return false, MergeContinue(repoPath)
+	return false, mergeContinue(repoPath)
 }
 
 // AbortConflict cancels the in-progress operation, restoring the prior state.
@@ -120,7 +120,7 @@ func AbortConflict(repoPath, op string) error {
 	case "rebase":
 		return RebaseAbort(repoPath)
 	case "merge":
-		return MergeAbort(repoPath)
+		return mergeAbort(repoPath)
 	case "cherry-pick":
 		_, err := run(repoPath, "cherry-pick", "--abort")
 		return err

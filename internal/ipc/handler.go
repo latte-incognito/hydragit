@@ -36,6 +36,24 @@ func fail(id string, err error) Response {
 	return Response{ID: id, OK: false, Error: err.Error()}
 }
 
+// decodeParams unmarshals a command's params into v. A decode error is
+// swallowed by design — this is the single, documented place that does so,
+// replacing 62 scattered bare json.Unmarshal calls:
+//
+//   - Read commands (log, diff, …) degrade gracefully: malformed or absent
+//     params fall back to zero-value options (e.g. an unfiltered full log)
+//     rather than failing the request.
+//   - Mutating commands are still safe: a failed decode leaves required fields
+//     empty, and missingParam rejects those downstream before any git runs.
+//
+// See TestHandle_malformedParamsJSON for the contract.
+func decodeParams(raw json.RawMessage, v any) {
+	if len(raw) == 0 {
+		return
+	}
+	_ = json.Unmarshal(raw, v)
+}
+
 // missingParam validates required string params for mutating commands, given
 // as ("name", value) pairs; it returns a failure Response naming the first
 // empty one, or nil when all are present. Git would reject most of these
@@ -266,7 +284,7 @@ func handle(repoPath string, req Request) Response {
 			Author  string `json:"author"`
 			Pickaxe string `json:"pickaxe"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		// p.Limit == 0 means "no limit" — load the full history. The webview
 		// virtualizes rendering (LogPane), so it can hold the whole log.
 		commits, err := git.LogWith(repoPath, git.LogOptions{
@@ -286,7 +304,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Path string `json:"path"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		commits, err := git.LogFile(repoPath, p.Path)
 		if err != nil {
 			return fail(id, err)
@@ -299,7 +317,7 @@ func handle(repoPath string, req Request) Response {
 			Path string `json:"path"`
 			Ref  string `json:"ref"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		commits, err := git.FileHistory(repoPath, p.Ref, p.Path)
 		if err != nil {
 			return fail(id, err)
@@ -312,7 +330,7 @@ func handle(repoPath string, req Request) Response {
 			Start int    `json:"start"`
 			End   int    `json:"end"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		commits, err := git.LineHistory(repoPath, p.Path, p.Start, p.End)
 		if err != nil {
 			return fail(id, err)
@@ -325,7 +343,7 @@ func handle(repoPath string, req Request) Response {
 			File    string `json:"file"`
 			Pickaxe string `json:"pickaxe"` // restrict file list to pickaxe matches
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if p.File != "" {
 			hunks, err := git.DiffFile(repoPath, p.Commit, p.File)
 			if err != nil {
@@ -350,7 +368,7 @@ func handle(repoPath string, req Request) Response {
 			Ref  string `json:"ref"`
 			File string `json:"file"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if p.File != "" {
 			hunks, err := git.DiffRefFile(repoPath, p.Ref, p.File)
 			if err != nil {
@@ -370,7 +388,7 @@ func handle(repoPath string, req Request) Response {
 			Head string `json:"head"`
 			File string `json:"file"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if p.File != "" {
 			hunks, err := git.DiffRangeFile(repoPath, p.Base, p.Head, p.File)
 			if err != nil {
@@ -388,7 +406,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Commit string `json:"commit"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		patch, err := git.FormatPatch(repoPath, p.Commit)
 		if err != nil {
 			return fail(id, err)
@@ -408,7 +426,7 @@ func handle(repoPath string, req Request) Response {
 			Email  string `json:"email"`
 			Global bool   `json:"global"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if err := git.SetUser(repoPath, p.Name, p.Email, p.Global); err != nil {
 			return fail(id, err)
 		}
@@ -421,7 +439,7 @@ func handle(repoPath string, req Request) Response {
 			Contents string `json:"contents"` // editor buffer for unsaved files
 			Dirty    bool   `json:"dirty"`    // true → blame Contents, not disk
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		var contents []byte
 		if p.Dirty {
 			// non-nil (possibly empty) slice flips Blame into --contents - mode
@@ -444,7 +462,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Index int `json:"index"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if p.Index < 0 {
 			return fail(id, fmt.Errorf("invalid stash index: %d", p.Index))
 		}
@@ -457,7 +475,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Index int `json:"index"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if p.Index < 0 {
 			return fail(id, fmt.Errorf("invalid stash index: %d", p.Index))
 		}
@@ -470,7 +488,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Index int `json:"index"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if p.Index < 0 {
 			return fail(id, fmt.Errorf("invalid stash index: %d", p.Index))
 		}
@@ -489,7 +507,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Index int `json:"index"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		hunks, err := git.StashShow(repoPath, p.Index)
 		if err != nil {
 			return fail(id, err)
@@ -500,7 +518,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Index int `json:"index"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		files, err := git.StashFiles(repoPath, p.Index)
 		if err != nil {
 			return fail(id, err)
@@ -511,7 +529,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Message string `json:"message"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if err := git.StashSave(repoPath, p.Message); err != nil {
 			return fail(id, err)
 		}
@@ -521,7 +539,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Branch string `json:"branch"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "branch", p.Branch); r != nil {
 			return *r
 		}
@@ -535,7 +553,7 @@ func handle(repoPath string, req Request) Response {
 			Name string `json:"name"`
 			From string `json:"from"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "name", p.Name); r != nil {
 			return *r
 		}
@@ -549,7 +567,7 @@ func handle(repoPath string, req Request) Response {
 			Name  string `json:"name"`
 			Force bool   `json:"force"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "name", p.Name); r != nil {
 			return *r
 		}
@@ -563,7 +581,7 @@ func handle(repoPath string, req Request) Response {
 			Remote string `json:"remote"`
 			Branch string `json:"branch"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "remote", p.Remote, "branch", p.Branch); r != nil {
 			return *r
 		}
@@ -577,7 +595,7 @@ func handle(repoPath string, req Request) Response {
 			From string `json:"from"`
 			To   string `json:"to"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "from", p.From, "to", p.To); r != nil {
 			return *r
 		}
@@ -592,7 +610,7 @@ func handle(repoPath string, req Request) Response {
 			Old    string `json:"old"`
 			New    string `json:"new"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if err := git.RenameRemoteBranch(repoPath, p.Remote, p.Old, p.New); err != nil {
 			return fail(id, err)
 		}
@@ -603,7 +621,7 @@ func handle(repoPath string, req Request) Response {
 			OldPrefix string `json:"oldPrefix"`
 			NewPrefix string `json:"newPrefix"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		renamed, err := git.RenameBranchFolder(repoPath, p.OldPrefix, p.NewPrefix)
 		if err != nil {
 			return fail(id, err)
@@ -614,7 +632,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			NewPrefix string `json:"newPrefix"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		propagated, err := git.RenameBranchFolderRemote(repoPath, p.NewPrefix)
 		if err != nil {
 			return fail(id, err)
@@ -625,7 +643,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Commit string `json:"commit"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		branch, err := git.BranchContaining(repoPath, p.Commit)
 		if err != nil {
 			return fail(id, err)
@@ -643,7 +661,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Branch string `json:"branch"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "branch", p.Branch); r != nil {
 			return *r
 		}
@@ -657,7 +675,7 @@ func handle(repoPath string, req Request) Response {
 			Ours   string `json:"ours"`
 			Theirs string `json:"theirs"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if p.Ours == "" {
 			p.Ours = "HEAD"
 		}
@@ -681,7 +699,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			File string `json:"file"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		var cerr error
 		switch req.Cmd {
 		case "conflict.keepCurrent":
@@ -700,7 +718,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Operation string `json:"operation"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		conflict, err := git.ContinueConflict(repoPath, p.Operation)
 		if err != nil {
 			return fail(id, err)
@@ -711,7 +729,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Operation string `json:"operation"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if err := git.AbortConflict(repoPath, p.Operation); err != nil {
 			return fail(id, err)
 		}
@@ -722,7 +740,7 @@ func handle(repoPath string, req Request) Response {
 			Commit string `json:"commit"`
 			Mode   string `json:"mode"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "commit", p.Commit); r != nil {
 			return *r
 		}
@@ -750,7 +768,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Onto string `json:"onto"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "onto", p.Onto); r != nil {
 			return *r
 		}
@@ -763,7 +781,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Commit string `json:"commit"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "commit", p.Commit); r != nil {
 			return *r
 		}
@@ -778,7 +796,7 @@ func handle(repoPath string, req Request) Response {
 			Base  string               `json:"base"`
 			Items []git.RebaseTodoItem `json:"items"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		conflict, err := git.RunInteractiveRebase(repoPath, p.Base, p.Items)
 		if err != nil {
 			return fail(id, err)
@@ -789,7 +807,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Commit string `json:"commit"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "commit", p.Commit); r != nil {
 			return *r
 		}
@@ -804,7 +822,7 @@ func handle(repoPath string, req Request) Response {
 			Commit  string `json:"commit"`
 			Message string `json:"message"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "commit", p.Commit, "message", p.Message); r != nil {
 			return *r
 		}
@@ -853,7 +871,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Mode string `json:"mode"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if err := git.PullMode(repoPath, p.Mode); err != nil {
 			return fail(id, err)
 		}
@@ -863,7 +881,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Branch string `json:"branch"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if err := git.Push(repoPath, p.Branch); err != nil {
 			return fail(id, err)
 		}
@@ -873,7 +891,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Branch string `json:"branch"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if err := git.PushForce(repoPath, p.Branch); err != nil {
 			return fail(id, err)
 		}
@@ -884,7 +902,7 @@ func handle(repoPath string, req Request) Response {
 			Commit string `json:"commit"`
 			Branch string `json:"branch"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if err := git.PushCommit(repoPath, p.Commit, p.Branch); err != nil {
 			return fail(id, err)
 		}
@@ -894,7 +912,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Commit string `json:"commit"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "commit", p.Commit); r != nil {
 			return *r
 		}
@@ -907,7 +925,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Paths []string `json:"paths"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if len(p.Paths) == 0 {
 			return fail(id, fmt.Errorf("missing required parameter: paths"))
 		}
@@ -920,7 +938,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Paths []string `json:"paths"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if len(p.Paths) == 0 {
 			return fail(id, fmt.Errorf("missing required parameter: paths"))
 		}
@@ -938,7 +956,7 @@ func handle(repoPath string, req Request) Response {
 			File   string `json:"file"`
 			Cached bool   `json:"cached"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "file", p.File); r != nil {
 			return *r
 		}
@@ -952,7 +970,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Patch string `json:"patch"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "patch", p.Patch); r != nil {
 			return *r
 		}
@@ -975,7 +993,7 @@ func handle(repoPath string, req Request) Response {
 			Message string   `json:"message"`
 			Paths   []string `json:"paths"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		result, err := git.CreateCommit(repoPath, p.Message, p.Paths)
 		if err != nil {
 			return fail(id, err)
@@ -987,7 +1005,7 @@ func handle(repoPath string, req Request) Response {
 			Message string   `json:"message"`
 			Paths   []string `json:"paths"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		result, err := git.CommitAndPush(repoPath, p.Message, p.Paths)
 		if err != nil {
 			return fail(id, err)
@@ -999,7 +1017,7 @@ func handle(repoPath string, req Request) Response {
 			Message string   `json:"message"`
 			Paths   []string `json:"paths"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		result, err := git.AmendCommit(repoPath, p.Message, p.Paths)
 		if err != nil {
 			return fail(id, err)
@@ -1012,7 +1030,7 @@ func handle(repoPath string, req Request) Response {
 			Checks            []string `json:"checks"`            // enabled checks, injected by the host from settings; empty = all
 			ProtectedBranches []string `json:"protectedBranches"` // custom protected list, injected by the host; empty = main/master
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		enabled := map[string]bool{}
 		for _, c := range p.Checks {
 			enabled[c] = true
@@ -1024,7 +1042,7 @@ func handle(repoPath string, req Request) Response {
 			Commit string   `json:"commit"`
 			Paths  []string `json:"paths"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "commit", p.Commit); r != nil {
 			return *r
 		}
@@ -1038,7 +1056,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Base string `json:"base"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "base", p.Base); r != nil {
 			return *r
 		}
@@ -1065,7 +1083,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Label string `json:"label"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if p.Label == "" {
 			p.Label = "manual snapshot"
 		}
@@ -1079,7 +1097,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Hash string `json:"hash"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "hash", p.Hash); r != nil {
 			return *r
 		}
@@ -1092,7 +1110,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Ref string `json:"ref"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "ref", p.Ref); r != nil {
 			return *r
 		}
@@ -1112,7 +1130,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Commit string `json:"commit"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "commit", p.Commit); r != nil {
 			return *r
 		}
@@ -1134,7 +1152,7 @@ func handle(repoPath string, req Request) Response {
 			Commit  string `json:"commit"`
 			Message string `json:"message"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "name", p.Name); r != nil {
 			return *r
 		}
@@ -1147,7 +1165,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Name string `json:"name"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "name", p.Name); r != nil {
 			return *r
 		}
@@ -1170,7 +1188,7 @@ func handle(repoPath string, req Request) Response {
 			NewBranch string `json:"newBranch"`
 			Start     string `json:"start"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "path", p.Path); r != nil {
 			return *r
 		}
@@ -1190,7 +1208,7 @@ func handle(repoPath string, req Request) Response {
 			Path  string `json:"path"`
 			Force bool   `json:"force"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "path", p.Path); r != nil {
 			return *r
 		}
@@ -1204,7 +1222,7 @@ func handle(repoPath string, req Request) Response {
 			Path   string `json:"path"`
 			Reason string `json:"reason"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if err := git.WorktreeLock(repoPath, p.Path, p.Reason); err != nil {
 			return fail(id, err)
 		}
@@ -1214,7 +1232,7 @@ func handle(repoPath string, req Request) Response {
 		var p struct {
 			Path string `json:"path"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if err := git.WorktreeUnlock(repoPath, p.Path); err != nil {
 			return fail(id, err)
 		}
@@ -1225,7 +1243,7 @@ func handle(repoPath string, req Request) Response {
 			From string `json:"from"`
 			To   string `json:"to"`
 		}
-		json.Unmarshal(req.Params, &p)
+		decodeParams(req.Params, &p)
 		if r := missingParam(id, "from", p.From, "to", p.To); r != nil {
 			return *r
 		}

@@ -3,5 +3,5 @@
 package tools
 
 import (
-    _ "gotest.tools/gotestsum"
+	_ "gotest.tools/gotestsum"
 )

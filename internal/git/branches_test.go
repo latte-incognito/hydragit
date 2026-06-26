@@ -214,7 +214,7 @@ func TestMerge(t *testing.T) {
 	}
 
 	// verify the feature commit is now in log
-	commits, err := Log(dir, "", 10)
+	commits, err := logCommits(dir, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestRebase(t *testing.T) {
 	}
 
 	// after rebase, feature commit should still exist
-	commits, err := Log(dir, "", 10)
+	commits, err := logCommits(dir, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -684,7 +684,7 @@ func TestPull(t *testing.T) {
 	}
 
 	// verify the remote commit is now local
-	commits, err := Log(local, "", 10)
+	commits, err := logCommits(local, 10)
 	if err != nil {
 		t.Fatal(err)
 	}

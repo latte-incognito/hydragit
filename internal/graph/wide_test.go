@@ -16,7 +16,7 @@ import (
 // freed and reused (with long edges to the real ancestor), rather than holding
 // 50 dedicated lanes. This is correct (no false connections — see
 // TestTwoFeaturesFromSameBase) AND narrow, matching git's own `git log --graph`.
-// End-to-end through git.Log + AssignLanes so it reflects real output.
+// End-to-end through git.LogWith + AssignLanes so it reflects real output.
 func TestManyBranchesRenderCompact(t *testing.T) {
 	dir := t.TempDir()
 
@@ -63,18 +63,18 @@ func TestManyBranchesRenderCompact(t *testing.T) {
 			fmt.Sprintf("w%02d", (i+1)%n))
 	}
 
-	commits, err := git.Log(dir, "", 500)
+	commits, err := git.LogWith(dir, git.LogOptions{Limit: 500})
 	if err != nil {
 		t.Fatal(err)
 	}
 	laid := AssignLanes(commits)
 
-	max := maxLane(laid)
-	t.Logf("commits=%d maxLane=%d laneCount=%d", len(commits), max, max+1)
+	maxLn := maxLane(laid)
+	t.Logf("commits=%d maxLane=%d laneCount=%d", len(commits), maxLn, maxLn+1)
 
 	// Branches sharing the base collapse into a handful of reused lanes. Assert a
 	// generous ceiling: if width blows up again, lane reuse regressed.
-	if max > 8 {
-		t.Fatalf("expected a compact graph (<=8 lanes) for 50 branches, got maxLane=%d", max)
+	if maxLn > 8 {
+		t.Fatalf("expected a compact graph (<=8 lanes) for 50 branches, got maxLane=%d", maxLn)
 	}
 }

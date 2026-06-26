@@ -367,6 +367,9 @@
     {:else}
       <div class="log-inner" style="height:{totalH}px">
         <div class="graph-col" style="width:{graphW}px; transform:translateY({winTopPx}px)">
+          <!-- graphSVG is built internally by graphSvg.ts (shapes only, no commit
+               text); it is not user-supplied HTML, so {@html} is safe here. -->
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
           {@html graphSVG}
         </div>
 

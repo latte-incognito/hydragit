@@ -104,7 +104,7 @@ func TestRebase_missingOnto(t *testing.T) {
 
 func TestReset_missingCommit(t *testing.T) {
 	repo := initRepo(t)
-	if err := Reset(repo, "deadbeefdeadbeef", "mixed"); err == nil {
+	if err := reset(repo, "deadbeefdeadbeef", "mixed"); err == nil {
 		t.Fatal("expected error resetting to a non-existent commit")
 	}
 }

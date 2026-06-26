@@ -13,8 +13,50 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 
 ## [Unreleased]
 
+### Added
+
+- **CI pipeline + two-language lint gate.** New `.github/workflows/ci.yml` runs on
+  every push to `develop`/`master` and every PR: a **Go** job (gofmt check, `go
+  vet`, `go test -race ./internal/...`, golangci-lint), a **Web** job (ESLint,
+  Prettier check, svelte-check, extension compile, webview build, Vitest), and a
+  **Build** job (`make build-all`, cross-compiling all five platform binaries).
+  Lint config is `.golangci.yml` (golangci-lint schema v2 — `standard` set plus
+  revive/gocritic/bodyclose/misspell/nakedret/unconvert/unparam/usestdlibvars,
+  `errcheck.check-type-assertions`, `goimports` local-prefix `hydragit`; doc/
+  funlen/cyclop rules pre-written but commented as a future ratchet) and
+  `eslint.config.mjs` (ESLint 9 flat config for the TS host + Svelte 5 webview,
+  `eslint-config-prettier` last so Prettier owns formatting). New `make lint` /
+  `lint-go` / `lint-ts` / `lint-fix` targets and `npm run lint` / `lint:fix`
+  scripts; ESLint devDeps added to `package.json`.
+
 ### Changed
 
+- **Code-quality pass (release-readiness audit).** Trimmed the `internal/git`
+  public surface — `Reset`, `MergeAbort`, `MergeContinue` (only ever used
+  in-package) are now unexported `reset` / `mergeAbort` / `mergeContinue`, and the
+  test-only `Log` convenience wrapper became unexported `logCommits` (its one
+  cross-package caller, `internal/graph/wide_test.go`, now uses the public
+  `LogWith`). The three scattered `GIT_SEQUENCE_EDITOR=cp` / `GIT_EDITOR=cp` rebase
+  call sites collapse into one `copyEditor()` helper (`internal/git/rebase.go`) —
+  the single seam for the pending cross-platform/Windows fix.
+- **IPC param decoding centralized.** All 62 command handlers in
+  `internal/ipc/handler.go` previously made a bare `json.Unmarshal(req.Params, …)`
+  call; they now route through a single documented `decodeParams()` helper. The
+  intentional behavior is unchanged and now explained in one place: a decode
+  error is tolerated by design — read commands (log, diff, …) degrade to
+  zero-value options (e.g. an unfiltered full log) rather than failing, and
+  mutating commands stay safe because `missingParam` rejects the empty required
+  fields a failed decode leaves behind (`TestHandle_malformedParamsJSON`).
+- **Linter-clean pass — `make lint` is green (0 Go issues, 0 ESLint errors).**
+  Resolving the gate's findings: `cmd/hydragit/main.go` uses a `run() int` helper
+  so deferred `logger.Close()` always flushes (no `os.Exit` skipping defers);
+  `internal/git/stash.go` parses numstat via `strconv.Atoi` instead of unchecked
+  `fmt.Sscanf`; `internal/logger` passes the 136-byte `Entry` by pointer; small
+  test cleanups (named-return, builtin-shadow `max`, embedded-field selectors).
+  The Go lint surface is fully green; the webview keeps 189 non-blocking warnings
+  (mostly compiler a11y hints on existing components) intentionally left as a
+  ratchet. ESLint is Svelte-5-aware (runes use `let`; reactive statements aren't
+  "unused expressions") and ignores vite build output under `webview/`.
 - **Docs site branding** — `documentation/index.html` hero now uses the
   HydraGit banner (`assets/hydragit-banner.png`) as the backdrop with the
   headline + pills overlaid on its empty right half (`.hero-stage` /

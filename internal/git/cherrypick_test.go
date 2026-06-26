@@ -40,7 +40,7 @@ func makeRepoWithFileCommits(t *testing.T) (dir, hashA, hashB string) {
 	out, _ = exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
 	hashB = string(out[:len(out)-1])
 
-	return
+	return dir, hashA, hashB
 }
 
 func TestCherryPick(t *testing.T) {
@@ -68,7 +68,7 @@ func TestRevert(t *testing.T) {
 	}
 
 	// a revert commit should appear in log
-	commits, err := Log(dir, "", 10)
+	commits, err := logCommits(dir, 10)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, master]
+  pull_request:
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go — vet · lint · test (-race)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not gofmt-clean:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      # The concurrency suite is the reason -race exists — never drop it.
+      - name: go test -race
+        run: go test -race ./internal/...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          # Reads .golangci.yml (schema v2). Keep the action major in sync with
+          # the binary: v7+ runs golangci-lint v2.
+          version: latest
+
+  web:
+    name: Web — lint · types · build · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Prettier (check only)
+        run: npm run format:check
+
+      - name: svelte-check
+        run: npx svelte-check --tsconfig ./tsconfig.json
+
+      - name: Compile extension host
+        run: npm run compile
+
+      - name: Build webview
+        run: npm run build
+
+      - name: Unit tests (Vitest)
+        run: npm test
+
+  build:
+    name: Build — all platform binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      # Cross-compiles darwin/linux/windows × arch — proves the release build
+      # before it's ever packaged.
+      - name: make build-all
+        run: make build-all

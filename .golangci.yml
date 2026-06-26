@@ -1,0 +1,117 @@
+# golangci-lint configuration — schema v2 (golangci-lint ≥ 2.x).
+# Run: `golangci-lint run` (or `make lint-go`). Autofix: `golangci-lint run --fix`.
+#
+# Philosophy: high-signal, low-noise. The `standard` set (errcheck, govet,
+# ineffassign, staticcheck, unused) is the non-negotiable correctness floor;
+# the extras below catch the classes of bug/smell that actually showed up in
+# review (over-exported API, unchecked decodes, leaked closers). Style rules
+# that would bury the signal in churn (full doc-comment enforcement, function
+# length) are deliberately left for a later ratchet — see the commented block.
+version: "2"
+
+run:
+  timeout: 5m
+  # Lint test files too — that's where unchecked errors and leaks hide.
+  tests: true
+
+linters:
+  # `standard` = errcheck + govet + ineffassign + staticcheck + unused.
+  default: standard
+  enable:
+    - bodyclose # every http/exec Body/Closer is closed
+    - gocritic # opinionated diagnostics (diagnostic + performance only, see below)
+    - misspell # typos in comments/strings
+    - nakedret # naked returns only in tiny funcs
+    - revive # golint successor — curated, high-value rules only
+    - unconvert # redundant type conversions
+    - unparam # unused function parameters / always-same args
+    - usestdlibvars # use net/http etc. constants instead of literals
+
+  settings:
+    errcheck:
+      # An ignored error from a type assertion (x.(T)) is a panic waiting to
+      # happen — make them explicit.
+      check-type-assertions: true
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # struct field reordering for bytes — not worth the noise
+        - shadow # too aggressive on idiomatic `err :=` shadowing
+    nakedret:
+      max-func-lines: 30
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        - ifElseChain # we have a few intentional ladders
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: errorf
+        - name: if-return
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: var-declaration
+        - name: waitgroup-by-value
+
+  exclusions:
+    generated: lax
+    # Vendored Go inside npm packages (e.g. flatted) and build output are not
+    # ours to lint.
+    paths:
+      - node_modules
+      - bin
+    # Presets cover the well-known false positives (e.g. errcheck on
+    # Close/Write in defers, fmt.Print* return values).
+    presets:
+      - comments
+      - common-false-positives
+      - std-error-handling
+    rules:
+      # Tests favour brevity: a missing errcheck or an unused param in a table
+      # helper is noise, not a bug.
+      - path: _test\.go
+        linters:
+          - errcheck
+          - unparam
+          - gocritic
+          - bodyclose
+
+# Formatters are a separate phase in v2. `make fmt` already runs gofmt; this
+# lets `golangci-lint fmt` / CI verify imports are grouped (local last).
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - hydragit
+  exclusions:
+    paths:
+      - node_modules
+      - bin
+
+# ── Future ratchet (intentionally OFF today) ───────────────────────────────
+# These would fail the gate on existing tech debt tracked in Readiness.md
+# (the 1.2k-line handler switch, the 1.8k-line App.svelte equivalent on the Go
+# side has no peer, but funlen would still flag a few). Turn them on as those
+# refactors land so the gate ratchets forward instead of blocking today:
+#
+#   - revive: exported            # require doc comments on every exported id
+#   - revive: package-comments    # require a package doc comment
+#   - funlen   (settings: lines: 120, statements: 60)
+#   - cyclop   (settings: max-complexity: 20)
+#   - gocyclo  (settings: min-complexity: 25)

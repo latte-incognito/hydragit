@@ -100,7 +100,7 @@ func TestLog(t *testing.T) {
 	dir := initRepo(t)
 	exec.Command("git", "-C", dir, "commit", "--allow-empty", "-m", "second").Run()
 
-	commits, err := Log(dir, "", 10)
+	commits, err := logCommits(dir, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +287,7 @@ func TestLog_marksUnpushed(t *testing.T) {
 
 	commitFile(t, dir, "local.txt", "local\n", "local-only commit")
 
-	commits, err := Log(dir, "", 0)
+	commits, err := logCommits(dir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestLog_marksUnpushed(t *testing.T) {
 func TestLog_marksUnpushed_noRemote(t *testing.T) {
 	dir := initRepo(t)
 
-	commits, err := Log(dir, "", 0)
+	commits, err := logCommits(dir, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

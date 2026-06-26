@@ -6,7 +6,7 @@ DIRTY := $(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo true |
 LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)
 BUILD_INFO_TS := extension/src/generated/buildInfo.ts
 
-.PHONY: gen-build-info build-go build-all build-extension build package publish build-webview webview-dev webview-check fmt fmt-go fmt-ts fmt-check test test-go test-ts clean-webview release
+.PHONY: gen-build-info build-go build-all build-extension build package publish build-webview webview-dev webview-check fmt fmt-go fmt-ts fmt-check lint lint-go lint-ts lint-fix test test-go test-ts clean-webview release
 
 ## Build webview (production, minified)
 build-webview: clean-webview
@@ -42,7 +42,7 @@ package: build
 publish: build
 	vsce publish
 
-install-local: test package
+install-local: lint test package
 	code --install-extension hydragit-*.vsix --force
 
 ## Release: snapshot develop's tree onto master as one commit + tag vX.Y.Z (see docs/GITFLOW.md)
@@ -86,6 +86,22 @@ fmt-ts:
 fmt-check:
 	gofmt -l . | grep . && exit 1 || true
 	npx prettier --check .
+
+## Lint everything (Go + TS/Svelte). Read-only; fails on findings.
+lint: lint-go lint-ts
+
+## Lint Go (golangci-lint — config in .golangci.yml)
+lint-go:
+	golangci-lint run
+
+## Lint TS/Svelte (ESLint flat config — eslint.config.mjs)
+lint-ts:
+	npm run lint
+
+## Autofix what the linters can fix automatically
+lint-fix:
+	golangci-lint run --fix
+	npm run lint:fix
 
 clean-webview:
 	rm -f webview/*.js webview/*.css

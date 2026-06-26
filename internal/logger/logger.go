@@ -67,7 +67,7 @@ func Init(logDir string, retainDays int) error {
 	}
 
 	std = l
-	l.write(Entry{
+	l.write(&Entry{
 		Level:  LevelInfo,
 		Source: "process",
 		Msg:    "logger initialised",
@@ -107,7 +107,7 @@ func GitCmd(cmd string, durationMs int64, exitCode int, errMsg string) {
 	if errMsg != "" {
 		e.Error = errMsg
 	}
-	std.write(e)
+	std.write(&e)
 }
 
 // IPCRequest logs an incoming IPC request.
@@ -115,7 +115,7 @@ func IPCRequest(id, cmd string) {
 	if std == nil {
 		return
 	}
-	std.write(Entry{
+	std.write(&Entry{
 		Level:  LevelInfo,
 		Source: "ipc",
 		ReqID:  id,
@@ -142,7 +142,7 @@ func IPCResponse(id, cmd string, ok bool, durationMs int64, errMsg string) {
 	if errMsg != "" {
 		e.Error = errMsg
 	}
-	std.write(e)
+	std.write(&e)
 }
 
 // Info logs a free-form informational message (process lifecycle etc.).
@@ -150,7 +150,7 @@ func Info(source, msg string) {
 	if std == nil {
 		return
 	}
-	std.write(Entry{Level: LevelInfo, Source: source, Msg: msg})
+	std.write(&Entry{Level: LevelInfo, Source: source, Msg: msg})
 }
 
 // Error logs a free-form error message.
@@ -158,12 +158,12 @@ func Error(source, msg string) {
 	if std == nil {
 		return
 	}
-	std.write(Entry{Level: LevelError, Source: source, Msg: msg})
+	std.write(&Entry{Level: LevelError, Source: source, Msg: msg})
 }
 
 // --- Internal ---------------------------------------------------------------
 
-func (l *Logger) write(e Entry) {
+func (l *Logger) write(e *Entry) {
 	e.Timestamp = time.Now().UTC().Format(time.RFC3339)
 
 	l.mu.Lock()

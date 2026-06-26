@@ -205,8 +205,8 @@ func TestMarkResolved_stagesHandEditedFile(t *testing.T) {
 		t.Fatalf("file should be marked resolved, still conflicted: %v", info.Files)
 	}
 	// And the merge can now be finalized.
-	if err := MergeContinue(dir); err != nil {
-		t.Fatalf("MergeContinue after MarkResolved failed: %v", err)
+	if err := mergeContinue(dir); err != nil {
+		t.Fatalf("mergeContinue after MarkResolved failed: %v", err)
 	}
 }
 

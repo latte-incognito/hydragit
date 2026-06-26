@@ -48,7 +48,7 @@ const commitSep = "\x1f"
 var commitFormat = strings.Join([]string{"%H", "%P", "%an", "%aI", "%s", "%D"}, commitSep)
 
 // parseCommitLines parses the output of `git log --format=commitFormat`.
-// Shared by Log, LogFile, and LineHistory.
+// Shared by logCommits, LogFile, and LineHistory.
 func parseCommitLines(out string) []Commit {
 	if out == "" {
 		return []Commit{}
@@ -251,7 +251,9 @@ func LogWith(repoPath string, opt LogOptions) ([]Commit, error) {
 	return commits, nil
 }
 
-// Log is the unfiltered convenience wrapper around LogWith.
-func Log(repoPath, branch string, limit int) ([]Commit, error) {
-	return LogWith(repoPath, LogOptions{Branch: branch, Limit: limit})
+// logCommits is the unfiltered convenience wrapper around LogWith (current
+// branch, no filters). It is test-only: production routes the "log" IPC command
+// through LogWith directly.
+func logCommits(repoPath string, limit int) ([]Commit, error) {
+	return LogWith(repoPath, LogOptions{Limit: limit})
 }

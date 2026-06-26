@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -103,8 +104,9 @@ func StashFiles(repoPath string, index int) ([]FileStat, error) {
 		if i < len(numLines) {
 			parts := strings.Fields(numLines[i])
 			if len(parts) >= 2 {
-				fmt.Sscanf(parts[0], "%d", &ds.Additions)
-				fmt.Sscanf(parts[1], "%d", &ds.Deletions)
+				// Binary files show "-" in numstat → Atoi errors, leaving 0.
+				ds.Additions, _ = strconv.Atoi(parts[0])
+				ds.Deletions, _ = strconv.Atoi(parts[1])
 			}
 		}
 		results = append(results, ds)
