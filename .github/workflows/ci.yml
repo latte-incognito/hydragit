@@ -98,14 +98,13 @@ jobs:
         if: runner.os == 'Linux'
         run: gotestsum --format testname -- -race ./internal/...
 
-      # -timeout turns a hang into a fail-fast goroutine dump (which names the
-      # stuck test) instead of stalling the runner for the 10-min default; -v
-      # streams each "=== RUN" so the last one before a hang is the culprit.
-      # Interactive-rebase editor scripting (copyEditor) is the prime suspect on
-      # Windows — see internal/git/rebase.go.
+      # Windows git ops are ~12× slower than Linux (process-spawn cost), so the
+      # internal/git package alone takes ~2min. -timeout 300s gives that headroom
+      # while still catching a genuine hang well before the 10-min default; -v
+      # keeps per-test progress visible (and names any future stall).
       - name: go test -race (Windows)
         if: runner.os == 'Windows'
-        run: go test -race -v -timeout 120s ./internal/...
+        run: go test -race -v -timeout 300s ./internal/...
 
   # === make test-ts (Vitest) ==============================================
   test-ts:

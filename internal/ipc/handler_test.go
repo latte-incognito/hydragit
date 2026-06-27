@@ -234,8 +234,12 @@ func TestHandleBranchLifecycle(t *testing.T) {
 func TestHandleStashLifecycle(t *testing.T) {
 	dir := makeRepo(t)
 
-	// create a file so there's something to stash
-	exec.Command("bash", "-c", "echo hello > "+dir+"/file.txt").Run()
+	// create a file so there's something to stash (os.WriteFile, not `bash -c
+	// "echo > $path"` — the latter mangles a Windows backslash path, so the file
+	// is never written, nothing stages, and the stash ends up empty)
+	if err := os.WriteFile(filepath.Join(dir, "file.txt"), []byte("hello\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	exec.Command("git", "-C", dir, "add", ".").Run()
 
 	// stash.save
