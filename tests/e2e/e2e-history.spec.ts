@@ -86,7 +86,11 @@ test("J63 Selection History opens for a highlighted range", async ({ mainWindow 
 // 64 ── inline blame paints the commit summary on the active line ────────────────
 test("J64 inline blame shows a commit summary on the active line", async ({ mainWindow }) => {
   await openFile(mainWindow, "README.md");
-  await mainWindow.locator(".monaco-editor .view-line").first().click();
+  // openFile uses fixed sleeps; wait for the editor to actually mount before
+  // clicking a line, else the click misses and blame never attaches to it.
+  const firstLine = mainWindow.locator(".monaco-editor .view-line").first();
+  await firstLine.waitFor({ state: "visible", timeout: 8000 });
+  await firstLine.click();
   await runCommand(mainWindow, "HydraGit: Toggle Line Blame");
   await expect
     .poll(

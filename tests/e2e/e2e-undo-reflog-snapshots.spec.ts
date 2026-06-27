@@ -89,6 +89,10 @@ test("N91 snapshots can be taken, restored, and dropped", async ({ mainWindow })
   await snap.locator(".snap-act").first().dispatchEvent("click"); // restore
   await confirmModal(mainWindow, "Yes");
   await expect(flash(f)).toBeVisible({ timeout: 8000 });
+  // Restore takes a safety snapshot first, so the list grows to 2. The flash
+  // fires before loadAll() re-renders, so wait for the grown count before
+  // reading beforeDrop — otherwise we'd capture the stale pre-restore count.
+  await expect(f.locator(".titem.snapshot")).toHaveCount(2, { timeout: 8000 });
 
   const beforeDrop = await f.locator(".titem.snapshot").count();
   expect(beforeDrop).toBeGreaterThanOrEqual(1);

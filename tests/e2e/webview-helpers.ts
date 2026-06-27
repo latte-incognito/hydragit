@@ -193,7 +193,13 @@ export async function openStatus(frame: FrameLocator) {
 export async function rightClickBranch(frame: FrameLocator, name: string) {
   if (name.includes("/")) {
     const folder = frame.locator(".titem.folder-row", { hasText: name.split("/")[0] }).first();
-    if (await folder.count()) await folder.click();
+    // Clicking a folder row toggles it. Only expand when it's collapsed —
+    // otherwise a second call (e.g. after a reload that preserves open state)
+    // would collapse the folder and hide the leaf we're about to right-click.
+    if (await folder.count()) {
+      const expanded = await folder.locator(".folder-arrow.open").count();
+      if (!expanded) await folder.click();
+    }
   }
   const leaf = name.includes("/") ? name.split("/").slice(1).join("/") : name;
   const row = frame.locator(".titem:not(.folder-row):not(.timeline)", { hasText: leaf }).first();
