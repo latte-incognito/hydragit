@@ -1,5 +1,9 @@
 name: CI
 
+# Mirrors `make install-local` (lint · test · package) but split into parallel
+# jobs, plus a Playwright e2e job. Each job maps to a Makefile target so CI and
+# local stay in sync — change the Makefile, CI follows.
+
 on:
   push:
     branches: [develop, master]
@@ -14,11 +18,43 @@ permissions:
   contents: read
 
 jobs:
-  go:
-    name: Go — vet · test (-race) · ${{ matrix.os }}
+  # === make lint (golangci-lint + eslint) =================================
+  lint:
+    name: Lint — make lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      # `make lint-go` shells out to the golangci-lint binary (config in
+      # .golangci.yml, schema v2 → needs golangci-lint v2).
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: make lint
+        run: make lint
+
+  # === make test-go (Go unit + -race) =====================================
+  test-go:
+    name: Go tests (-race) — ${{ matrix.os }}
     strategy:
-      # Let Windows finish even if Linux fails (and vice-versa) — we want to see
-      # cross-platform git behaviour on both legs, not the first failure only.
+      # Both legs must report — cross-platform git path/CRLF/exec differences
+      # surface here, so don't let one OS cancel the other.
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -31,37 +67,32 @@ jobs:
           go-version: '1.26'
           cache: true
 
-      # gofmt + golangci-lint are OS-agnostic — run them once (Linux) instead of
-      # paying for them on both legs. CRLF checkout on Windows would also make
-      # gofmt noisy, so Linux is the canonical formatting gate.
-      - name: gofmt
-        if: runner.os == 'Linux'
-        shell: bash
+      # Tests create real temp repos. Some do a bare `git init` + `git commit`
+      # without setting a local identity or branch, so they inherit the global
+      # git config — which a CI runner lacks. Without this: commits fail (no
+      # HEAD → TestRun) and new repos default to `master` not `main`
+      # (TestCheckout's `git checkout main` then no-ops). Mirrors a dev machine.
+      - name: Configure global git identity
         run: |
-          unformatted=$(gofmt -l .)
-          if [ -n "$unformatted" ]; then
-            echo "::error::These files are not gofmt-clean:"; echo "$unformatted"; exit 1
-          fi
+          git config --global user.email "ci@hydragit.test"
+          git config --global user.name "HydraGit CI"
+          git config --global init.defaultBranch main
+          # Windows git defaults core.autocrlf=true → checkouts gain \r\n and
+          # tests that assert exact file content (KeepCurrent, Discard, snapshot
+          # restore, …) fail. Keep line endings verbatim, like a Linux/macOS dev.
+          git config --global core.autocrlf false
+          git config --global core.eol lf
 
-      - name: go vet
-        run: go vet ./...
-
-      # The concurrency suite is the reason -race exists — never drop it.
-      # Runs on BOTH Linux and Windows: this is the whole point of the matrix —
-      # git path/CRLF/exec differences surface here.
+      # `make test-go` uses gotestsum, which (like make) isn't on Windows
+      # runners. Calling `go test` directly is behaviour-identical (same package
+      # set: everything under internal/, cmd excluded) and adds the mandatory
+      # -race the Makefile target omits — the concurrency suite is why it exists.
       - name: go test -race
         run: go test -race ./internal/...
 
-      - name: golangci-lint
-        if: runner.os == 'Linux'
-        uses: golangci/golangci-lint-action@v7
-        with:
-          # Reads .golangci.yml (schema v2). Keep the action major in sync with
-          # the binary: v7+ runs golangci-lint v2.
-          version: latest
-
-  web:
-    name: Web — lint · types · build · test
+  # === make test-ts (Vitest) ==============================================
+  test-ts:
+    name: Web tests — make test-ts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,49 +105,47 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: ESLint
-        run: npm run lint
+      - name: make test-ts
+        run: make test-ts
 
-      - name: Prettier (check only)
-        run: npm run format:check
-
-      # Non-blocking: svelte-check 4.x currently crashes against TypeScript 6.x
-      # ("forEachResolvedModule is not a function") — a known tooling version
-      # mismatch, not a type error. Kept visible so it flips back to a real gate
-      # once the versions are aligned (bump svelte-check or pin TS).
-      - name: svelte-check
-        run: npx svelte-check --tsconfig ./tsconfig.json
-        continue-on-error: true
-
-      - name: Compile extension host
-        run: npm run compile
-
-      - name: Build webview
-        run: npm run build
-
-      - name: Unit tests (Vitest)
-        run: npm test
-
-  build:
-    name: Build — all platform binaries
+  # === make package (build-all + extension + webview + vsce) ===============
+  package:
+    name: Package — make package
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
           cache: true
-      # Cross-compiles darwin/linux/windows × arch — proves the release build
-      # before it's ever packaged.
-      - name: make build-all
-        run: make build-all
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      # `make package` calls vsce; it's not a project dep, install it globally.
+      - name: Install vsce
+        run: npm i -g @vscode/vsce
+
+      - name: make package
+        run: make package
+
+      - name: Upload .vsix
+        uses: actions/upload-artifact@v4
+        with:
+          name: hydragit-vsix
+          path: '*.vsix'
+          retention-days: 7
+
+  # === Playwright e2e smoke (3 scenarios) =================================
   e2e:
     name: E2E — Playwright smoke (Ubuntu)
     runs-on: ubuntu-latest
-    # The extension only activates once its Go backend + compiled host + built
-    # webview exist, so this job rebuilds them itself (it does not reuse the
-    # `build`/`web` jobs' artifacts).
     steps:
       - uses: actions/checkout@v4
 
@@ -133,18 +162,22 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      # Builds bin/hydragit-server-linux-x64 (extension spawns it on activation)
-      # plus the compiled extension host and the production webview bundle.
-      - name: Build Go binaries
-        run: make build-all
-      - name: Compile extension host
-        run: npm run compile
-      - name: Build webview
-        run: npm run build
+      # The fixture launches VS Code with --extensionDevelopmentPath, so the
+      # plugin runs straight from the build: Go binary in bin/, compiled host,
+      # built webview. `make build` produces all three.
+      - name: make build
+        run: make build
 
-      # Install real VS Code via the official apt repo: the .deb resolves every
-      # native lib (gtk/nss/gbm/asound…) for us. xvfb gives Electron a display —
-      # there is no true headless Electron on Linux.
+      # Fixture scripts commit into temp repos — a CI runner has no git identity.
+      - name: Configure git identity
+        run: |
+          git config --global user.email "ci@hydragit.test"
+          git config --global user.name "HydraGit CI"
+          git config --global init.defaultBranch main
+
+      # VS Code via the official apt repo (.deb pulls every native lib) + Xvfb.
+      # The fixture honours VSCODE_PATH; point it at the real Electron binary the
+      # .deb installs.
       - name: Install VS Code + Xvfb
         run: |
           sudo apt-get update
@@ -158,21 +191,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y code
 
-      # Fixture scripts commit into temp repos — a CI runner has no git identity.
-      - name: Configure git identity
-        run: |
-          git config --global user.email "ci@hydragit.test"
-          git config --global user.name "HydraGit CI"
-          git config --global init.defaultBranch main
-
-      # The fixture honours VSCODE_PATH (else it falls back to `which code`, the
-      # wrapper script). Point straight at the real Electron binary the .deb
-      # installs. xvfb-run gives it a virtual display.
-      - name: Playwright smoke (3 scenarios)
+      # Headed run: the fixture skips the window-minimize when HEADED is set, and
+      # --headed tells Playwright to launch with a visible window. Xvfb provides
+      # the virtual display so the headed Electron window has somewhere to render.
+      - name: Playwright smoke (headed)
         env:
           VSCODE_PATH: /usr/share/code/code
+          HEADED: '1'
         run: |
-          xvfb-run -a npx playwright test --project=vscode \
+          xvfb-run -a npx playwright test --project=vscode --headed \
             tests/e2e/hydragit.spec.ts \
             tests/e2e/e2e-branches.spec.ts \
             tests/e2e/graph-render.spec.ts

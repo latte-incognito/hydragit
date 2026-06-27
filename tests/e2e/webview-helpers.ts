@@ -4,6 +4,13 @@ import fs from "fs";
 import os from "os";
 
 /**
+ * Command-palette chord — Cmd+Shift+P on macOS, Ctrl+Shift+P on Linux/Windows.
+ * Use this instead of a hardcoded "Meta+Shift+P" so specs run on CI (Ubuntu).
+ */
+export const COMMAND_PALETTE =
+  process.platform === "darwin" ? "Meta+Shift+P" : "Control+Shift+P";
+
+/**
  * The per-worker fixture repo path (vscode-fixture.ts builds the repo at
  * `${repoPath}-w${workerIndex}`). Lets specs assert real git state.
  */
@@ -98,7 +105,7 @@ export async function openHydraGitSidebar(page: Page): Promise<void> {
  * Opens the HydraGit main panel via command palette.
  */
 export async function openHydraGitMainPanel(page: Page): Promise<void> {
-  await page.keyboard.press("Meta+Shift+P");
+  await page.keyboard.press(COMMAND_PALETTE);
   const input = page.locator(".quick-input-box input");
   await input.fill(">HydraGit: Focus on HydraGit View");
   await page.waitForTimeout(500);
@@ -112,7 +119,7 @@ export async function openHydraGitMainPanel(page: Page): Promise<void> {
  * needs the commit-log webview rendered.
  */
 export async function revealHydraGitPanel(page: Page): Promise<void> {
-  await page.keyboard.press("Meta+Shift+P");
+  await page.keyboard.press(COMMAND_PALETTE);
   const input = page.locator(".quick-input-box input");
   await input.waitFor({ state: "visible", timeout: 5000 });
   await input.fill(">View: Show HydraGit");

@@ -1,8 +1,9 @@
 import { test, expect } from "./vscode-fixture";
+import { COMMAND_PALETTE } from "./webview-helpers";
 
 test.describe("HydraGit Extension", () => {
   test("extension activates and shows sidebar", async ({ mainWindow }) => {
-    await mainWindow.keyboard.press("Meta+Shift+P");
+    await mainWindow.keyboard.press(COMMAND_PALETTE);
     const input = mainWindow.locator(".quick-input-box input");
     await expect(input).toBeVisible({ timeout: 5000 });
     await input.fill(">View: Show HydraGit");
@@ -15,7 +16,7 @@ test.describe("HydraGit Extension", () => {
     mainWindow,
   }) => {
     // Open command palette
-    await mainWindow.keyboard.press("Meta+Shift+P");
+    await mainWindow.keyboard.press(COMMAND_PALETTE);
 
     // The command palette input has a specific role
     const input = mainWindow.locator(".quick-input-box input");

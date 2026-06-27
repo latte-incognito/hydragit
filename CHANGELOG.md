@@ -15,16 +15,25 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 
 ### Added
 
-- **CI pipeline + two-language lint gate.** New `.github/workflows/ci.yml` runs on
-  every push to `develop`/`master` and every PR: a **Go** job that runs as a
-  matrix across **`ubuntu-latest` + `windows-latest`** (`go vet`, `go test -race
-  ./internal/...` on both legs to catch git path/CRLF/exec differences; gofmt
-  check + golangci-lint gated to Linux), a **Web** job (ESLint, Prettier check,
-  svelte-check, extension compile, webview build, Vitest), a **Build** job
-  (`make build-all`, cross-compiling all five platform binaries), and an **E2E**
-  job (Ubuntu) that builds the binaries + extension + webview, installs real VS
-  Code via the official apt repo, and runs a 3-scenario Playwright smoke set
-  (activation, branches, graph render) under Xvfb.
+- **CI pipeline + two-language lint gate.** New `.github/workflows/ci.yml` mirrors
+  `make install-local` (lint · test · package) but fans out into parallel jobs,
+  each mapped to a Makefile target so CI and local stay in sync. Runs on every
+  push to `develop`/`master` and every PR: **`lint`** (`make lint` —
+  golangci-lint + ESLint), **`test-go`** (`go test -race ./internal/...` across a
+  **`ubuntu-latest` + `windows-latest`** matrix, to catch git path/CRLF/exec
+  differences), **`test-ts`** (`make test-ts` — Vitest), **`package`**
+  (`make package` — build-all + extension + webview + vsce, uploads the `.vsix`),
+  and **`e2e`** (Ubuntu: runs `make build`, installs real VS Code via the apt
+  repo, and runs a 3-scenario Playwright smoke set — activation, branches, graph
+  render — **headed** under Xvfb). Lint config is `.golangci.yml` (golangci-lint schema v2 —
+  `standard` set plus
+  revive/gocritic/bodyclose/misspell/nakedret/unconvert/unparam/usestdlibvars,
+  `errcheck.check-type-assertions`, `goimports` local-prefix `hydragit`; doc/
+  funlen/cyclop rules pre-written but commented as a future ratchet) and
+  `eslint.config.mjs` (ESLint 9 flat config for the TS host + Svelte 5 webview,
+  `eslint-config-prettier` last so Prettier owns formatting). New `make lint` /
+  `lint-go` / `lint-ts` / `lint-fix` targets and `npm run lint` / `lint:fix`
+  scripts; ESLint devDeps added to `package.json`.
   Lint config is `.golangci.yml` (golangci-lint schema v2 — `standard` set plus
   revive/gocritic/bodyclose/misspell/nakedret/unconvert/unparam/usestdlibvars,
   `errcheck.check-type-assertions`, `goimports` local-prefix `hydragit`; doc/
