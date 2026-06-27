@@ -83,12 +83,29 @@ jobs:
           git config --global core.autocrlf false
           git config --global core.eol lf
 
-      # `make test-go` uses gotestsum, which (like make) isn't on Windows
-      # runners. Calling `go test` directly is behaviour-identical (same package
-      # set: everything under internal/, cmd excluded) and adds the mandatory
-      # -race the Makefile target omits — the concurrency suite is why it exists.
-      - name: go test -race
-        run: go test -race ./internal/...
+      # Linux mirrors `make test-go`'s gotestsum output (installed on the fly —
+      # it's not a project dep), but adds the mandatory -race the Makefile target
+      # omits (the concurrency suite is why -race exists). Windows has neither
+      # make nor gotestsum, so it runs `go test` directly — behaviour-identical
+      # package set (everything under internal/, cmd excluded), same -race.
+      - name: Install gotestsum (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          go install gotest.tools/gotestsum@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: go test -race (Linux, gotestsum)
+        if: runner.os == 'Linux'
+        run: gotestsum --format testname -- -race ./internal/...
+
+      # -timeout turns a hang into a fail-fast goroutine dump (which names the
+      # stuck test) instead of stalling the runner for the 10-min default; -v
+      # streams each "=== RUN" so the last one before a hang is the culprit.
+      # Interactive-rebase editor scripting (copyEditor) is the prime suspect on
+      # Windows — see internal/git/rebase.go.
+      - name: go test -race (Windows)
+        if: runner.os == 'Windows'
+        run: go test -race -v -timeout 120s ./internal/...
 
   # === make test-ts (Vitest) ==============================================
   test-ts:
@@ -140,7 +157,7 @@ jobs:
         with:
           name: hydragit-vsix
           path: '*.vsix'
-          retention-days: 7
+          retention-days: 1
 
   # === Playwright e2e smoke (3 scenarios) =================================
   e2e:
@@ -212,4 +229,4 @@ jobs:
           path: |
             playwright-report/
             test-results/
-          retention-days: 7
+          retention-days: 1

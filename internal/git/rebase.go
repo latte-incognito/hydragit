@@ -17,13 +17,13 @@ var noEditorEnv = []string{"GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=true"}
 // rebase (we pre-build the todo list / commit message in src).
 //
 // This is the SINGLE seam for the rebase-scripting mechanism — every scripted
-// rebase routes through here. Today it uses POSIX `cp`, which is also the known
-// Windows blocker (no `cp` on Windows; see docs/ROADMAP.md §3): the
-// cross-platform fix is to replace just this one function (e.g. a
-// `hydragit-server --copy-editor` self-exec) rather than three scattered call
-// sites.
+// rebase routes through here. It uses `cp`, which Git Bash ships on Windows too,
+// so git can run it via `sh -c` on every platform. The one Windows gotcha: a
+// native path's backslashes (C:\Users\…) are eaten as shell escapes by that sh,
+// so normalise to forward slashes (sh + cp accept C:/Users/… fine) and quote in
+// case the temp dir contains spaces. filepath.ToSlash is a no-op on Unix.
 func copyEditor(src string) string {
-	return "cp " + src
+	return `cp "` + filepath.ToSlash(src) + `"`
 }
 
 // RebaseInProgress reports whether the repo is paused mid-rebase — e.g. stopped
