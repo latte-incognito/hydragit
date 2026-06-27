@@ -28,6 +28,14 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
   `eslint-config-prettier` last so Prettier owns formatting). New `make lint` /
   `lint-go` / `lint-ts` / `lint-fix` targets and `npm run lint` / `lint:fix`
   scripts; ESLint devDeps added to `package.json`.
+- **`docs/RELEASE_GUIDE.md` — self-contained release & distribution walkthrough.**
+  Step-by-step from pre-release checks through `make release`, packaging, and
+  shipping via three paths (GitHub Releases / VS Code Marketplace / Open VSX), with
+  one-time account setup, a semver policy, hotfix flow, and a troubleshooting table.
+  Includes the **macOS code-signing** step: cross-compiled `darwin-arm64` binaries
+  must be **ad-hoc signed** (`codesign --sign -`, free, no Apple account) or Apple
+  Silicon SIGKILLs them; notarization (paid account) is explained as not required
+  for a spawned helper binary.
 
 ### Changed
 
@@ -47,6 +55,56 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
   zero-value options (e.g. an unfiltered full log) rather than failing, and
   mutating commands stay safe because `missingParam` rejects the empty required
   fields a failed decode leaves behind (`TestHandle_malformedParamsJSON`).
+- **`internal/ipc/handler.go` dispatch converted to a handler registry.** The
+  1,246-line / 88-case `switch req.Cmd` is now a `map[string]cmdFunc` — each
+  command is an independently testable `handle*(repoPath, id, req) Response`
+  function in the new `handler_commands.go` (84 functions, 89 routed commands).
+  `handler.go` drops from 1,264 to 250 lines (just `Handle()`, a slim map-lookup
+  `handle()`, and shared helpers). Pure refactor — case bodies were moved
+  verbatim; build, full `go test ./internal/...`, and golangci-lint stay green,
+  and every mutating/auto-snapshot command is confirmed to have a handler.
+- **DetailPane.svelte decomposed into child components (1,314 → ~456 lines).** The
+  detail pane was a god-component that rendered the changed-files tree **twice**
+  (near-identical markup for the commit and stash views) and inlined the meta
+  panel. Split into: `ChangedFiles.svelte` (the file tree — now one component used
+  by both views, killing the duplication), `CommitMeta.svelte` (the meta panel:
+  commit card / stash card / compare header, plus the ⋯ overflow menu and
+  button tooltips), and a pure `fileTree.ts` (`buildTree`/`countFiles`, unit-
+  tested). DetailPane is now a thin shell: pane wrapper + empty state + the
+  per-file context menu, composing the two children. Behaviour preserved (its
+  public props are unchanged; the existing DetailPane tests mount it and exercise
+  both children); the only intended visual delta is the *stash* file list gaining
+  the same toolbar totals/tooltips/rename rows the commit view already had.
+- **BranchPane.svelte — pure tree logic extracted (947 → 861 lines).** The branch
+  folder/leaf tree machinery (`buildTree`/`sortTree`/`mergeOpen`/`openAll`, the
+  node types, and `worktreeLabel`) moved to a unit-tested `branchTree.ts` (same
+  `fileTree.ts` pattern); the component keeps the reactive `$state`/`$effect.pre`
+  orchestration that drives it. The branch/stash/snapshot/tag/worktree list
+  *markup* is still inline — a larger sub-component split left for later.
+- **Toolbar.svelte — search-scope logic extracted (904 → 896 lines).** The token
+  search machinery (the `SCOPES` table, the prefix→chip / `@`-shorthand
+  `detectScope`, `scopeById`, and the code-box `codeMeta` geometry) moved to a
+  unit-tested `searchScope.ts` (same `fileTree.ts`/`branchTree.ts` pattern); the
+  component keeps the reactive `$state`/`$derived` that drives the input.
+- **Sidebar FileTree.svelte — pure tree logic extracted (891 → 757 lines).** The
+  staging-view tree machinery (`buildTree` with single-child-chain compression +
+  folders-first sort, `allFilesInFolder`/`countFiles`) and the status helpers
+  (`STATUS_CFG`/`cfg`/`parseRename`/`isConflict`/`isDeleted`) moved to a unit-
+  tested `sidebar/fileTree.ts`; the component keeps the reactive `$derived`/`$state`
+  and the row/folder markup. (The `(file as any).oldPath` cast went away — `oldPath`
+  is a real `GitFile` field.)
+- **App.svelte decomposition (incremental).** Extracted the pure logic out of the
+  1,612-line `App.svelte` `<script>` into co-located tested modules (the
+  established `syncPlan.ts`/`stashRedirect.ts` pattern): `worktreePath.ts`
+  (`worktreeDefaultPath` + `worktreeBranchOptions`), `menuPosition.ts`
+  (`clampMenuPosition`, deduped from 4 context-menu handlers), `refName.ts`
+  (`shortBranchName`/`splitRemoteRef`, deduped from ~5 inline sites), and
+  `resetMode.ts` (`parseResetMode`). Behaviour unchanged; full Vitest suite (462
+  tests, +3 files) and the vite build stay green. The remaining `<script>` is
+  stateful orchestration left in the component by design. (Note: `svelte-check` 4.x
+  currently crashes against TypeScript 6.x — a known tooling version mismatch,
+  not a type error — so the CI svelte-check step is non-blocking until the
+  versions are aligned.)
 - **Linter-clean pass — `make lint` is green (0 Go issues, 0 ESLint errors).**
   Resolving the gate's findings: `cmd/hydragit/main.go` uses a `run() int` helper
   so deferred `logger.Close()` always flushes (no `os.Exit` skipping defers);

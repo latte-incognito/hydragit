@@ -156,23 +156,36 @@ each item below.
 
 1. **God components (the #1 maintainability flag).** `App.svelte` is **1,861
    LOC**, `DetailPane.svelte` 1,314, `BranchPane.svelte` 947, `Toolbar.svelte`
-   904, `FileTree.svelte` 891. A 1.8k-line component is the first thing a
-   reviewer circles. → **⏸ DEFERRED — deliberately not done blind.** Decomposing
-   a 1.8k-line Svelte component without the ability to run the extension is the
-   single highest-regression-risk change in this repo; doing it sight-unseen
-   would trade a cosmetic smell for real breakage. The right path is an
-   *incremental* extraction with the app running (the `repoStore.ts` /
-   `syncPlan.ts` / `stashRedirect.ts` pattern, applied harder), one child
-   component per PR. The lint config ships with `funlen`/`cyclop` thresholds
-   pre-written but commented, ready to ratchet on as the split lands.
+   904, `FileTree.svelte` 891. → **🔄 IN PROGRESS — incremental, established
+   pattern.** Key finding: `App.svelte`'s **markup is already componentized**
+   (it composes Toolbar/BranchPane/LogPane/DetailPane/…); the bulk is a
+   1,612-line `<script>` that is mostly *stateful* runes event-handlers, tightly
+   coupled to component state. So the safe, valuable lever isn't splitting markup
+   — it's pulling **pure logic cores** into co-located tested `.ts` modules, the
+   exact pattern the repo already uses (`syncPlan.ts`, `stashRedirect.ts`,
+   `interactiveRebasePlan.ts`). Pure cores extracted so far, each unit-tested:
+   `worktreePath.ts` (`worktreeDefaultPath` + `worktreeBranchOptions` — the
+   create-worktree candidate list), `menuPosition.ts` (`clampMenuPosition`,
+   deduped from the 4 `show*Ctx` viewport-clamp sites), `refName.ts`
+   (`shortBranchName` / `splitRemoteRef`, deduped from ~5 inline
+   `slice(indexOf('/')…)` sites), and `resetMode.ts` (`parseResetMode` →
+   typed `ResetMode`). Verified: vite build compiles, full **Vitest 462** green
+   (+3 test files), ESLint 0 errors. What's left in the `<script>` is genuinely
+   stateful orchestration (send/flash/loadAll/state mutation) that should stay in
+   the component — extracting it would thread callbacks back in and *add*
+   coupling. The lint config ships with `funlen`/`cyclop` thresholds pre-written
+   but commented, ready to ratchet as the script shrinks further.
 
-2. **`handler.go` is a 1,246-line / 88-case single `switch`.** → **⏸ DEFERRED.**
-   A `map[string]func(Request) Response` registry is the right end state, but
-   converting 88 cases is a 1.2k-line mechanical rewrite that can't be
-   compile-verified here — high typo risk for zero behaviour change. Best done in
-   one focused, locally-tested PR. *Partial* mitigation shipped now: the
-   per-case decode boilerplate is centralised (see #4), which removes the most
-   repeated noise from the switch.
+2. **`handler.go` was a 1,246-line / 88-case single `switch`.** → **✅ FIXED.**
+   Converted to a `map[string]cmdFunc` registry: each command is now its own
+   `handle*(repoPath, id, req) Response` function in `handler_commands.go` (84
+   functions, 89 routed cmd strings), and `handler.go` shrank from **1,264 → 250
+   lines** — it now holds only `Handle()` (locking/timing/snapshot), a slim
+   `handle()` that does a map lookup, and the shared helpers. Done via a
+   mechanical extraction (byte-for-byte case bodies, no behaviour change) and
+   verified: `go build`, full `go test ./internal/...`, and golangci-lint all
+   green; a coverage check confirms every `mutatingCmds`/`autoSnapshotCmds` entry
+   has a registered handler.
 
 3. **Over-exported Go API.** → **✅ FIXED.** `Reset`→`reset`,
    `MergeAbort`→`mergeAbort`, `MergeContinue`→`mergeContinue` are now unexported

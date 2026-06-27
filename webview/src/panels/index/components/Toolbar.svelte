@@ -1,5 +1,6 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
+  import { pickableScopes, scopeById, detectScope, codeMeta } from '../searchScope';
 
   interface Props {
     repoName?: string;
@@ -47,23 +48,17 @@
 
   // ── Search scopes (token search) ──────────────────────────────────────────
   // One input, Slack/Gmail style: focusing it offers the scopes, typing a
-  // prefix ("author:") converts it into a removable chip. No mode tabs.
-  const SCOPES: { id: typeof searchMode; label: string; prefix: string; example: string; placeholder: string }[] = [
-    { id: 'msg',    label: 'Message', prefix: '',        example: '',                placeholder: 'Search commits — or pick a scope…' },
-    { id: 'author', label: 'Author',  prefix: 'author:', example: 'author: vlad',    placeholder: 'Author name or email…'            },
-    { id: 'file',   label: 'File',    prefix: 'file:',   example: 'file: panel.ts',  placeholder: 'File name or path — Enter to search…' },
-    { id: 'hash',   label: 'Hash',    prefix: 'hash:',   example: 'hash: a0c103',    placeholder: 'Hash prefix…'                     },
-    { id: 'code',   label: 'Code',    prefix: 'code:',   example: 'code: render(',   placeholder: ''                                 },
-  ];
-
-  let currentScope = $derived(SCOPES.find(m => m.id === searchMode) ?? SCOPES[0]);
+  // prefix ("author:") converts it into a removable chip. No mode tabs. The
+  // scope table, prefix→chip detection and code-box geometry live in
+  // ../searchScope (pure + unit-tested); this component just drives them.
+  let currentScope = $derived(scopeById(searchMode));
 
   // Scope dropdown (shown on focus while unscoped)
   let scopeOpen = $state(false);
   let scopeHi   = $state(-1); // keyboard highlight: index into pickable scopes
   let searchInputEl: HTMLInputElement = $state();
   // Scopes offered by the dropdown (everything except the implicit msg default)
-  const pickable = SCOPES.filter(s => s.id !== 'msg');
+  const pickable = pickableScopes;
 
   // ── Branch switcher ───────────────────────────────────────────────────────
   let branchOpen   = $state(false);
@@ -106,11 +101,9 @@
     // Prefix → chip conversion: "author:…" becomes the author scope chip and
     // the prefix is stripped from the query. "@" is a Slack-ism for author.
     if (searchMode === 'msg') {
-      const m = v.match(/^(author|file|hash|code|msg):\s*/i);
-      const scope = m ? (m[1].toLowerCase() as typeof searchMode) : (v.startsWith('@') ? 'author' : null);
-      if (scope && scope !== 'msg') {
-        const rest = m ? v.slice(m[0].length) : v.slice(1);
-        setScope(scope, rest);
+      const hit = detectScope(v);
+      if (hit) {
+        setScope(hit.scope, hit.rest);
         return;
       }
     }
@@ -172,11 +165,10 @@
   // an expanded monospace box below the toolbar; search runs only on submit.
   let codeBoxEl: HTMLTextAreaElement = $state();
 
-  let codeLines = $derived(searchQuery ? searchQuery.split('\n').length : 1);
-  let codeRows  = $derived(Math.min(6, Math.max(1, codeLines)));
-  let codeFirstLine = $derived(
-    (searchQuery.split('\n').find(l => l.trim()) ?? '').trim()
-  );
+  let codeInfo  = $derived(codeMeta(searchQuery));
+  let codeLines = $derived(codeInfo.lines);
+  let codeRows  = $derived(codeInfo.rows);
+  let codeFirstLine = $derived(codeInfo.firstLine);
 
   function handleCodeInput(e: Event) {
     searchQuery = (e.target as HTMLTextAreaElement).value;

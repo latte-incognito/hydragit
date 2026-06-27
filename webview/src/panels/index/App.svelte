@@ -8,6 +8,10 @@
   import type { Branch, Commit, DiffFile, DiffHunk, Stash, GitStatus, Snapshot, Tag, Worktree } from './types';
   import { planSync } from './syncPlan';
   import { stashRedirectTarget } from './stashRedirect';
+  import { worktreeDefaultPath, worktreeBranchOptions } from './worktreePath';
+  import { clampMenuPosition } from './menuPosition';
+  import { shortBranchName, splitRemoteRef } from './refName';
+  import { parseResetMode, type ResetMode } from './resetMode';
 
   import Toolbar     from './components/Toolbar.svelte';
   import ActionRail  from './components/ActionRail.svelte';
@@ -1038,8 +1042,8 @@
           'mixed'
         );
         if (!raw) return;
-        const mode = raw.trim().toLowerCase();
-        if (mode !== 'soft' && mode !== 'mixed' && mode !== 'hard') {
+        const mode = parseResetMode(raw);
+        if (!mode) {
           flash(`Unknown reset mode: ${raw}`, '#f07070');
           return;
         }
@@ -1103,7 +1107,7 @@
     headMode = false;
   }
 
-  async function reflogReset(hash: string, mode: 'soft' | 'mixed' | 'hard') {
+  async function reflogReset(hash: string, mode: ResetMode) {
     const warn =
       mode === 'hard'
         ? `\n\nAny uncommitted changes are auto-stashed first (recoverable).`
@@ -1199,9 +1203,7 @@
   // server AND prunes the local tracking ref — fixing BUGS.md #1/#2 where the
   // old path sent the tracking name to `git branch -d` (local-only) and failed.
   async function deleteRemoteBranch(fullName: string) {
-    const slash = fullName.indexOf('/');
-    const remote = slash === -1 ? 'origin' : fullName.slice(0, slash);
-    const branch = slash === -1 ? fullName : fullName.slice(slash + 1);
+    const { remote, branch } = splitRemoteRef(fullName);
     const confirmed = await uiConfirm(
       `Delete remote branch "${fullName}"?\n\n` +
       `This runs 'git push ${remote} --delete ${branch}' and removes it on ${remote} ` +
@@ -1224,7 +1226,7 @@
   // name. Shared by the rail switch and the branch context-menu entry.
   async function switchToBranch(name: string) {
     const target = branches.find((b) => b.name === name)?.isRemote
-      ? name.slice(name.indexOf('/') + 1)
+      ? shortBranchName(name)
       : name;
     flash(`Checking out ${target}…`);
     try {
@@ -1262,8 +1264,7 @@
     ctxBranch  = name;
     branchMenu = {
       visible: true, isCurrent, branch: name, current: activeBranch,
-      x: Math.min(e.clientX, window.innerWidth - 320),
-      y: Math.min(e.clientY, window.innerHeight - 280),
+      ...clampMenuPosition(e.clientX, e.clientY, 320, 280, window.innerWidth, window.innerHeight),
     };
   }
 
@@ -1379,8 +1380,7 @@
     stashMenu   = {
       visible: true,
       label: `stash@{${stashes[i].index ?? i}}`,
-      x: Math.min(e.clientX, window.innerWidth - 160),
-      y: Math.min(e.clientY, window.innerHeight - 160),
+      ...clampMenuPosition(e.clientX, e.clientY, 160, 160, window.innerWidth, window.innerHeight),
     };
   }
 
@@ -1392,18 +1392,7 @@
   }
 
   // ── Worktrees ─────────────────────────────────────────────────────────────
-  // Default location follows the GitLens convention: a sibling
-  // "<repo>.worktrees/" folder, keyed by branch (slashes flattened). Derived
-  // from the main worktree's absolute path so it works regardless of cwd.
-  function defaultWorktreePath(branch: string): string {
-    const safe = branch.replace(/[\\/]/g, '-');
-    const main = worktrees.find((w) => w.isMain)?.path ?? '';
-    if (!main) return `../worktrees/${safe}`;
-    const parts = main.split(/[\\/]/);
-    const repo = parts.pop() || 'repo';
-    const parent = parts.join('/');
-    return `${parent}/${repo}.worktrees/${safe}`;
-  }
+  // Default location convention lives in worktreeDefaultPath (pure + tested).
 
   function openWorktree(path: string) {
     // Host-only relay: opens the folder in a new VS Code window.
@@ -1416,30 +1405,7 @@
   async function createWorktree() {
     const NEW = '✚ Create new branch…';
 
-    // A branch can only live in one worktree at a time — hide any already
-    // checked out (this also covers the current branch via the main worktree).
-    const inWorktree = new Set(worktrees.map((w) => w.branch).filter(Boolean));
-    const locals = branches.filter((b) => !b.isRemote);
-    const localNames = new Set(locals.map((b) => b.name));
-
-    // Local branches: the bread-and-butter picks.
-    const localItems = locals
-      .filter((b) => !inWorktree.has(b.name))
-      .map((b) => ({ label: b.name, description: b.trackShort ? `local · ${b.trackShort}` : 'local' }));
-
-    // Remote branches without a local of the same short name — picking one
-    // creates a local tracking branch in the new worktree (GitLens-style).
-    const remoteItems = branches
-      .filter((b) => b.isRemote)
-      .map((b) => ({ full: b.name, short: b.name.slice(b.name.indexOf('/') + 1) }))
-      .filter((r) => r.short !== 'HEAD' && !localNames.has(r.short) && !inWorktree.has(r.short))
-      .map((r) => ({ label: r.full, description: `remote → new branch '${r.short}'` }));
-
-    const items = [
-      { label: NEW, description: `from ${activeBranch}` },
-      ...localItems,
-      ...remoteItems,
-    ];
+    const items = worktreeBranchOptions(branches, worktrees, activeBranch, NEW);
     const choice = await uiPick(items, 'Branch for the new worktree — local, remote, or create new');
     if (!choice) return;
 
@@ -1455,14 +1421,14 @@
       const picked = branches.find((b) => b.name === choice);
       if (picked?.isRemote) {
         // Create a local branch tracking the remote ref inside the worktree.
-        const short = choice.slice(choice.indexOf('/') + 1);
+        const short = shortBranchName(choice);
         newBranch = short;
         start = choice;
         branch = short;
       }
     }
 
-    const path = await uiPrompt('Worktree folder path:', defaultWorktreePath(branch));
+    const path = await uiPrompt('Worktree folder path:', worktreeDefaultPath(branch, worktrees));
     if (!path) return;
     flash(`Creating worktree at ${path}…`);
     try {
@@ -1481,8 +1447,7 @@
     worktreeMenu = {
       visible: true,
       wt,
-      x: Math.min(e.clientX, window.innerWidth - 280),
-      y: Math.min(e.clientY, window.innerHeight - 220),
+      ...clampMenuPosition(e.clientX, e.clientY, 280, 220, window.innerWidth, window.innerHeight),
     };
   }
 
@@ -1553,8 +1518,7 @@
     e.preventDefault(); e.stopPropagation();
     tagMenu = {
       visible: true, name, current: activeBranch,
-      x: Math.min(e.clientX, window.innerWidth - 180),
-      y: Math.min(e.clientY, window.innerHeight - 120),
+      ...clampMenuPosition(e.clientX, e.clientY, 180, 120, window.innerWidth, window.innerHeight),
     };
   }
 
