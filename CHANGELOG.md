@@ -16,10 +16,15 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 ### Added
 
 - **CI pipeline + two-language lint gate.** New `.github/workflows/ci.yml` runs on
-  every push to `develop`/`master` and every PR: a **Go** job (gofmt check, `go
-  vet`, `go test -race ./internal/...`, golangci-lint), a **Web** job (ESLint,
-  Prettier check, svelte-check, extension compile, webview build, Vitest), and a
-  **Build** job (`make build-all`, cross-compiling all five platform binaries).
+  every push to `develop`/`master` and every PR: a **Go** job that runs as a
+  matrix across **`ubuntu-latest` + `windows-latest`** (`go vet`, `go test -race
+  ./internal/...` on both legs to catch git path/CRLF/exec differences; gofmt
+  check + golangci-lint gated to Linux), a **Web** job (ESLint, Prettier check,
+  svelte-check, extension compile, webview build, Vitest), a **Build** job
+  (`make build-all`, cross-compiling all five platform binaries), and an **E2E**
+  job (Ubuntu) that builds the binaries + extension + webview, installs real VS
+  Code via the official apt repo, and runs a 3-scenario Playwright smoke set
+  (activation, branches, graph render) under Xvfb.
   Lint config is `.golangci.yml` (golangci-lint schema v2 — `standard` set plus
   revive/gocritic/bodyclose/misspell/nakedret/unconvert/unparam/usestdlibvars,
   `errcheck.check-type-assertions`, `goimports` local-prefix `hydragit`; doc/

@@ -15,8 +15,14 @@ permissions:
 
 jobs:
   go:
-    name: Go — vet · lint · test (-race)
-    runs-on: ubuntu-latest
+    name: Go — vet · test (-race) · ${{ matrix.os }}
+    strategy:
+      # Let Windows finish even if Linux fails (and vice-versa) — we want to see
+      # cross-platform git behaviour on both legs, not the first failure only.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,7 +31,12 @@ jobs:
           go-version: '1.26'
           cache: true
 
+      # gofmt + golangci-lint are OS-agnostic — run them once (Linux) instead of
+      # paying for them on both legs. CRLF checkout on Windows would also make
+      # gofmt noisy, so Linux is the canonical formatting gate.
       - name: gofmt
+        if: runner.os == 'Linux'
+        shell: bash
         run: |
           unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then
@@ -36,10 +47,13 @@ jobs:
         run: go vet ./...
 
       # The concurrency suite is the reason -race exists — never drop it.
+      # Runs on BOTH Linux and Windows: this is the whole point of the matrix —
+      # git path/CRLF/exec differences surface here.
       - name: go test -race
         run: go test -race ./internal/...
 
       - name: golangci-lint
+        if: runner.os == 'Linux'
         uses: golangci/golangci-lint-action@v7
         with:
           # Reads .golangci.yml (schema v2). Keep the action major in sync with
@@ -96,3 +110,79 @@ jobs:
       # before it's ever packaged.
       - name: make build-all
         run: make build-all
+
+  e2e:
+    name: E2E — Playwright smoke (Ubuntu)
+    runs-on: ubuntu-latest
+    # The extension only activates once its Go backend + compiled host + built
+    # webview exist, so this job rebuilds them itself (it does not reuse the
+    # `build`/`web` jobs' artifacts).
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      # Builds bin/hydragit-server-linux-x64 (extension spawns it on activation)
+      # plus the compiled extension host and the production webview bundle.
+      - name: Build Go binaries
+        run: make build-all
+      - name: Compile extension host
+        run: npm run compile
+      - name: Build webview
+        run: npm run build
+
+      # Install real VS Code via the official apt repo: the .deb resolves every
+      # native lib (gtk/nss/gbm/asound…) for us. xvfb gives Electron a display —
+      # there is no true headless Electron on Linux.
+      - name: Install VS Code + Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gpg xvfb
+          wget -qO- https://packages.microsoft.com/keys/microsoft.asc \
+            | gpg --dearmor > packages.microsoft.gpg
+          sudo install -D -o root -g root -m 644 packages.microsoft.gpg \
+            /etc/apt/keyrings/packages.microsoft.gpg
+          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" \
+            | sudo tee /etc/apt/sources.list.d/vscode.list
+          sudo apt-get update
+          sudo apt-get install -y code
+
+      # Fixture scripts commit into temp repos — a CI runner has no git identity.
+      - name: Configure git identity
+        run: |
+          git config --global user.email "ci@hydragit.test"
+          git config --global user.name "HydraGit CI"
+          git config --global init.defaultBranch main
+
+      # The fixture honours VSCODE_PATH (else it falls back to `which code`, the
+      # wrapper script). Point straight at the real Electron binary the .deb
+      # installs. xvfb-run gives it a virtual display.
+      - name: Playwright smoke (3 scenarios)
+        env:
+          VSCODE_PATH: /usr/share/code/code
+        run: |
+          xvfb-run -a npx playwright test --project=vscode \
+            tests/e2e/hydragit.spec.ts \
+            tests/e2e/e2e-branches.spec.ts \
+            tests/e2e/graph-render.spec.ts
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
