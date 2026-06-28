@@ -1,20 +1,15 @@
-<!--
-  BANNER — currently broken in the VS Code Details view / Marketplace because
-  the README renderer only loads ABSOLUTE https URLs; relative paths never
-  resolve there (the file ships in the .vsix, but markdown can't reach it).
-  FIX once the GitHub repo is PUBLIC — replace the line below with:
-  <p align="center">
-    <img src="https://raw.githubusercontent.com/latte-incognito/hydragit/develop/images/hydragit-banner.png" alt="HydraGit" width="100%">
-  </p>
-  (raw URLs 404 while the repo is private.)
--->
-![HydraGit](images/hydragit-banner.png)
+<!-- Absolute raw URL so it renders in the Marketplace / Details view (relative
+     paths never resolve there). NOTE: 404s until the GitHub repo is PUBLIC. -->
+<p align="center">
+  <img src="https://raw.githubusercontent.com/latte-incognito/hydragit/develop/images/hydragit-banner.png" alt="HydraGit" width="100%">
+</p>
 
 # HydraGit
 
 > **An IntelliJ-style git panel for VS Code — branches, history, and diff in one place. No paywall.**
 
-[GIF HERE]
+<!-- Absolute raw URL (renders in the Marketplace). NOTE: 404s until repo is PUBLIC. -->
+![HydraGit demo](https://raw.githubusercontent.com/latte-incognito/hydragit/develop/docs/hydragit-demo.gif)
 
 Everything git, in **one panel**: your branch tree, the full commit graph, and the
 diff — right where you'd expect them. Click a branch to switch. Click a commit to

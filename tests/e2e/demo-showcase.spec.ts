@@ -118,12 +118,14 @@ test.describe("HydraGit showcase (demo driver)", () => {
     await beat();
 
     // ── Click a commit → the detail pane + its changed files ─────────────────
-    const commit = f.locator(".crow").nth(2);
-    await glideClick(commit, 700);
+    // Target a real file-change commit by subject (never a merge commit — those
+    // show an empty/combined diff in the detail pane and are a poor rebase base).
+    const realCommit = () => f.locator(".crow", { hasText: "feat: result ranking" }).first();
+    await glideClick(realCommit(), 700);
     await beat(1200); // linger on the detail pane
 
     // ── Additional menus: the commit menu, then a branch menu (depth) ────────
-    await glideRightClick(f.locator(".crow").nth(2), 350);
+    await glideRightClick(realCommit(), 350);
     const commitMenu = f.locator(".ctx-menu");
     if (await commitMenu.count()) {
       await glide(commitMenu.getByText("Cherry-Pick", { exact: false }).first());
@@ -189,7 +191,10 @@ test.describe("HydraGit showcase (demo driver)", () => {
     await expect(f.locator(".pane-log")).toBeVisible({ timeout: 8000 });
     await beat(700);
 
-    const target = f.locator(".crow").nth(2);
+    // Rebase from a real commit (result ranking), so the plan is [result ranking,
+    // hello] — both real file commits, no merge. Reordering hello (a new file) is
+    // always conflict-free.
+    const target = realCommit();
     await glideRightClick(target, 350);
     await f
       .locator(".ctx-menu")
