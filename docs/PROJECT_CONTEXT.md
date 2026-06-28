@@ -372,7 +372,7 @@ Authoritative list = the `case` strings in `internal/ipc/handler.go`.
 
 Not a web app: no server, no auth tokens, no cloud, no telemetry — the attack
 surface is the webview boundary, the git CLI layer, and the filesystem.
-Open hardening TODOs live in [`ROADMAP.md`](ROADMAP.md) §6. The load-bearing
+The load-bearing
 mitigations, all enforced in code as of 2026-06-10:
 
 - **Webview boundary** (`panel.ts`): per-request `repo` allowlisted against

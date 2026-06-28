@@ -34,14 +34,6 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
   `eslint-config-prettier` last so Prettier owns formatting). New `make lint` /
   `lint-go` / `lint-ts` / `lint-fix` targets and `npm run lint` / `lint:fix`
   scripts; ESLint devDeps added to `package.json`.
-  Lint config is `.golangci.yml` (golangci-lint schema v2 — `standard` set plus
-  revive/gocritic/bodyclose/misspell/nakedret/unconvert/unparam/usestdlibvars,
-  `errcheck.check-type-assertions`, `goimports` local-prefix `hydragit`; doc/
-  funlen/cyclop rules pre-written but commented as a future ratchet) and
-  `eslint.config.mjs` (ESLint 9 flat config for the TS host + Svelte 5 webview,
-  `eslint-config-prettier` last so Prettier owns formatting). New `make lint` /
-  `lint-go` / `lint-ts` / `lint-fix` targets and `npm run lint` / `lint:fix`
-  scripts; ESLint devDeps added to `package.json`.
 - **`docs/RELEASE_GUIDE.md` — self-contained release & distribution walkthrough.**
   Step-by-step from pre-release checks through `make release`, packaging, and
   shipping via three paths (GitHub Releases / VS Code Marketplace / Open VSX), with
@@ -53,6 +45,10 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 
 ### Changed
 
+- **Pinned TypeScript to `^5.9.3`** (was `^6.0.2`) so `make webview-check`
+  (`svelte-check` 4.4.5) runs green again — svelte-check 4.x crashed against the
+  TS 6.x compiler API, which had forced the type-check to be treated as
+  non-blocking. Pure tooling-version fix; no source or type changes.
 - **Code-quality pass (release-readiness audit).** Trimmed the `internal/git`
   public surface — `Reset`, `MergeAbort`, `MergeContinue` (only ever used
   in-package) are now unexported `reset` / `mergeAbort` / `mergeContinue`, and the
@@ -115,10 +111,7 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
   (`shortBranchName`/`splitRemoteRef`, deduped from ~5 inline sites), and
   `resetMode.ts` (`parseResetMode`). Behaviour unchanged; full Vitest suite (462
   tests, +3 files) and the vite build stay green. The remaining `<script>` is
-  stateful orchestration left in the component by design. (Note: `svelte-check` 4.x
-  currently crashes against TypeScript 6.x — a known tooling version mismatch,
-  not a type error — so the CI svelte-check step is non-blocking until the
-  versions are aligned.)
+  stateful orchestration left in the component by design.
 - **Linter-clean pass — `make lint` is green (0 Go issues, 0 ESLint errors).**
   Resolving the gate's findings: `cmd/hydragit/main.go` uses a `run() int` helper
   so deferred `logger.Close()` always flushes (no `os.Exit` skipping defers);
@@ -383,8 +376,6 @@ documentation (UI entry point → what happens next) in
 **Worktrees** — [list](documentation/features/worktrees.html#list) · [add](documentation/features/worktrees.html#add) · [open in new window](documentation/features/worktrees.html#open) · [lock / unlock](documentation/features/worktrees.html#lock) · [move](documentation/features/worktrees.html#move) · [remove](documentation/features/worktrees.html#remove) · [prune stale](documentation/features/worktrees.html#prune)
 
 **Context menus & tooling** — [commit](documentation/features/context-menus.html#commit) / [branch](documentation/features/context-menus.html#branch) / [stash](documentation/features/context-menus.html#stash) / [tag](documentation/features/context-menus.html#tag) context menus · [logging & diagnostics](documentation/features/logging.html) · [version info](documentation/features/logging.html#version) · [force refresh](documentation/features/logging.html#refresh)
-
-> Backlog / not-yet-built features live in [`docs/ROADMAP.md`](docs/ROADMAP.md) §5.
 
 [0.2.6]: https://github.com/latte-incognito/hydragit/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/latte-incognito/hydragit/compare/v0.2.4...v0.2.5

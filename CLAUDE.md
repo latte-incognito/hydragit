@@ -128,9 +128,8 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 | Worktrees list + add/remove/lock/unlock/move/prune/open | `worktree.list`, `worktree.*`, `worktree.open` (host) |
 | Multi-repo (grouped sidebar, focused main panel) | `repo.list`, `repo.select`, `repo.pick` (host); every request takes an optional `repo` root |
 
-> Backlog + bugs + release plan → `docs/ROADMAP.md` (single source of truth for
-> "what's next"; feature backlog is FROZEN until after the 1.0 release). Don't
-> implement a new feature without asking first.
+> The feature backlog is FROZEN until after the 1.0 release. Don't implement a
+> new feature without asking first.
 
 ---
 
@@ -139,7 +138,7 @@ webview/src/panels/history/   Svelte file/selection history + Shiki diff + blame
 | File | Read when |
 |---|---|
 | `docs/PROJECT_CONTEXT.md` | Full architecture, data types, IPC reference, concurrency + security model |
-| `docs/ROADMAP.md` | Everything actionable: release checklist, testing (incl. Windows), bugs/polish queue, frozen backlog, security TODOs |
+| `docs/RELEASE_GUIDE.md` | Release & distribution walkthrough (build, package, publish paths) |
 | `CHANGELOG.md` | Per-version history + authoritative feature index (bottom) — links into `documentation/` |
 | `documentation/index.html` | Per-feature HTML docs: UI entry point → what happens next (browsable) |
 
@@ -215,4 +214,3 @@ State what you're working on and which doc to read first:
 
 > "Working on internal/git/stash.go — read docs/PROJECT_CONTEXT.md IPC section before starting."
 > "Working on internal/graph/lanes.go — read docs/PROJECT_CONTEXT.md data types section."
-> "Picking the next polish item from docs/ROADMAP.md §4."

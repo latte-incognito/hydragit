@@ -254,7 +254,7 @@ You want to see:
 - ✅ `extension/out/**` (compiled JS) and `webview/*.js` / `*.css` (compiled)
 - ✅ `images/icon.png`, `README.md`, `CHANGELOG.md`, `LICENSE.md`, `package.json`
 - ❌ **no** `cmd/`, `internal/`, `*.ts` source, `docs/`, `tests/`, `node_modules/`,
-  `Readiness.md`, `.github/`, the dev binary `bin/hydragit-server` (no suffix)
+  `.github/`, the dev binary `bin/hydragit-server` (no suffix)
 
 (The exclusions live in `.vscodeignore`; if something leaks, add it there.)
 
@@ -478,5 +478,4 @@ ovsx create-namespace vkushnarenko -p <TOKEN>
 
 ### Related docs
 - `docs/GITFLOW.md` — the snapshot-release branch model (why master is generated).
-- `docs/ROADMAP.md` §1–2 — the road-to-marketplace checklist and decisions.
 - `CHANGELOG.md` — per-version history; the `[Unreleased]` section feeds the release.
