@@ -11,7 +11,7 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
-## [Unreleased]
+## [0.3.0] — 2026-06-28
 
 ### Added
 
@@ -344,6 +344,7 @@ The MVP was replaced with the real foundation in this range (~8 400 insertions).
 
 Everything HydraGit ships today, by topic. Each entry links to its full
 documentation (UI entry point → what happens next) in
+[0.3.0]: https://github.com/latte-incognito/hydragit/compare/v0.2.9...v0.3.0
 [0.2.9]: https://github.com/latte-incognito/hydragit/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/latte-incognito/hydragit/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/latte-incognito/hydragit/compare/v0.2.6...v0.2.7
