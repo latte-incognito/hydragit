@@ -152,7 +152,7 @@ func TestTagsOnlyCommitVisible(t *testing.T) {
 	// Move the branch back so the tagged commit is reachable only via the tag.
 	gitIn(t, dir, "reset", "--hard", "HEAD~1")
 
-	commits, err := Log(dir, "", 50)
+	commits, err := logCommits(dir, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestLogTopoOrderSameTimestamp(t *testing.T) {
 	commitAt("ts-b")
 	commitAt("ts-c")
 
-	commits, err := Log(dir, "", 50)
+	commits, err := logCommits(dir, 50)
 	if err != nil {
 		t.Fatal(err)
 	}

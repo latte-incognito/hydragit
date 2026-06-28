@@ -4,6 +4,13 @@ import fs from "fs";
 import os from "os";
 
 /**
+ * Command-palette chord — Cmd+Shift+P on macOS, Ctrl+Shift+P on Linux/Windows.
+ * Use this instead of a hardcoded "Meta+Shift+P" so specs run on CI (Ubuntu).
+ */
+export const COMMAND_PALETTE =
+  process.platform === "darwin" ? "Meta+Shift+P" : "Control+Shift+P";
+
+/**
  * The per-worker fixture repo path (vscode-fixture.ts builds the repo at
  * `${repoPath}-w${workerIndex}`). Lets specs assert real git state.
  */
@@ -98,7 +105,7 @@ export async function openHydraGitSidebar(page: Page): Promise<void> {
  * Opens the HydraGit main panel via command palette.
  */
 export async function openHydraGitMainPanel(page: Page): Promise<void> {
-  await page.keyboard.press("Meta+Shift+P");
+  await page.keyboard.press(COMMAND_PALETTE);
   const input = page.locator(".quick-input-box input");
   await input.fill(">HydraGit: Focus on HydraGit View");
   await page.waitForTimeout(500);
@@ -112,7 +119,7 @@ export async function openHydraGitMainPanel(page: Page): Promise<void> {
  * needs the commit-log webview rendered.
  */
 export async function revealHydraGitPanel(page: Page): Promise<void> {
-  await page.keyboard.press("Meta+Shift+P");
+  await page.keyboard.press(COMMAND_PALETTE);
   const input = page.locator(".quick-input-box input");
   await input.waitFor({ state: "visible", timeout: 5000 });
   await input.fill(">View: Show HydraGit");
@@ -193,7 +200,13 @@ export async function openStatus(frame: FrameLocator) {
 export async function rightClickBranch(frame: FrameLocator, name: string) {
   if (name.includes("/")) {
     const folder = frame.locator(".titem.folder-row", { hasText: name.split("/")[0] }).first();
-    if (await folder.count()) await folder.click();
+    // Clicking a folder row toggles it. Only expand when it's collapsed —
+    // otherwise a second call (e.g. after a reload that preserves open state)
+    // would collapse the folder and hide the leaf we're about to right-click.
+    if (await folder.count()) {
+      const expanded = await folder.locator(".folder-arrow.open").count();
+      if (!expanded) await folder.click();
+    }
   }
   const leaf = name.includes("/") ? name.split("/").slice(1).join("/") : name;
   const row = frame.locator(".titem:not(.folder-row):not(.timeline)", { hasText: leaf }).first();

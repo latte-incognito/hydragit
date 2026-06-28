@@ -33,9 +33,9 @@ func makeCompareRepo(t *testing.T) (dir, base, head string) {
 	mustGit(t, dir, "commit", "-m", "base")
 	base = headHash(t, dir)
 
-	write("mod.txt", "line1\nline2\n")        // modify
-	write("add.txt", "fresh\n")               // add
-	mustGit(t, dir, "rm", "del.txt")          // delete
+	write("mod.txt", "line1\nline2\n")          // modify
+	write("add.txt", "fresh\n")                 // add
+	mustGit(t, dir, "rm", "del.txt")            // delete
 	mustGit(t, dir, "mv", "old.txt", "new.txt") // rename
 	mustGit(t, dir, "add", "-A")
 	mustGit(t, dir, "commit", "-m", "head: modify/add/delete/rename")

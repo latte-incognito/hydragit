@@ -11,6 +11,21 @@ import (
 // would hang the Go process waiting on stdin that never comes).
 var noEditorEnv = []string{"GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=true"}
 
+// copyEditor returns the value for GIT_EDITOR / GIT_SEQUENCE_EDITOR that drives
+// an interactive rebase non-interactively: git invokes "<editor> <fileToEdit>",
+// so a command that overwrites that file with the contents of src scripts the
+// rebase (we pre-build the todo list / commit message in src).
+//
+// This is the SINGLE seam for the rebase-scripting mechanism — every scripted
+// rebase routes through here. It uses `cp`, which Git Bash ships on Windows too,
+// so git can run it via `sh -c` on every platform. The one Windows gotcha: a
+// native path's backslashes (C:\Users\…) are eaten as shell escapes by that sh,
+// so normalise to forward slashes (sh + cp accept C:/Users/… fine) and quote in
+// case the temp dir contains spaces. filepath.ToSlash is a no-op on Unix.
+func copyEditor(src string) string {
+	return `cp "` + filepath.ToSlash(src) + `"`
+}
+
 // RebaseInProgress reports whether the repo is paused mid-rebase — e.g. stopped
 // on a conflict. Detected via git's rebase state directory, resolved through
 // `rev-parse --git-path` so it works with worktrees and custom git dirs.
@@ -81,9 +96,9 @@ func RebaseAbort(repoPath string) error {
 // that commit. Returns conflict=true if the rebase paused (rare for reword,
 // since trees are unchanged, but possible).
 //
-// The scripted rebase drives git non-interactively by pointing its two editors
-// at `cp`: GIT_SEQUENCE_EDITOR overwrites the todo list with one we generate
-// (the target marked `reword`, the rest `pick`), and GIT_EDITOR overwrites the
+// The scripted rebase drives git non-interactively via copyEditor (see its
+// doc): GIT_SEQUENCE_EDITOR overwrites the todo list with one we generate (the
+// target marked `reword`, the rest `pick`), and GIT_EDITOR overwrites the
 // commit-message buffer with the new message.
 func RewordCommit(repoPath, commit, message string) (conflict bool, err error) {
 	head, _ := run(repoPath, "rev-parse", "HEAD")
@@ -126,8 +141,8 @@ func RewordCommit(repoPath, commit, message string) (conflict bool, err error) {
 	defer cleanMsg()
 
 	env := []string{
-		"GIT_SEQUENCE_EDITOR=cp " + todoPath,
-		"GIT_EDITOR=cp " + msgPath,
+		"GIT_SEQUENCE_EDITOR=" + copyEditor(todoPath),
+		"GIT_EDITOR=" + copyEditor(msgPath),
 	}
 	_, err = runEnv(repoPath, env, "rebase", "-i", commit+"^")
 	if err != nil {
@@ -187,7 +202,7 @@ func RunInteractiveRebase(repoPath, base string, items []RebaseTodoItem) (confli
 	// GIT_EDITOR=true keeps git's pre-filled message for squashes (and is unused
 	// for pick/drop/fixup), so the rebase never blocks on an editor.
 	env := []string{
-		"GIT_SEQUENCE_EDITOR=cp " + todoPath,
+		"GIT_SEQUENCE_EDITOR=" + copyEditor(todoPath),
 		"GIT_EDITOR=true",
 	}
 	_, err = runEnv(repoPath, env, "rebase", "-i", base)

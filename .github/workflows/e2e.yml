@@ -1,0 +1,81 @@
+name: E2E (full, on-demand)
+
+# Manual only — no push/PR trigger. Run from the Actions tab ("Run workflow")
+# when you want the whole Playwright suite (every project: default, perf,
+# fork3/fork50, conflict, dirty, multi-repo), not just the CI smoke set.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-full:
+    name: E2E — full Playwright suite (Ubuntu)
+    runs-on: ubuntu-latest
+    # Perf + fork50 fixtures build large repos (180s timeouts each); give the
+    # whole suite generous headroom.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      # The fixture launches VS Code with --extensionDevelopmentPath, so the
+      # plugin runs straight from the build: Go binary in bin/, compiled host,
+      # built webview. `make build` produces all three.
+      - name: make build
+        run: make build
+
+      # Fixture scripts commit into temp repos — a CI runner has no git identity.
+      - name: Configure git identity
+        run: |
+          git config --global user.email "ci@hydragit.test"
+          git config --global user.name "HydraGit CI"
+          git config --global init.defaultBranch main
+
+      # VS Code via the official apt repo (.deb pulls every native lib) + Xvfb.
+      # The fixture honours VSCODE_PATH; point it at the real Electron binary the
+      # .deb installs.
+      - name: Install VS Code + Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gpg xvfb
+          wget -qO- https://packages.microsoft.com/keys/microsoft.asc \
+            | gpg --dearmor > packages.microsoft.gpg
+          sudo install -D -o root -g root -m 644 packages.microsoft.gpg \
+            /etc/apt/keyrings/packages.microsoft.gpg
+          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" \
+            | sudo tee /etc/apt/sources.list.d/vscode.list
+          sudo apt-get update
+          sudo apt-get install -y code
+
+      # No spec/project filter → every Playwright project runs. Headed under Xvfb
+      # mirrors the CI smoke job's proven config (HEADED skips the window-minimize
+      # and --headed launches a visible window the virtual display can render).
+      - name: Playwright (full suite, headed)
+        env:
+          VSCODE_PATH: /usr/share/code/code
+          HEADED: '1'
+        run: xvfb-run -a npx playwright test --headed
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-full
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 1

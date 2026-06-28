@@ -2,6 +2,16 @@
   import { send } from '$shared/messageBus';
   import type { GitFile } from '../types';
   import HunkView from './HunkView.svelte';
+  import {
+    buildTree,
+    allFilesInFolder,
+    countFiles,
+    cfg,
+    parseRename,
+    isConflict,
+    isDeleted,
+    type TreeFolder,
+  } from '../fileTree';
 
 
   interface Props {
@@ -57,90 +67,8 @@
     expanded = next;
   }
 
-  // ── Types ─────────────────────────────────────────────────────────────────
-  interface TreeFolder {
-    kind: 'folder';
-    label: string;
-    fullPath: string;
-    children: TreeNode[];
-  }
-  interface TreeFile {
-    kind: 'file';
-    file: GitFile;
-  }
-  type TreeNode = TreeFolder | TreeFile;
-
-  // ── Tree building ─────────────────────────────────────────────────────────
-  function buildTree(files: GitFile[]): TreeFolder {
-    const root: TreeFolder = { kind: 'folder', label: 'Changes', fullPath: '__root__', children: [] };
-    const folderMap = new Map<string, TreeFolder>();
-
-    for (const f of files) {
-      const parts = f.path.split('/');
-      if (parts.length === 1) {
-        root.children.push({ kind: 'file', file: f });
-        continue;
-      }
-      const dirParts = parts.slice(0, -1);
-      let parent = root;
-      let accumulated = '';
-      for (let i = 0; i < dirParts.length; i++) {
-        accumulated = accumulated ? accumulated + '/' + dirParts[i] : dirParts[i];
-        if (!folderMap.has(accumulated)) {
-          const folder: TreeFolder = {
-            kind: 'folder',
-            label: dirParts[i],
-            fullPath: accumulated,
-            children: [],
-          };
-          folderMap.set(accumulated, folder);
-          parent.children.push(folder);
-        }
-        parent = folderMap.get(accumulated)!;
-      }
-      parent.children.push({ kind: 'file', file: f });
-    }
-
-    // Compress single-child folder chains — creates new objects to avoid
-    // mutating nodes that are still referenced by folderMap keys
-    function compress(node: TreeFolder): void {
-      for (let i = 0; i < node.children.length; i++) {
-        const child = node.children[i];
-        if (child.kind !== 'folder') continue;
-        compress(child);
-        // Merge downward while there is exactly one folder child and no files
-        let cur = child;
-        while (cur.children.length === 1 && cur.children[0].kind === 'folder') {
-          const only = cur.children[0] as TreeFolder;
-          // Replace in parent's children array with a fresh merged node
-          const merged: TreeFolder = {
-            kind:     'folder',
-            label:    cur.label + '/' + only.label,
-            fullPath: only.fullPath,
-            children: only.children,
-          };
-          node.children[i] = merged;
-          cur = merged;
-        }
-      }
-    }
-    compress(root);
-
-    // Sort: folders first (alpha), then files (alpha)
-    function sortChildren(node: TreeFolder): void {
-      node.children.sort((a, b) => {
-        const af = a.kind === 'folder', bf = b.kind === 'folder';
-        if (af !== bf) return af ? -1 : 1;
-        const an = a.kind === 'folder' ? a.label : (a.file.path.split('/').pop() ?? '');
-        const bn = b.kind === 'folder' ? b.label : (b.file.path.split('/').pop() ?? '');
-        return an.localeCompare(bn);
-      });
-      for (const c of node.children) if (c.kind === 'folder') sortChildren(c);
-    }
-    sortChildren(root);
-
-    return root;
-  }
+  // Tree building, folder helpers and the status config live in ../fileTree
+  // (pure + unit-tested); this component just drives them reactively.
 
   // Real-index model (VS Code SCM semantics): the sections come from git's own
   // index/worktree split, not a client-side set. A file edited after staging
@@ -151,59 +79,6 @@
   let changesFiles = $derived(files.filter((f) => f.workStatus).map((f) => ({ ...f, status: f.workStatus! })));
   let stagedTree   = $derived(buildTree(stagedFiles));
   let changesTree  = $derived(buildTree(changesFiles));
-
-  // ── Folder helpers ────────────────────────────────────────────────────────
-  function allFilesInFolder(node: TreeFolder): string[] {
-    const paths: string[] = [];
-    function walk(n: TreeFolder) {
-      for (const c of n.children) {
-        if (c.kind === 'file') paths.push(c.file.path);
-        else walk(c);
-      }
-    }
-    walk(node);
-    return paths;
-  }
-
-  function countFiles(node: TreeFolder): number {
-    let n = 0;
-    for (const c of node.children) {
-      if (c.kind === 'file') n++;
-      else n += countFiles(c);
-    }
-    return n;
-  }
-
-  // ── Status config (matches DetailPane exactly) ────────────────────────────
-  const STATUS_CFG: Record<string, { label: string; nameClass: string; badgeClass: string }> = {
-    M: { label: 'M', nameClass: 'fname-m', badgeClass: 'badge-m' },
-    A: { label: 'A', nameClass: 'fname-a', badgeClass: 'badge-a' },
-    U: { label: 'U', nameClass: 'fname-u', badgeClass: 'badge-u' },
-    D: { label: 'D', nameClass: 'fname-d', badgeClass: 'badge-d' },
-    R: { label: 'R', nameClass: 'fname-r', badgeClass: 'badge-r' },
-    C: { label: 'C', nameClass: 'fname-c', badgeClass: 'badge-c' },
-    '!': { label: '!', nameClass: 'fname-conflict', badgeClass: 'badge-conflict' },
-  };
-  function cfg(status: string) {
-    return STATUS_CFG[status?.toUpperCase()?.[0] ?? 'M'] ?? STATUS_CFG['M'];
-  }
-
-  function parseRename(file: GitFile): { oldName: string | null; newName: string } {
-    if ((file as any).oldPath) {
-      return {
-        oldName: (file as any).oldPath.split('/').pop() ?? (file as any).oldPath,
-        newName: file.path.split('/').pop() ?? file.path,
-      };
-    }
-    const arrow = file.path.indexOf(' -> ');
-    if (arrow !== -1) {
-      return {
-        oldName: file.path.slice(0, arrow).split('/').pop() ?? file.path.slice(0, arrow),
-        newName: file.path.slice(arrow + 4).split('/').pop() ?? file.path.slice(arrow + 4),
-      };
-    }
-    return { oldName: null, newName: file.path.split('/').pop() ?? file.path };
-  }
 
   // ── Context menu (right-click on a file row) ──────────────────────────────
   let ctxVisible = $state(false);
@@ -254,20 +129,11 @@
     if (ctxFile && !isConflict(ctxFile)) onDiscard([ctxFile.path]);
   }
 
-  function isConflict(f: GitFile): boolean {
-    return f.status === '!';
-  }
-
   // Bulk discards skip conflicted files — the backend refuses a batch that
   // contains one, and conflicts have their own resolution flow (the banner).
   let fileByPath = $derived(new Map(files.map((f) => [f.path, f])));
   function discardable(paths: string[]): string[] {
     return paths.filter((p) => fileByPath.get(p)?.status !== '!');
-  }
-
-  // A deleted file has no working-tree copy to open or edit.
-  function isDeleted(f: GitFile): boolean {
-    return f.status?.toUpperCase() === 'D';
   }
 </script>
 

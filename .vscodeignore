@@ -25,6 +25,14 @@ vite.config.ts
 svelte.config.js
 svelte.config.mjs
 
+# Lint / CI config (dev + CI only, never used at runtime)
+.golangci.yml
+eslint.config.mjs
+.github/
+
+# Release tooling
+scripts/
+
 # ── TypeScript source (keep only compiled output) ──────────────────
 extension/src/
 extension/tsconfig.json
@@ -57,3 +65,4 @@ bin/hydragit-server
 # ── Dev docs / notes (not used at runtime) ─────────────────────────
 documentation/
 .vscode/
+Readiness.md

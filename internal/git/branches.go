@@ -268,9 +268,9 @@ func Merge(repoPath, branch string) error {
 	return err
 }
 
-// Reset moves the current branch tip to the given commit.
+// reset moves the current branch tip to the given commit.
 // mode: "soft", "mixed" (default), or "hard". Anything else is treated as mixed.
-func Reset(repoPath, commit, mode string) error {
+func reset(repoPath, commit, mode string) error {
 	flag := "--mixed"
 	switch mode {
 	case "soft":
@@ -293,7 +293,7 @@ func hasTrackedChanges(repoPath string) (bool, error) {
 	return strings.TrimSpace(out) != "", nil
 }
 
-// ResetWithAutostash is Reset with a safety net: before a `--hard` reset (the
+// ResetWithAutostash is reset with a safety net: before a `--hard` reset (the
 // only mode that discards working-tree changes) it auto-stashes any tracked
 // modifications so nothing is lost — they land in a recoverable stash. soft and
 // mixed keep changes, so they never stash. Returns stashed=true when it did.
@@ -310,7 +310,7 @@ func ResetWithAutostash(repoPath, commit, mode string) (stashed bool, err error)
 			stashed = true
 		}
 	}
-	if rerr := Reset(repoPath, commit, mode); rerr != nil {
+	if rerr := reset(repoPath, commit, mode); rerr != nil {
 		return stashed, rerr
 	}
 	return stashed, nil

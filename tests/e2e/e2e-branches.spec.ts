@@ -39,15 +39,18 @@ test("D22 a dirty conflicting file blocks checkout until stashed", async ({ main
 
   const menu = await rightClickBranch(f, "feature/auth");
   await menu.getByText("Switch to Branch", { exact: true }).click();
-  // Blocked: an error flash appears and HEAD did not move.
+  // Blocked: HEAD did not move and switchToBranch() puts up a stash/cancel
+  // confirm (uiConfirm). Its modal backdrop blocks the webview, so Cancel it
+  // FIRST — cancelling is also what emits the readable "Checkout cancelled"
+  // flash we then assert on (reading before answering races the modal on CI).
   await expect(async () => {
     expect(git(r, "rev-parse --abbrev-ref HEAD")).toBe(defaultBranch(r));
   }).toPass({ timeout: 6000 });
-  expectReadableError(await flashText(f));
-
-  // Clear any leftover menu/modal so the rail is clickable, then stash → retry.
   await dismissModalIfAny(mainWindow, "Cancel");
   await mainWindow.keyboard.press("Escape");
+  expectReadableError(await flashText(f));
+
+  // Stash → retry.
   await f.locator('button.rail-btn[aria-label="Stash changes"]').click();
   await expect(flash(f)).toBeVisible({ timeout: 6000 });
   const menu2 = await rightClickBranch(f, "feature/auth");

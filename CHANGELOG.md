@@ -11,6 +11,124 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
+## [0.3.0] — 2026-06-28
+
+### Added
+
+- **CI pipeline + two-language lint gate.** New `.github/workflows/ci.yml` mirrors
+  `make install-local` (lint · test · package) but fans out into parallel jobs,
+  each mapped to a Makefile target so CI and local stay in sync. Runs on every
+  push to `develop`/`master` and every PR: **`lint`** (`make lint` —
+  golangci-lint + ESLint), **`test-go`** (`go test -race ./internal/...` across a
+  **`ubuntu-latest` + `windows-latest`** matrix, to catch git path/CRLF/exec
+  differences), **`test-ts`** (`make test-ts` — Vitest), **`package`**
+  (`make package` — build-all + extension + webview + vsce, uploads the `.vsix`),
+  and **`e2e`** (Ubuntu: runs `make build`, installs real VS Code via the apt
+  repo, and runs a 3-scenario Playwright smoke set — activation, branches, graph
+  render — **headed** under Xvfb). Lint config is `.golangci.yml` (golangci-lint schema v2 —
+  `standard` set plus
+  revive/gocritic/bodyclose/misspell/nakedret/unconvert/unparam/usestdlibvars,
+  `errcheck.check-type-assertions`, `goimports` local-prefix `hydragit`; doc/
+  funlen/cyclop rules pre-written but commented as a future ratchet) and
+  `eslint.config.mjs` (ESLint 9 flat config for the TS host + Svelte 5 webview,
+  `eslint-config-prettier` last so Prettier owns formatting). New `make lint` /
+  `lint-go` / `lint-ts` / `lint-fix` targets and `npm run lint` / `lint:fix`
+  scripts; ESLint devDeps added to `package.json`.
+- **`docs/RELEASE_GUIDE.md` — self-contained release & distribution walkthrough.**
+  Step-by-step from pre-release checks through `make release`, packaging, and
+  shipping via three paths (GitHub Releases / VS Code Marketplace / Open VSX), with
+  one-time account setup, a semver policy, hotfix flow, and a troubleshooting table.
+  Includes the **macOS code-signing** step: cross-compiled `darwin-arm64` binaries
+  must be **ad-hoc signed** (`codesign --sign -`, free, no Apple account) or Apple
+  Silicon SIGKILLs them; notarization (paid account) is explained as not required
+  for a spawned helper binary.
+
+### Changed
+
+- **Pinned TypeScript to `^5.9.3`** (was `^6.0.2`) so `make webview-check`
+  (`svelte-check` 4.4.5) runs green again — svelte-check 4.x crashed against the
+  TS 6.x compiler API, which had forced the type-check to be treated as
+  non-blocking. Pure tooling-version fix; no source or type changes.
+- **Code-quality pass (release-readiness audit).** Trimmed the `internal/git`
+  public surface — `Reset`, `MergeAbort`, `MergeContinue` (only ever used
+  in-package) are now unexported `reset` / `mergeAbort` / `mergeContinue`, and the
+  test-only `Log` convenience wrapper became unexported `logCommits` (its one
+  cross-package caller, `internal/graph/wide_test.go`, now uses the public
+  `LogWith`). The three scattered `GIT_SEQUENCE_EDITOR=cp` / `GIT_EDITOR=cp` rebase
+  call sites collapse into one `copyEditor()` helper (`internal/git/rebase.go`) —
+  the single seam for the pending cross-platform/Windows fix.
+- **IPC param decoding centralized.** All 62 command handlers in
+  `internal/ipc/handler.go` previously made a bare `json.Unmarshal(req.Params, …)`
+  call; they now route through a single documented `decodeParams()` helper. The
+  intentional behavior is unchanged and now explained in one place: a decode
+  error is tolerated by design — read commands (log, diff, …) degrade to
+  zero-value options (e.g. an unfiltered full log) rather than failing, and
+  mutating commands stay safe because `missingParam` rejects the empty required
+  fields a failed decode leaves behind (`TestHandle_malformedParamsJSON`).
+- **`internal/ipc/handler.go` dispatch converted to a handler registry.** The
+  1,246-line / 88-case `switch req.Cmd` is now a `map[string]cmdFunc` — each
+  command is an independently testable `handle*(repoPath, id, req) Response`
+  function in the new `handler_commands.go` (84 functions, 89 routed commands).
+  `handler.go` drops from 1,264 to 250 lines (just `Handle()`, a slim map-lookup
+  `handle()`, and shared helpers). Pure refactor — case bodies were moved
+  verbatim; build, full `go test ./internal/...`, and golangci-lint stay green,
+  and every mutating/auto-snapshot command is confirmed to have a handler.
+- **DetailPane.svelte decomposed into child components (1,314 → ~456 lines).** The
+  detail pane was a god-component that rendered the changed-files tree **twice**
+  (near-identical markup for the commit and stash views) and inlined the meta
+  panel. Split into: `ChangedFiles.svelte` (the file tree — now one component used
+  by both views, killing the duplication), `CommitMeta.svelte` (the meta panel:
+  commit card / stash card / compare header, plus the ⋯ overflow menu and
+  button tooltips), and a pure `fileTree.ts` (`buildTree`/`countFiles`, unit-
+  tested). DetailPane is now a thin shell: pane wrapper + empty state + the
+  per-file context menu, composing the two children. Behaviour preserved (its
+  public props are unchanged; the existing DetailPane tests mount it and exercise
+  both children); the only intended visual delta is the *stash* file list gaining
+  the same toolbar totals/tooltips/rename rows the commit view already had.
+- **BranchPane.svelte — pure tree logic extracted (947 → 861 lines).** The branch
+  folder/leaf tree machinery (`buildTree`/`sortTree`/`mergeOpen`/`openAll`, the
+  node types, and `worktreeLabel`) moved to a unit-tested `branchTree.ts` (same
+  `fileTree.ts` pattern); the component keeps the reactive `$state`/`$effect.pre`
+  orchestration that drives it. The branch/stash/snapshot/tag/worktree list
+  *markup* is still inline — a larger sub-component split left for later.
+- **Toolbar.svelte — search-scope logic extracted (904 → 896 lines).** The token
+  search machinery (the `SCOPES` table, the prefix→chip / `@`-shorthand
+  `detectScope`, `scopeById`, and the code-box `codeMeta` geometry) moved to a
+  unit-tested `searchScope.ts` (same `fileTree.ts`/`branchTree.ts` pattern); the
+  component keeps the reactive `$state`/`$derived` that drives the input.
+- **Sidebar FileTree.svelte — pure tree logic extracted (891 → 757 lines).** The
+  staging-view tree machinery (`buildTree` with single-child-chain compression +
+  folders-first sort, `allFilesInFolder`/`countFiles`) and the status helpers
+  (`STATUS_CFG`/`cfg`/`parseRename`/`isConflict`/`isDeleted`) moved to a unit-
+  tested `sidebar/fileTree.ts`; the component keeps the reactive `$derived`/`$state`
+  and the row/folder markup. (The `(file as any).oldPath` cast went away — `oldPath`
+  is a real `GitFile` field.)
+- **App.svelte decomposition (incremental).** Extracted the pure logic out of the
+  1,612-line `App.svelte` `<script>` into co-located tested modules (the
+  established `syncPlan.ts`/`stashRedirect.ts` pattern): `worktreePath.ts`
+  (`worktreeDefaultPath` + `worktreeBranchOptions`), `menuPosition.ts`
+  (`clampMenuPosition`, deduped from 4 context-menu handlers), `refName.ts`
+  (`shortBranchName`/`splitRemoteRef`, deduped from ~5 inline sites), and
+  `resetMode.ts` (`parseResetMode`). Behaviour unchanged; full Vitest suite (462
+  tests, +3 files) and the vite build stay green. The remaining `<script>` is
+  stateful orchestration left in the component by design.
+- **Linter-clean pass — `make lint` is green (0 Go issues, 0 ESLint errors).**
+  Resolving the gate's findings: `cmd/hydragit/main.go` uses a `run() int` helper
+  so deferred `logger.Close()` always flushes (no `os.Exit` skipping defers);
+  `internal/git/stash.go` parses numstat via `strconv.Atoi` instead of unchecked
+  `fmt.Sscanf`; `internal/logger` passes the 136-byte `Entry` by pointer; small
+  test cleanups (named-return, builtin-shadow `max`, embedded-field selectors).
+  The Go lint surface is fully green; the webview keeps 189 non-blocking warnings
+  (mostly compiler a11y hints on existing components) intentionally left as a
+  ratchet. ESLint is Svelte-5-aware (runes use `let`; reactive statements aren't
+  "unused expressions") and ignores vite build output under `webview/`.
+- **Docs site branding** — `documentation/index.html` hero now uses the
+  HydraGit banner (`assets/hydragit-banner.png`) as the backdrop with the
+  headline + pills overlaid on its empty right half (`.hero-stage` /
+  `.hero-copy`, responsive stack under 880px). The top-bar brand glyph swaps
+  the `⬡` octagon for the real app icon (`assets/icon.png`, `.brand-icon`),
+  and the version label is synced to v0.3.0. Styles in `assets/style.css`.
+
 ## [0.2.9] — 2026-06-22
 
 ### Added
@@ -226,6 +344,7 @@ The MVP was replaced with the real foundation in this range (~8 400 insertions).
 
 Everything HydraGit ships today, by topic. Each entry links to its full
 documentation (UI entry point → what happens next) in
+[0.3.0]: https://github.com/latte-incognito/hydragit/compare/v0.2.9...v0.3.0
 [0.2.9]: https://github.com/latte-incognito/hydragit/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/latte-incognito/hydragit/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/latte-incognito/hydragit/compare/v0.2.6...v0.2.7
@@ -258,8 +377,6 @@ documentation (UI entry point → what happens next) in
 **Worktrees** — [list](documentation/features/worktrees.html#list) · [add](documentation/features/worktrees.html#add) · [open in new window](documentation/features/worktrees.html#open) · [lock / unlock](documentation/features/worktrees.html#lock) · [move](documentation/features/worktrees.html#move) · [remove](documentation/features/worktrees.html#remove) · [prune stale](documentation/features/worktrees.html#prune)
 
 **Context menus & tooling** — [commit](documentation/features/context-menus.html#commit) / [branch](documentation/features/context-menus.html#branch) / [stash](documentation/features/context-menus.html#stash) / [tag](documentation/features/context-menus.html#tag) context menus · [logging & diagnostics](documentation/features/logging.html) · [version info](documentation/features/logging.html#version) · [force refresh](documentation/features/logging.html#refresh)
-
-> Backlog / not-yet-built features live in [`docs/ROADMAP.md`](docs/ROADMAP.md) §5.
 
 [0.2.6]: https://github.com/latte-incognito/hydragit/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/latte-incognito/hydragit/compare/v0.2.4...v0.2.5

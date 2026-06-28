@@ -60,8 +60,8 @@ func TestMergeContinue_completesAfterResolve(t *testing.T) {
 	if err := KeepCurrent(dir, "f.txt"); err != nil {
 		t.Fatal(err)
 	}
-	if err := MergeContinue(dir); err != nil {
-		t.Fatalf("MergeContinue failed: %v", err)
+	if err := mergeContinue(dir); err != nil {
+		t.Fatalf("mergeContinue failed: %v", err)
 	}
 	// Merge is finished — no operation, no conflicts.
 	info, _ := Conflicts(dir)
@@ -73,8 +73,8 @@ func TestMergeContinue_completesAfterResolve(t *testing.T) {
 func TestMergeAbort_restores(t *testing.T) {
 	dir := makeConflictRepo(t)
 
-	if err := MergeAbort(dir); err != nil {
-		t.Fatalf("MergeAbort failed: %v", err)
+	if err := mergeAbort(dir); err != nil {
+		t.Fatalf("mergeAbort failed: %v", err)
 	}
 	if info, _ := Conflicts(dir); info.Operation != "" {
 		t.Fatalf("merge should be aborted; got operation=%q", info.Operation)

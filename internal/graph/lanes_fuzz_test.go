@@ -77,8 +77,8 @@ func FuzzAssignLanes(f *testing.F) {
 			if !palette[lc.Color] {
 				t.Fatalf("row %d: color %q not in palette", i, lc.Color)
 			}
-			if lc.Commit.Hash != commits[i].Hash {
-				t.Fatalf("row %d: order changed, got %q want %q", i, lc.Commit.Hash, commits[i].Hash)
+			if lc.Hash != commits[i].Hash {
+				t.Fatalf("row %d: order changed, got %q want %q", i, lc.Hash, commits[i].Hash)
 			}
 			for _, e := range lc.Edges {
 				if e.FromLane < 0 || e.ToLane < 0 {

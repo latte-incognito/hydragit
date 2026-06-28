@@ -1,0 +1,231 @@
+name: CI
+
+# Mirrors `make install-local` (lint · test · package) but split into parallel
+# jobs, plus a Playwright e2e job. Each job maps to a Makefile target so CI and
+# local stay in sync — change the Makefile, CI follows.
+
+on:
+  push:
+    branches: [develop, master]
+  pull_request:
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # === make lint (golangci-lint + eslint) =================================
+  lint:
+    name: Lint — make lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      # `make lint-go` shells out to the golangci-lint binary (config in
+      # .golangci.yml, schema v2 → needs golangci-lint v2).
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
+            | sh -s -- -b "$(go env GOPATH)/bin"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: make lint
+        run: make lint
+
+  # === make test-go (Go unit + -race) =====================================
+  test-go:
+    name: Go tests (-race) — ${{ matrix.os }}
+    strategy:
+      # Both legs must report — cross-platform git path/CRLF/exec differences
+      # surface here, so don't let one OS cancel the other.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      # Tests create real temp repos. Some do a bare `git init` + `git commit`
+      # without setting a local identity or branch, so they inherit the global
+      # git config — which a CI runner lacks. Without this: commits fail (no
+      # HEAD → TestRun) and new repos default to `master` not `main`
+      # (TestCheckout's `git checkout main` then no-ops). Mirrors a dev machine.
+      - name: Configure global git identity
+        run: |
+          git config --global user.email "ci@hydragit.test"
+          git config --global user.name "HydraGit CI"
+          git config --global init.defaultBranch main
+          # Windows git defaults core.autocrlf=true → checkouts gain \r\n and
+          # tests that assert exact file content (KeepCurrent, Discard, snapshot
+          # restore, …) fail. Keep line endings verbatim, like a Linux/macOS dev.
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      # Linux mirrors `make test-go`'s gotestsum output (installed on the fly —
+      # it's not a project dep), but adds the mandatory -race the Makefile target
+      # omits (the concurrency suite is why -race exists). Windows has neither
+      # make nor gotestsum, so it runs `go test` directly — behaviour-identical
+      # package set (everything under internal/, cmd excluded), same -race.
+      - name: Install gotestsum (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          go install gotest.tools/gotestsum@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: go test -race (Linux, gotestsum)
+        if: runner.os == 'Linux'
+        run: gotestsum --format testname -- -race ./internal/...
+
+      # Windows git ops are ~12× slower than Linux (process-spawn cost), so the
+      # internal/git package alone takes ~2min. -timeout 300s gives that headroom
+      # while still catching a genuine hang well before the 10-min default; -v
+      # keeps per-test progress visible (and names any future stall).
+      - name: go test -race (Windows)
+        if: runner.os == 'Windows'
+        run: go test -race -v -timeout 300s ./internal/...
+
+  # === make test-ts (Vitest) ==============================================
+  test-ts:
+    name: Web tests — make test-ts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: make test-ts
+        run: make test-ts
+
+  # === make package (build-all + extension + webview + vsce) ===============
+  package:
+    name: Package — make package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      # `make package` calls vsce; it's not a project dep, install it globally.
+      - name: Install vsce
+        run: npm i -g @vscode/vsce
+
+      - name: make package
+        run: make package
+
+      - name: Upload .vsix
+        uses: actions/upload-artifact@v4
+        with:
+          name: hydragit-vsix
+          path: '*.vsix'
+          retention-days: 1
+
+  # === Playwright e2e smoke (3 scenarios) =================================
+  e2e:
+    name: E2E — Playwright smoke (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      # The fixture launches VS Code with --extensionDevelopmentPath, so the
+      # plugin runs straight from the build: Go binary in bin/, compiled host,
+      # built webview. `make build` produces all three.
+      - name: make build
+        run: make build
+
+      # Fixture scripts commit into temp repos — a CI runner has no git identity.
+      - name: Configure git identity
+        run: |
+          git config --global user.email "ci@hydragit.test"
+          git config --global user.name "HydraGit CI"
+          git config --global init.defaultBranch main
+
+      # VS Code via the official apt repo (.deb pulls every native lib) + Xvfb.
+      # The fixture honours VSCODE_PATH; point it at the real Electron binary the
+      # .deb installs.
+      - name: Install VS Code + Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gpg xvfb
+          wget -qO- https://packages.microsoft.com/keys/microsoft.asc \
+            | gpg --dearmor > packages.microsoft.gpg
+          sudo install -D -o root -g root -m 644 packages.microsoft.gpg \
+            /etc/apt/keyrings/packages.microsoft.gpg
+          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" \
+            | sudo tee /etc/apt/sources.list.d/vscode.list
+          sudo apt-get update
+          sudo apt-get install -y code
+
+      # Headed run: the fixture skips the window-minimize when HEADED is set, and
+      # --headed tells Playwright to launch with a visible window. Xvfb provides
+      # the virtual display so the headed Electron window has somewhere to render.
+      - name: Playwright smoke (headed)
+        env:
+          VSCODE_PATH: /usr/share/code/code
+          HEADED: '1'
+        run: |
+          xvfb-run -a npx playwright test --project=vscode --headed \
+            tests/e2e/hydragit.spec.ts \
+            tests/e2e/e2e-branches.spec.ts \
+            tests/e2e/graph-render.spec.ts
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 1

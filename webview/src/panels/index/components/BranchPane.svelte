@@ -1,6 +1,15 @@
 <script lang="ts">
   import type { Branch, Snapshot, Stash, Worktree } from '../types';
   import { smartDate } from '$shared/dates';
+  import {
+    buildTree,
+    sortTree,
+    mergeOpen,
+    openAll,
+    worktreeLabel,
+    type FolderNode,
+    type TreeNode,
+  } from '../branchTree';
 
 
   interface Props {
@@ -63,22 +72,6 @@
 
   let snapshotsOpen = $state(false);
 
-  // ── Types ────────────────────────────────────────────────────────────────────
-
-  interface FolderNode {
-    kind: 'folder';
-    label: string;
-    children: TreeNode[];
-    open: boolean;
-  }
-  interface LeafNode {
-    kind: 'leaf';
-    branch: Branch;
-    fullName?: string;   // remote: full name for IPC calls e.g. "origin/feature-x"
-    displayName?: string; // remote: short name for display e.g. "feature-x"
-  }
-  type TreeNode = FolderNode | LeafNode;
-
   // ── Filter ────────────────────────────────────────────────────────────────────
   // Type-to-filter across every section. While filtering, sections render open
   // and branch folders auto-expand so matches are never hidden.
@@ -126,66 +119,6 @@
     {} as Record<string, { branch: Branch; short: string }[]>
   ));
 
-  // ── Tree builder ──────────────────────────────────────────────────────────────
-  //
-  // Converts a flat list of {name, branch} into a nested FolderNode / LeafNode
-  // tree. Names with slashes are nested; top-level names become leaves directly.
-
-  function buildTree(items: { name: string; branch: Branch; fullName?: string; displayName?: string }[]): TreeNode[] {
-    const root: TreeNode[] = [];
-    for (const { name, branch, fullName, displayName } of items) {
-      const parts = name.split('/');
-      if (parts.length === 1) {
-        root.push({ kind: 'leaf', branch, fullName, displayName });
-        continue;
-      }
-      let children = root;
-      for (let i = 0; i < parts.length - 1; i++) {
-        const label = parts[i];
-        let folder = children.find(
-          (n): n is FolderNode => n.kind === 'folder' && n.label === label
-        );
-        if (!folder) {
-          folder = { kind: 'folder', label, children: [], open: false };
-          children.push(folder);
-        }
-        children = folder.children;
-      }
-      children.push({ kind: 'leaf', branch, fullName, displayName });
-    }
-    return root;
-  }
-
-  // Sort a tree level: folders first (alpha), then leaves (alpha by display name)
-  function sortLevel(nodes: TreeNode[]): TreeNode[] {
-    return [...nodes].sort((a, b) => {
-      if (a.kind === b.kind) {
-        const aLabel = a.kind === 'folder' ? a.label : (a.displayName ?? a.branch.name.split('/').pop()!);
-        const bLabel = b.kind === 'folder' ? b.label : (b.displayName ?? b.branch.name.split('/').pop()!);
-        return aLabel.localeCompare(bLabel);
-      }
-      return a.kind === 'folder' ? -1 : 1;
-    });
-  }
-
-  function sortTree(nodes: TreeNode[]): TreeNode[] {
-    return sortLevel(nodes).map((n) =>
-      n.kind === 'folder' ? { ...n, children: sortTree(n.children) } : n
-    );
-  }
-
-  // Preserve open/close state when data re-fetches
-  function mergeOpen(old: TreeNode[], next: TreeNode[]) {
-    for (const node of next) {
-      if (node.kind !== 'folder') continue;
-      const prev = old.find((n): n is FolderNode => n.kind === 'folder' && n.label === node.label);
-      if (prev) {
-        node.open = prev.open;
-        mergeOpen(prev.children, node.children);
-      }
-    }
-  }
-
   // openState caches are deliberately NOT $state — the effects below both read
   // and write them; making them reactive would retrigger the effects forever.
   let localOpenCache:  TreeNode[] = [];
@@ -193,16 +126,6 @@
 
   let localTree:   TreeNode[] = $state([]);
   let remoteTrees: Record<string, TreeNode[]> = $state({});
-
-  // While filtering, every folder is forced open so matches are visible.
-  function openAll(nodes: TreeNode[]) {
-    for (const n of nodes) {
-      if (n.kind === 'folder') {
-        n.open = true;
-        openAll(n.children);
-      }
-    }
-  }
 
   // $effect.pre so the trees are computed before paint (no empty-tree flash).
   $effect.pre(() => {
@@ -250,15 +173,6 @@
   let tagsOpen = $state(false);
   let stashOpen = $state(false);
   let worktreesOpen = $state(false);
-
-  // Label for a worktree row: branch name, else a short detached hash, else the
-  // folder basename (covers bare/odd cases).
-  function worktreeLabel(wt: Worktree): string {
-    if (wt.bare) return '(bare)';
-    if (wt.branch) return wt.branch;
-    if (wt.detached && wt.head) return `${wt.head.slice(0, 7)} (detached)`;
-    return wt.path.split(/[\\/]/).pop() ?? wt.path;
-  }
 
   function isOriginOpen(o: string) { return remoteOriginOpen[o] ?? true; }
   function toggleOrigin(o: string) {

@@ -20,6 +20,13 @@ var (
 )
 
 func main() {
+	// Run in a helper that returns the exit code so deferred cleanup (logger
+	// flush) always runs — os.Exit skips defers, so it's never called from
+	// inside run().
+	os.Exit(run())
+}
+
+func run() int {
 	repoPath := os.Getenv("HYDRAGIT_REPO")
 	if repoPath == "" {
 		repoPath = "."
@@ -30,7 +37,7 @@ func main() {
 
 	if *showVersion {
 		fmt.Printf("version=%s commit=%s built=%s\n", version, commit, buildTime)
-		return
+		return 0
 	}
 
 	// Initialise logger.
@@ -96,8 +103,9 @@ func main() {
 	if err := scanner.Err(); err != nil {
 		logger.Error("process", "stdin error: "+err.Error())
 		fmt.Fprintf(os.Stderr, "stdin error: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	logger.Info("process", "shutdown clean")
+	return 0
 }
