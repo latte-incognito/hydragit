@@ -1,7 +1,7 @@
 <!-- Absolute raw URL so it renders in the Marketplace / Details view (relative
      paths never resolve there). NOTE: 404s until the GitHub repo is PUBLIC. -->
 <p align="center">
-  <img src="https://raw.githubusercontent.com/latte-incognito/hydragit/develop/images/hydragit-banner.png" alt="HydraGit" width="100%">
+  <img src="https://raw.githubusercontent.com/latte-incognito/hydragit/develop/images/hydragit-banner.png?v=1" alt="HydraGit" width="100%">
 </p>
 
 # HydraGit
@@ -9,7 +9,7 @@
 > **An IntelliJ-style git panel for VS Code — branches, history, and diff in one place. No paywall.**
 
 <!-- Absolute raw URL (renders in the Marketplace). NOTE: 404s until repo is PUBLIC. -->
-![HydraGit demo](https://raw.githubusercontent.com/latte-incognito/hydragit/develop/docs/hydragit-demo.gif)
+![HydraGit demo](https://raw.githubusercontent.com/latte-incognito/hydragit/develop/docs/hydragit-demo.gif?v=1)
 
 Everything git, in **one panel**: your branch tree, the full commit graph, and the
 diff — right where you'd expect them. Click a branch to switch. Click a commit to
@@ -62,9 +62,6 @@ Open it from either surface:
 
 Editor extras: right-click a file → **HydraGit: File History**; select lines →
 **History for Selection**; **Toggle Line Blame** for inline blame.
-
-> **TODO before publishing:** record the demo GIF for the Marketplace listing
-> (15s: open panel → branch tree → click branch → log → click commit → detail → file → diff → right-click → context menu). Extensions without a GIF get ~5× fewer installs.
 
 ## License
 

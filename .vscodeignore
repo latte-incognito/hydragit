@@ -34,15 +34,23 @@ eslint.config.mjs
 scripts/
 
 # ── TypeScript source (keep only compiled output) ──────────────────
+# NB: do NOT add `!extension/out/**` — that negation re-includes the whole tree
+# and overrides the test/source-map excludes below, leaking *.test.js into the
+# package. Nothing here excludes extension/out/*.js, so the compiled JS ships
+# without needing a negation.
 extension/src/
 extension/tsconfig.json
 extension/node_modules/
 **/*.ts
-!extension/out/**
+
+# Compiled test files + source maps (dev-only; never needed at runtime)
+**/*.test.js
+**/*.js.map
 
 # ── Webview source (keep only compiled output) ─────────────────────
 webview/src/
 webview/node_modules/
+webview/dist/
 
 # ── Node modules ───────────────────────────────────────────────────
 node_modules/
@@ -55,7 +63,6 @@ playwright.config.ts
 vitest.config.ts
 vitest-setup.ts
 **/*.test.ts
-**/*.test.js
 **/*.spec.ts
 
 # ── Dev binary (runtime uses bin/<platform>-suffixed names) ────────
