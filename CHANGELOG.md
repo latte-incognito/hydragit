@@ -11,6 +11,33 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
+## [Unreleased]
+
+### Fixed
+
+- **Scripted interactive rebase now works on Windows** (reword, drop, squash,
+  squash-with-parent, and the drag-and-drop rebase editor). These drive git
+  non-interactively by handing `GIT_SEQUENCE_EDITOR` / `GIT_EDITOR` a command
+  that overwrites git's todo/message file with one HydraGit pre-builds. That
+  command was POSIX `cp`, which git's shell can't reliably resolve on Windows —
+  so every scripted rebase failed there. The single `copyEditor()` seam
+  (`internal/git/rebase.go`) now points git at **HydraGit's own binary** in a new
+  `--hydragit-copy-editor <src>` self-exec mode (`internal/git/copyeditor.go`):
+  git runs `<hydragit-server> --hydragit-copy-editor <src> <fileToEdit>` and the
+  binary copies `src` over `fileToEdit` — no external command, identical on every
+  platform. The self-exec is answered in an `init()` so it works from both the
+  shipped server **and** the `go test` binary (which spawns the same path in the
+  rebase tests); paths are forward-slashed + quoted so git's shell (incl. the
+  MSYS shell on Windows) parses them. Non-scripted rebases were unaffected (they
+  use `GIT_EDITOR=true`, a shell builtin). New unit tests in
+  `internal/git/copyeditor_test.go`: the copy round-trip, a missing-source
+  negative that leaves the target intact, the command-string format
+  (forward-slashed, quoted, no surviving backslashes, points at this binary),
+  and — the core of the fix — **spawning this binary with the sentinel args** to
+  prove `init()` intercepts and copies (plus its missing-source negative). The
+  existing reword/squash/interactive-rebase tests are the end-to-end coverage of
+  the self-exec through real git.
+
 ## [0.3.0] — 2026-06-28
 
 ### Added

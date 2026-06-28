@@ -11,13 +11,14 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Remotes &amp; Sync</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.8</span>
+    <span class="ver">v0.3.1</span>
   </header>
 
   <div class="page">
     <aside class="toc">
       <h4>On this page</h4>
       <a href="#sync" class="head">Sync</a>
+      <a href="#statusbar">Status-bar pills</a>
       <a href="#fetch">Fetch</a>
       <a href="#pull">Pull + pull mode</a>
       <a href="#push">Push</a>
@@ -58,6 +59,25 @@
               <span class="cmd">pull.mode</span> (rebase) / <span class="cmd">push</span>, then
               flashes a receipt ("Synced · pulled 4 · pushed 1"). Log, tree and status refresh.</li>
         </ol>
+      </section>
+
+      <section class="feature" id="statusbar">
+        <h2>Status-bar pills (one-click sync actions)</h2>
+        <p>The main panel's status bar turns the ahead/behind state into a single
+           <b>clickable pill</b> — the right remote action for where the branch is, without
+           opening the action rail. Each pill runs the exact same handler as its rail button.</p>
+        <h3 class="lbl">Entry points</h3>
+        <ul class="entrypoints">
+          <li><span class="where">Status bar</span><span class="what">The ahead/behind pill in the main-panel status bar (it shows only when there's something to do).</span></li>
+        </ul>
+        <h3 class="lbl">Which pill shows</h3>
+        <ol class="flow">
+          <li><b>↑ Publish</b> — on a branch with <b>no upstream</b> → runs <span class="cmd">push</span> as <code>push -u origin HEAD</code> (push + set upstream in one click). A detached HEAD keeps its own "create a branch" banner instead.</li>
+          <li><b>↓ N Pull</b> — when <b>behind</b> → the same action as the rail <a href="#pull">Pull</a> button.</li>
+          <li><b>↑ N Push</b> — when <b>ahead</b> → the rail <a href="#push">Push</a> (which still offers <a href="#force">force-with-lease</a> on a non-fast-forward rejection).</li>
+          <li><b>⇅ Sync</b> — when <b>diverged</b> (ahead <i>and</i> behind) → the full <a href="#sync">Smart Sync</a>. Shown only when diverged; a purely ahead/behind branch already gets the directional Push/Pull pill.</li>
+        </ol>
+        <p>Driven by <code>status.hasUpstream</code> / <code>ahead</code> / <code>behind</code>; the Sync and Publish pills use VS Code's prominent status-bar accent tokens.</p>
       </section>
 
       <section class="feature" id="fetch">

@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Views &amp; Layout<span class="sep">/</span>File &amp; line history</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.8</span>
+    <span class="ver">v0.3.1</span>
   </header>
 
   <div class="page">
@@ -37,12 +37,14 @@
           <li class="kbd"><span class="where">Command</span><span class="what"><b>HydraGit: File History</b> <span class="cmd amber">hydragit.fileHistory</span> from the Command Palette.</span></li>
           <li><span class="where">Explorer</span><span class="what">Right-click a file in the Explorer → <b>HydraGit: File History</b> (group <code>9_hydragit</code>).</span></li>
           <li><span class="where">Editor</span><span class="what">Right-click in the editor body, or in the editor <b>title</b> context menu → <b>File History</b>.</span></li>
+          <li><span class="where">Commit file menu</span><span class="what">Right-click a file in a commit's <a href="commit-log-graph.html#detail">changed-files list</a> → <b>History Up to Here</b> — opens the file's history <b>truncated to that revision and older</b>.</span></li>
         </ul>
         <h3 class="lbl">What happens next</h3>
         <ol class="flow">
           <li>A dedicated history view opens for the file path.</li>
           <li>Go runs <span class="cmd amber">file.history</span> (with rename-following) and returns the commit list; <span class="cmd">log.file</span> backs the in-panel "file" search.</li>
           <li>Selecting any revision shows its diff for that file; you can compare a revision against your working copy.</li>
+          <li><b>History Up to Here</b> threads an <code>atRef</code> through <span class="cmd amber">file.history</span> so the timeline starts at the chosen commit — useful for "how did this file look up to <em>this</em> point?"</li>
         </ol>
         <div class="related"><b>Related</b><a href="search-filter.html">File search</a><a href="compare.html#file">Compare file vs local</a></div>
       </section>

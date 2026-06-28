@@ -12,15 +12,33 @@
 
 # HydraGit
 
-> IntelliJ-style git panel inside VS Code. Branch tree, commit log, diff — all in one place. No paywalls.
+> **An IntelliJ-style git panel for VS Code — branches, history, and diff in one place. No paywall.**
 
 [GIF HERE]
 
-## Why
-GitLens went paywalled. VS Code's built-in git panel has no history view.
-If you came from IntelliJ and miss having everything in one panel — this is it.
+Everything git, in **one panel**: your branch tree, the full commit graph, and the
+diff — right where you'd expect them. Click a branch to switch. Click a commit to
+see what changed. Right-click for the action you want. That's the whole learning
+curve.
 
-## Features
+No sign-in, no cloud, no "upgrade to Pro." HydraGit drives plain `git` through a
+tiny local binary — your code never leaves your machine — so it's instant on the
+first open and works fully offline.
+
+## Why
+I love how the JetBrains-style IDEs put branches, history, and diff in one place —
+and I missed that in VS Code, where the built-in git view has no history graph. So
+I built the panel I wanted: that one-panel workflow, native to VS Code, and **free
+for good**.
+
+## What you get
+Three things, immediately, with zero config:
+
+- 🌳 **See your history** — a real lane graph of every branch and commit, virtualized so it stays smooth on huge repos.
+- 🖱️ **Move around it** — one click to switch branches, stage, commit, push, stash, or diff. No command palette spelunking.
+- 🛟 **Fix mistakes safely** — visual interactive rebase, guided conflict resolution, and an undo timeline that auto-snapshots before anything risky.
+
+## All features
 - **Branch tree** — local + remote, folder grouping, right-click actions, ahead/behind
 - **Commit log + lane graph** — HydraGit's own lane engine, virtualized full history, hover-highlight, search (message / hash / file / author)
 - **Inline diff** — click a commit, see changed files and per-file hunks

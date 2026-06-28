@@ -11,13 +11,14 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Context Menus</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.8</span>
+    <span class="ver">v0.3.1</span>
   </header>
 
   <div class="page">
     <aside class="toc">
       <h4>On this page</h4>
       <a href="#commit" class="head">Commit context menu</a>
+      <a href="#commit-file">Commit file context menu</a>
       <a href="#branch">Branch context menu</a>
       <a href="#stash">Stash context menu</a>
       <a href="#tag">Tag context menu</a>
@@ -51,6 +52,19 @@
           <tr><td>New Tag…</td><td><span class="cmd amber">tag.create</span></td><td><a href="tags.html#create">Create tag</a></td></tr>
           <tr><td>Go to Child / Parent Commit</td><td>navigate the graph</td><td><a href="commit-log-graph.html">Log &amp; graph</a></td></tr>
           <tr><td>View in browser</td><td><code>openCommitUrl</code></td><td>—</td></tr>
+        </table>
+      </section>
+
+      <section class="feature" id="commit-file">
+        <h2>Commit file context menu</h2>
+        <p>Right-click a file in a commit's <a href="commit-log-graph.html#detail">changed-files list</a> (the detail pane).</p>
+        <table>
+          <tr><th>Item</th><th>Action</th><th>Docs</th></tr>
+          <tr><td>Show Diff</td><td>open the file's diff for this commit</td><td><a href="diff.html">Commit diff</a></td></tr>
+          <tr><td>Show Changes to Parents</td><td>diff the file against the commit's parent — <b>one diff editor per parent</b> for a merge commit</td><td><a href="diff.html">Commit diff</a></td></tr>
+          <tr><td>History Up to Here</td><td><span class="cmd amber">file.history</span> with <code>atRef</code> (truncated to this revision and older)</td><td><a href="history.html#filehistory">File history</a></td></tr>
+          <tr><td>Open File</td><td>open the working-tree file in the editor</td><td>—</td></tr>
+          <tr><td>Copy Path</td><td>copy the file path to the clipboard</td><td>—</td></tr>
         </table>
       </section>
 

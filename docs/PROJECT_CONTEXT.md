@@ -1,7 +1,7 @@
 # HydraGit — Project Context
 
-> IntelliJ-style git panel inside VS Code. Branch tree, commit log, inline diff, stash manager. No paywall.
-> Built because GitLens went paywalled and VS Code's built-in git panel has no history view.
+> An IntelliJ-style git panel for VS Code. Branch tree, commit log, inline diff, stash manager. No paywall.
+> Built to bring the one-panel branches/history/diff workflow to VS Code, whose built-in git view has no history graph.
 
 **Publisher:** `vkushnarenko.hydragit` (reserved — not yet published to Marketplace)
 **Status:** manifest `v0.2.1`, pre-publish. The repo is the source of truth and already
