@@ -11,7 +11,7 @@
     <a class="brand" href="../index.html"><span class="hex">⬡</span> HydraGit <span>Docs</span></a>
     <nav class="crumbs"><a href="../index.html">Home</a><span class="sep">/</span>Branches<span class="sep">/</span>Worktrees</nav>
     <div class="spacer"></div>
-    <span class="ver">v0.2.8</span>
+    <span class="ver">v0.3.1</span>
   </header>
 
   <div class="page">
@@ -57,7 +57,7 @@
               <li><b>Remote branches</b> — <i>remote → new branch '&lt;short&gt;'</i>; only those without a local twin. Picking one creates a local tracking branch (<code>start = origin/&lt;short&gt;</code>, so git sets the upstream).</li>
             </ul>
           </li>
-          <li>Confirm the folder — defaults to <code>&lt;repo&gt;.worktrees/&lt;branch&gt;</code> alongside the repo (GitLens convention).</li>
+          <li>Confirm the folder — defaults to <code>&lt;repo&gt;.worktrees/&lt;branch&gt;</code> alongside the repo (a common convention).</li>
           <li>Go runs <span class="cmd amber">worktree.add</span> with <code>{ path, branch }</code> for an existing local branch, or <code>{ path, newBranch, start? }</code> for a new/remote-tracking branch (<code>git worktree add [-b]</code>).</li>
         </ol>
       </section>

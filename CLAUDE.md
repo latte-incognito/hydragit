@@ -1,7 +1,7 @@
 # HydraGit
 
 VS Code extension — IntelliJ-style git panel. Branch tree + commit log + stash manager + inline diff.
-Positioning: "The git panel IntelliJ has, inside VS Code. No paywall."
+Positioning: "An IntelliJ-style git panel for VS Code — branches, history, and diff in one place. No paywall."
 
 ---
 

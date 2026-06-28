@@ -6,7 +6,7 @@ DIRTY := $(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo true |
 LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)
 BUILD_INFO_TS := extension/src/generated/buildInfo.ts
 
-.PHONY: gen-build-info build-go build-all build-extension build package publish build-webview webview-dev webview-check fmt fmt-go fmt-ts fmt-check lint lint-go lint-ts lint-fix test test-go test-ts clean-webview release
+.PHONY: gen-build-info build-go build-all build-extension build package publish build-webview webview-dev webview-check fmt fmt-go fmt-ts fmt-check lint lint-go lint-ts lint-fix test test-go test-ts clean-webview release demo test-e2e-repo test-e2e test-e2e-headed test-report
 
 ## Build webview (production, minified)
 build-webview: clean-webview
@@ -121,4 +121,12 @@ test-e2e-headed: test-e2e-repo
 ## E2E: open last test report in browser
 test-report:
 	npx playwright show-report
+
+## DEMO: drive the panel through the README GIF flow, headed + maximized, for
+## screen recording. Assumes you've already built (run `make build` once first).
+## The vscode-demo project auto-builds a curated, good-looking repo (clean merges
+## + one unmerged branch to rebase). HEADED=1 maximizes the window; HYDRAGIT_DEMO=1
+## un-skips the spec. Slow it down with: SPEED=1 make demo  (default SPEED=0.5)
+demo:
+	HYDRAGIT_DEMO=1 HEADED=1 npx playwright test demo-showcase --project=vscode-demo --headed
 

@@ -11,20 +11,8 @@ import (
 // would hang the Go process waiting on stdin that never comes).
 var noEditorEnv = []string{"GIT_EDITOR=true", "GIT_SEQUENCE_EDITOR=true"}
 
-// copyEditor returns the value for GIT_EDITOR / GIT_SEQUENCE_EDITOR that drives
-// an interactive rebase non-interactively: git invokes "<editor> <fileToEdit>",
-// so a command that overwrites that file with the contents of src scripts the
-// rebase (we pre-build the todo list / commit message in src).
-//
-// This is the SINGLE seam for the rebase-scripting mechanism — every scripted
-// rebase routes through here. It uses `cp`, which Git Bash ships on Windows too,
-// so git can run it via `sh -c` on every platform. The one Windows gotcha: a
-// native path's backslashes (C:\Users\…) are eaten as shell escapes by that sh,
-// so normalise to forward slashes (sh + cp accept C:/Users/… fine) and quote in
-// case the temp dir contains spaces. filepath.ToSlash is a no-op on Unix.
-func copyEditor(src string) string {
-	return `cp "` + filepath.ToSlash(src) + `"`
-}
+// copyEditor (the SINGLE seam for scripting an interactive rebase
+// non-interactively) lives in copyeditor.go.
 
 // RebaseInProgress reports whether the repo is paused mid-rebase — e.g. stopped
 // on a conflict. Detected via git's rebase state directory, resolved through

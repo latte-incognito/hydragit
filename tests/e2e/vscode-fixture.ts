@@ -62,13 +62,25 @@ export const test = base.extend<TestFixtures>({
       },
     });
 
-    // On macOS there's no true headless for Electron — minimize the window
     if (!isHeaded) {
+      // On macOS there's no true headless for Electron — minimize the window.
       const win = await app.firstWindow();
       await win.evaluate(() => {
         // @ts-ignore — Electron BrowserWindow API
         require("electron").remote?.getCurrentWindow()?.minimize();
       }).catch(() => {});
+    } else {
+      // Headed (make demo / test-e2e-headed): maximize so the window fills the
+      // screen for screen recording. Driven in the Electron MAIN process via
+      // Playwright's app.evaluate — the renderer's `remote` module is disabled,
+      // so this is the reliable way to control the BrowserWindow.
+      await app.firstWindow();
+      await app
+        .evaluate(({ BrowserWindow }) => {
+          const w = BrowserWindow.getAllWindows()[0];
+          if (w) w.maximize();
+        })
+        .catch(() => {});
     }
 
     await use(app);
