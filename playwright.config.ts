@@ -7,12 +7,14 @@ const FORK50_REPO_DIR = "/tmp/hydragit-fork50-repo";
 const CONFLICT_REPO_DIR = "/tmp/hydragit-conflict-repo";
 const DIRTY_REPO_DIR = "/tmp/hydragit-dirty-repo";
 const MULTI_REPO_DIR = "/tmp/hydragit-multi-repo";
+const DEMO_REPO_DIR = "/tmp/hydragit-demo-repo";
 const EXTENSION_DIR = __dirname;
 
 // Specs that belong to their own dedicated-fixture project, not the default one.
 // (The e2e-* cluster files for staging/hunks/discard run on the dirty project;
-// e2e-multi-repo runs on its own two-repo workspace.)
-const DEDICATED_SPECS = /graph-perf\.spec\.ts|graph-fork\d+\.spec\.ts|conflict\.spec\.ts|journeys-dirty\.spec\.ts|safety-settings\.spec\.ts|hunks\.spec\.ts|e2e-commit-staging\.spec\.ts|e2e-discard\.spec\.ts|e2e-multi-repo\.spec\.ts/;
+// e2e-multi-repo runs on its own two-repo workspace; demo-showcase on the pretty
+// demo repo.)
+const DEDICATED_SPECS = /graph-perf\.spec\.ts|graph-fork\d+\.spec\.ts|conflict\.spec\.ts|journeys-dirty\.spec\.ts|safety-settings\.spec\.ts|hunks\.spec\.ts|e2e-commit-staging\.spec\.ts|e2e-discard\.spec\.ts|e2e-multi-repo\.spec\.ts|demo-showcase\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -106,6 +108,18 @@ export default defineConfig({
         extensionPath: EXTENSION_DIR,
         repoPath: MULTI_REPO_DIR,
         fixtureScript: "tests/fixtures/create-multi-repo.sh",
+      } as any,
+    },
+    {
+      // Demo project: a curated, good-looking repo for the screen-recording
+      // (make demo). Clean staggered merges + one unmerged linear branch.
+      name: "vscode-demo",
+      testMatch: /demo-showcase\.spec\.ts/,
+      timeout: 180_000,
+      use: {
+        extensionPath: EXTENSION_DIR,
+        repoPath: DEMO_REPO_DIR,
+        fixtureScript: "tests/fixtures/create-demo-repo.sh",
       } as any,
     },
   ],
