@@ -11,6 +11,20 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](https://latte-incognito.github.io/hydragit/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
+## [Unreleased]
+
+### Fixed
+
+- **Freshly `git init`'d repos no longer spam errors.** On a repo with no commits
+  yet, `HEAD` is unborn and `rev-parse --abbrev-ref HEAD` fails — `Status` returned
+  that error on every 3s poll. It now falls back to `symbolic-ref --short HEAD` to
+  report the unborn branch and still lists untracked files, so a brand-new repo
+  works without needing a manual first commit. A genuine non-repo still errors.
+- **The initial commit now shows its files.** A root (parentless) commit diffs
+  against nothing unless `--root` is passed, so the first commit's diff came back
+  empty. `DiffCommit` and `DiffFile` now pass `--root` (harmless on commits with a
+  parent), so the first commit lists its files as additions.
+
 ## [0.3.2] — 2026-06-28
 
 ### Added

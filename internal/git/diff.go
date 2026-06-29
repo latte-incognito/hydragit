@@ -52,7 +52,10 @@ func DiffCommitPickaxe(repoPath, commit, snippet string) ([]FileStat, error) {
 func diffCommitFiles(repoPath, commit string, extra []string) ([]FileStat, error) {
 	// Pass 1: name-status gives us the status letter and paths.
 	// Renamed/copied files produce two tab-separated paths.
-	nsArgs := append([]string{"diff-tree", "--no-commit-id", "-r",
+	// --root makes the initial (parentless) commit diff against the empty tree,
+	// so its files show as additions instead of an empty list; harmless on
+	// commits that do have a parent.
+	nsArgs := append([]string{"diff-tree", "--root", "--no-commit-id", "-r",
 		"-M", // detect renames
 		"-C", // detect copies
 	}, extra...)
@@ -63,7 +66,7 @@ func diffCommitFiles(repoPath, commit string, extra []string) ([]FileStat, error
 
 	// Pass 2: numstat gives us addition/deletion counts.
 	// Renamed files appear as "N\tM\told\tnew" (two path columns).
-	numArgs := append([]string{"diff-tree", "--no-commit-id", "-r",
+	numArgs := append([]string{"diff-tree", "--root", "--no-commit-id", "-r",
 		"-M",
 		"-C",
 	}, extra...)
@@ -202,7 +205,9 @@ func FormatPatch(repoPath, commit string) (string, error) {
 
 // DiffFile returns hunks for a specific file in a commit.
 func DiffFile(repoPath, commit, file string) ([]Hunk, error) {
-	out, err := run(repoPath, "diff-tree", "--no-commit-id", "-r", "-p", commit, "--", file)
+	// --root so the initial commit's file shows its full contents as additions
+	// (a parentless commit otherwise diffs against nothing and yields no hunks).
+	out, err := run(repoPath, "diff-tree", "--root", "--no-commit-id", "-r", "-p", commit, "--", file)
 	if err != nil {
 		return nil, err
 	}
