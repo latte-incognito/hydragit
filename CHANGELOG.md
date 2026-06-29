@@ -8,7 +8,7 @@ messages. Every version is tagged `vX.Y.Z` on the `release` branch — a clean
 linear history with exactly one commit per version, created retroactively on
 2026-06-11; each commit's diff is precisely that version's changes.
 
-Feature entries link to the per-feature docs in [`documentation/`](documentation/index.html);
+Feature entries link to the per-feature docs in [`documentation/`](https://latte-incognito.github.io/hydragit/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
 ## [0.3.1] — 2026-06-28
@@ -229,7 +229,7 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 ### Fixed
 - Stale remote branches lingered in the branch pane forever — `fetch`/`pull` now run with `--prune`, so branches deleted on the remote disappear from the tree.
 - Remote origin groups in the branch pane wouldn't collapse/expand on click — a Svelte 5 runes-migration regression (`remoteOriginOpen` missed `$state` in the 0.2.4 port).
-- Clicking a [snapshot](documentation/features/snapshots.html) did nothing (it looked the commit up in the log, but snapshot commits are on no branch). It now shows **what the snapshot captured** — the dirty files at the moment it was taken, i.e. exactly what ↺ Restore writes back — in the detail pane, titled with the label, branch, and capture time.
+- Clicking a [snapshot](https://latte-incognito.github.io/hydragit/features/snapshots.html) did nothing (it looked the commit up in the log, but snapshot commits are on no branch). It now shows **what the snapshot captured** — the dirty files at the moment it was taken, i.e. exactly what ↺ Restore writes back — in the detail pane, titled with the label, branch, and capture time.
 - Snapshot rows were indistinguishable ("before checkout · 11h" ×9): they now show the **branch they were taken on** (recorded in the snapshot commit; older snapshots render without it) and a real date (`Today 3:00 pm` / `Jun 10`) instead of a bare relative age.
 
 ### Changed
@@ -255,12 +255,12 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 ## [0.2.5] — 2026-06-11
 
 ### Added
-- **[Merge preview](documentation/features/merge-rebase-reset.html#preview)** (`internal/git/mergetree.go`) — dry-run merge via `git merge-tree --write-tree` (git ≥ 2.38); detects conflicts without touching the working tree. IPC: `merge.preview`.
-- **[Pre-commit safety checks](documentation/features/commit.html#safety)** (`internal/git/safety.go`) — warns about secrets, conflict markers, large files, and commits to protected branches. IPC: `commit.precheck`.
-- **[Working-tree snapshots](documentation/features/snapshots.html)** (`internal/git/snapshot.go`) — time machine under `refs/hydragit/snapshots`, taken before risky ops; create/list/restore/drop. IPC: `snapshot.*`.
-- **[Fixup + autosquash](documentation/features/interactive-rebase.html#fixup)** — `FixupCommit` and `RebaseAutosquash`. IPC: `commit.fixup`, `rebase.autosquash`.
-- **[rerere](documentation/features/conflicts.html#rerere)** — opt-in reuse of recorded conflict resolutions. IPC: `rerere.enable`.
-- **[Pickaxe search](documentation/features/search-filter.html#pickaxe)** — log search by code change (`git log -S`), alongside message/author filters.
+- **[Merge preview](https://latte-incognito.github.io/hydragit/features/merge-rebase-reset.html#preview)** (`internal/git/mergetree.go`) — dry-run merge via `git merge-tree --write-tree` (git ≥ 2.38); detects conflicts without touching the working tree. IPC: `merge.preview`.
+- **[Pre-commit safety checks](https://latte-incognito.github.io/hydragit/features/commit.html#safety)** (`internal/git/safety.go`) — warns about secrets, conflict markers, large files, and commits to protected branches. IPC: `commit.precheck`.
+- **[Working-tree snapshots](https://latte-incognito.github.io/hydragit/features/snapshots.html)** (`internal/git/snapshot.go`) — time machine under `refs/hydragit/snapshots`, taken before risky ops; create/list/restore/drop. IPC: `snapshot.*`.
+- **[Fixup + autosquash](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#fixup)** — `FixupCommit` and `RebaseAutosquash`. IPC: `commit.fixup`, `rebase.autosquash`.
+- **[rerere](https://latte-incognito.github.io/hydragit/features/conflicts.html#rerere)** — opt-in reuse of recorded conflict resolutions. IPC: `rerere.enable`.
+- **[Pickaxe search](https://latte-incognito.github.io/hydragit/features/search-filter.html#pickaxe)** — log search by code change (`git log -S`), alongside message/author filters.
 
 ### Changed
 - **Go concurrency model** — goroutine per request with a per-repo RWMutex: mutating commands exclusive, reads and remote-only ops shared.
@@ -276,31 +276,31 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 
 ## [0.2.3] — 2026-06-07
 ### Added
-- **[Multi-repo support](documentation/features/multi-repo.html)** — repo discovery and active-repo tracking (`extension/src/RepoService.ts`), grouped sidebar with a `RepoGroup` per repository (`repoStore.ts`), focused main panel, status-bar switcher; every IPC request stamped with a `repo` root.
-- **[Smart push / sync plan](documentation/features/remotes.html#sync)** (`webview/src/panels/index/syncPlan.ts`) — computes the right fetch/pull/push sequence from ahead/behind state.
+- **[Multi-repo support](https://latte-incognito.github.io/hydragit/features/multi-repo.html)** — repo discovery and active-repo tracking (`extension/src/RepoService.ts`), grouped sidebar with a `RepoGroup` per repository (`repoStore.ts`), focused main panel, status-bar switcher; every IPC request stamped with a `repo` root.
+- **[Smart push / sync plan](https://latte-incognito.github.io/hydragit/features/remotes.html#sync)** (`webview/src/panels/index/syncPlan.ts`) — computes the right fetch/pull/push sequence from ahead/behind state.
 
 ### Fixed
 - Pull-with-rebase conflict now pauses and surfaces the error instead of failing silently.
 
 ## [0.2.2] — 2026-06-06
 ### Added
-- **[Worktrees](documentation/features/worktrees.html)** (`internal/git/worktree.go`) — list, add (existing or new branch), remove, lock/unlock, move, prune. IPC: `worktree.*`.
-- **[Merge conflict resolution](documentation/features/conflicts.html)** (`internal/git/conflict.go`) — detect conflicts and the operation in progress, keep-current/keep-incoming per file, mark resolved, continue/abort; sidebar `ConflictBanner`. IPC: `conflicts`, `conflict.continue`, `conflict.abort`.
-- **[Undo last operation](documentation/features/undo-squash.html#undo)** (`internal/git/undo.go`) — aborts an in-progress op, else resets to `ORIG_HEAD`. IPC: `undo.last`.
-- **[Amend & squash commits](documentation/features/commit.html#amend)** — `AmendCommit`, `LastCommitMessage`, squash-with-parent. IPC: `commit.amend`, `commit.squash`.
-- **[Identity management](documentation/features/health-banners.html#identity)** — `SetUser` (local/global committer name + email). IPC: `user.set`.
-- [Remote branch deletion](documentation/features/remotes.html#remote-delete) and folder-wide remote branch rename. IPC: `branch.delete.remote`, `branch.rename.folder.remote`.
+- **[Worktrees](https://latte-incognito.github.io/hydragit/features/worktrees.html)** (`internal/git/worktree.go`) — list, add (existing or new branch), remove, lock/unlock, move, prune. IPC: `worktree.*`.
+- **[Merge conflict resolution](https://latte-incognito.github.io/hydragit/features/conflicts.html)** (`internal/git/conflict.go`) — detect conflicts and the operation in progress, keep-current/keep-incoming per file, mark resolved, continue/abort; sidebar `ConflictBanner`. IPC: `conflicts`, `conflict.continue`, `conflict.abort`.
+- **[Undo last operation](https://latte-incognito.github.io/hydragit/features/undo-squash.html#undo)** (`internal/git/undo.go`) — aborts an in-progress op, else resets to `ORIG_HEAD`. IPC: `undo.last`.
+- **[Amend & squash commits](https://latte-incognito.github.io/hydragit/features/commit.html#amend)** — `AmendCommit`, `LastCommitMessage`, squash-with-parent. IPC: `commit.amend`, `commit.squash`.
+- **[Identity management](https://latte-incognito.github.io/hydragit/features/health-banners.html#identity)** — `SetUser` (local/global committer name + email). IPC: `user.set`.
+- [Remote branch deletion](https://latte-incognito.github.io/hydragit/features/remotes.html#remote-delete) and folder-wide remote branch rename. IPC: `branch.delete.remote`, `branch.rename.folder.remote`.
 
 ### Fixed
 - First push now auto-sets upstream; checkout blocked by local changes can be unblocked via stash.
 
 ## [0.2.1] — 2026-06-06
 ### Added
-- **[Interactive rebase](documentation/features/interactive-rebase.html#editor)** (`internal/git/rebase.go`, `InteractiveRebase.svelte`) — drop, reword, squash, with continue/skip/abort and in-progress detection. IPC: `rebase.*`.
-- **[Reflog pane](documentation/features/reflog.html)** (`internal/git/reflog.go`, `ReflogPane.svelte`) — HEAD undo timeline. IPC: `reflog`.
-- **[Compare diffs](documentation/features/compare.html)** — diff against a ref or between two refs (`DiffRefFiles`, `DiffRangeFiles`), plus [`format-patch` export](documentation/features/interactive-rebase.html#patch). IPC: `diff.ref`, `diff.range`, `patch.format`.
-- **Advanced branch/push ops** — [rename remote branch / branch folder](documentation/features/branches.html#rename), [reset with autostash](documentation/features/reflog.html#autostash), [safe force push](documentation/features/remotes.html#force), [push up to a specific commit](documentation/features/interactive-rebase.html#pushupto). IPC: `push.force`, `push.upto`, `branch.rename.remote`, `branch.rename.folder`.
-- **[Blame at ref](documentation/features/history.html#blame)** + `BlameCard` in the history panel; shared dialog helpers (`dialogs.ts`).
+- **[Interactive rebase](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#editor)** (`internal/git/rebase.go`, `InteractiveRebase.svelte`) — drop, reword, squash, with continue/skip/abort and in-progress detection. IPC: `rebase.*`.
+- **[Reflog pane](https://latte-incognito.github.io/hydragit/features/reflog.html)** (`internal/git/reflog.go`, `ReflogPane.svelte`) — HEAD undo timeline. IPC: `reflog`.
+- **[Compare diffs](https://latte-incognito.github.io/hydragit/features/compare.html)** — diff against a ref or between two refs (`DiffRefFiles`, `DiffRangeFiles`), plus [`format-patch` export](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#patch). IPC: `diff.ref`, `diff.range`, `patch.format`.
+- **Advanced branch/push ops** — [rename remote branch / branch folder](https://latte-incognito.github.io/hydragit/features/branches.html#rename), [reset with autostash](https://latte-incognito.github.io/hydragit/features/reflog.html#autostash), [safe force push](https://latte-incognito.github.io/hydragit/features/remotes.html#force), [push up to a specific commit](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#pushupto). IPC: `push.force`, `push.upto`, `branch.rename.remote`, `branch.rename.folder`.
+- **[Blame at ref](https://latte-incognito.github.io/hydragit/features/history.html#blame)** + `BlameCard` in the history panel; shared dialog helpers (`dialogs.ts`).
 
 ### Fixed
 - Merge-conflict files now surfaced in `status` (unmerged codes parsed, distinct from untracked).
@@ -309,12 +309,12 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 ## [0.2.0] — 2026-05-30
 
 ### Added
-- **[Git blame](documentation/features/history.html#blame)** (`internal/git/blame.go`) — porcelain parsing, buffer-aware via stdin so unsaved editor contents blame correctly; inline annotations + hover (`blameAnnotation.ts`). IPC: `blame`, `user`.
-- **[Log search/filters](documentation/features/search-filter.html)** — `LogWith` with message/author filtering; search highlights in the log pane.
+- **[Git blame](https://latte-incognito.github.io/hydragit/features/history.html#blame)** (`internal/git/blame.go`) — porcelain parsing, buffer-aware via stdin so unsaved editor contents blame correctly; inline annotations + hover (`blameAnnotation.ts`). IPC: `blame`, `user`.
+- **[Log search/filters](https://latte-incognito.github.io/hydragit/features/search-filter.html)** — `LogWith` with message/author filtering; search highlights in the log pane.
 - `runStdin` helper in the git runner for buffer-fed commands.
 
 ### Changed
-- **[Commit log virtualization](documentation/features/commit-log-graph.html#columns)** — smooth scrolling on large histories.
+- **[Commit log virtualization](https://latte-incognito.github.io/hydragit/features/commit-log-graph.html#columns)** — smooth scrolling on large histories.
 - Branch lines in the graph get stable per-segment colours.
 
 ## [0.1.9] — 2026-05-29
@@ -327,12 +327,12 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 
 ## [0.1.7] — 2026-05-29
 ### Added
-- **[File history](documentation/features/history.html#filehistory) & [selection history](documentation/features/history.html#linehistory)** (`FileHistory`, `LineHistory`) — per-file log (follows renames) and per-line-range history, shown in a dedicated history panel with a side-by-side diff. IPC: `file.history`, `line.history`.
+- **[File history](https://latte-incognito.github.io/hydragit/features/history.html#filehistory) & [selection history](https://latte-incognito.github.io/hydragit/features/history.html#linehistory)** (`FileHistory`, `LineHistory`) — per-file log (follows renames) and per-line-range history, shown in a dedicated history panel with a side-by-side diff. IPC: `file.history`, `line.history`.
 
 ## [0.1.6] — 2026-05-27
 
 ### Added
-- [Stash file lists](documentation/features/stash.html#show) (`StashFiles`), [branch-containing-commit lookup](documentation/features/branches.html#containing) (`BranchContaining`), [tag deletion](documentation/features/tags.html#delete). IPC: `stash.files`, `branch.containing`, `tag.delete`.
+- [Stash file lists](https://latte-incognito.github.io/hydragit/features/stash.html#show) (`StashFiles`), [branch-containing-commit lookup](https://latte-incognito.github.io/hydragit/features/branches.html#containing) (`BranchContaining`), [tag deletion](https://latte-incognito.github.io/hydragit/features/tags.html#delete). IPC: `stash.files`, `branch.containing`, `tag.delete`.
 
 ### Fixed
 - Stash menu works as expected; starting in an empty folder / without a workspace no longer errors; context menu fixes; annotated tags resolve to commit hashes; e2e cleanup.
@@ -340,12 +340,12 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 ## [0.1.5] — 2026-05-24
 
 ### Added
-- **[Tags](documentation/features/tags.html)** — list and create (`internal/git/tags.go`). IPC: `tags`, `tag.create`.
-- **[Reset](documentation/features/merge-rebase-reset.html#reset)** (soft/mixed/hard) and **[pull mode](documentation/features/remotes.html#pull)** selection. IPC: `reset`, `pull.mode`.
+- **[Tags](https://latte-incognito.github.io/hydragit/features/tags.html)** — list and create (`internal/git/tags.go`). IPC: `tags`, `tag.create`.
+- **[Reset](https://latte-incognito.github.io/hydragit/features/merge-rebase-reset.html#reset)** (soft/mixed/hard) and **[pull mode](https://latte-incognito.github.io/hydragit/features/remotes.html#pull)** selection. IPC: `reset`, `pull.mode`.
 - Per-file log. IPC: `log.file`.
 
 ### Changed
-- **[New git graph (#15)](documentation/features/commit-log-graph.html#graph)** — lane allocation rewritten (column reuse, pass-through and collapsing edges); visual prettifying.
+- **[New git graph (#15)](https://latte-incognito.github.io/hydragit/features/commit-log-graph.html#graph)** — lane allocation rewritten (column reuse, pass-through and collapsing edges); visual prettifying.
 - Sidebar/UI redesign; branch filter + delete-branch button; case-insensitive file search; commit-via-HydraGit polish.
 - `BUGS.MD` introduced for tracking.
 
@@ -354,10 +354,10 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 The MVP was replaced with the real foundation in this range (~8 400 insertions).
 
 ### Added
-- **Go IPC layer** — [`status`](documentation/features/status.html) and commit implementations, daily-rotating JSON-lines [logger](documentation/features/logging.html) (`internal/logger`).
-- **[Stage & commit / commit & push](documentation/features/commit.html)** (`CreateCommit`, `CommitAndPush`). IPC: `commit`, `commit.push`.
-- **Core git operations** — [branches](documentation/features/branches.html) (checkout/create/delete/rename), [merge / rebase](documentation/features/merge-rebase-reset.html), [fetch / pull / push](documentation/features/remotes.html), [cherry-pick / revert](documentation/features/cherrypick-revert.html), [stash](documentation/features/stash.html), [diff](documentation/features/diff.html).
-- **Full webview component set** — [main panel](documentation/features/main-panel.html) (`App`, `BranchPane`, `LogPane`, `DetailPane`, `ActionRail`, [`ContextMenu`](documentation/features/context-menus.html), `Toolbar`, `StatusBar`, `PaneDivider`) and [sidebar](documentation/features/sidebar.html) (`Sidebar`, `FileTree`, `CommitArea`), shared `messageBus`.
+- **Go IPC layer** — [`status`](https://latte-incognito.github.io/hydragit/features/status.html) and commit implementations, daily-rotating JSON-lines [logger](https://latte-incognito.github.io/hydragit/features/logging.html) (`internal/logger`).
+- **[Stage & commit / commit & push](https://latte-incognito.github.io/hydragit/features/commit.html)** (`CreateCommit`, `CommitAndPush`). IPC: `commit`, `commit.push`.
+- **Core git operations** — [branches](https://latte-incognito.github.io/hydragit/features/branches.html) (checkout/create/delete/rename), [merge / rebase](https://latte-incognito.github.io/hydragit/features/merge-rebase-reset.html), [fetch / pull / push](https://latte-incognito.github.io/hydragit/features/remotes.html), [cherry-pick / revert](https://latte-incognito.github.io/hydragit/features/cherrypick-revert.html), [stash](https://latte-incognito.github.io/hydragit/features/stash.html), [diff](https://latte-incognito.github.io/hydragit/features/diff.html).
+- **Full webview component set** — [main panel](https://latte-incognito.github.io/hydragit/features/main-panel.html) (`App`, `BranchPane`, `LogPane`, `DetailPane`, `ActionRail`, [`ContextMenu`](https://latte-incognito.github.io/hydragit/features/context-menus.html), `Toolbar`, `StatusBar`, `PaneDivider`) and [sidebar](https://latte-incognito.github.io/hydragit/features/sidebar.html) (`Sidebar`, `FileTree`, `CommitArea`), shared `messageBus`.
 - **Extension host services** — `HydraStatusService` (3s status polling), TS Output Channel logger.
 - First Go/webview unit-test suites (branches, merge/rebase, push/fetch/pull, cherry-pick/revert, commit edge cases).
 
@@ -376,35 +376,35 @@ documentation (UI entry point → what happens next) in
 [0.2.9]: https://github.com/latte-incognito/hydragit/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/latte-incognito/hydragit/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/latte-incognito/hydragit/compare/v0.2.6...v0.2.7
-[`documentation/`](documentation/index.html).
+[`documentation/`](https://latte-incognito.github.io/hydragit/index.html).
 
-**Views & layout** — [main panel](documentation/features/main-panel.html) · [sidebar (staging view)](documentation/features/sidebar.html) · [multi-repo workspaces](documentation/features/multi-repo.html) · [status, status bar & badge](documentation/features/status.html) · [visual file history](documentation/features/history.html#filehistory) · [selection / line history](documentation/features/history.html#linehistory) · [inline line blame](documentation/features/history.html#blame)
+**Views & layout** — [main panel](https://latte-incognito.github.io/hydragit/features/main-panel.html) · [sidebar (staging view)](https://latte-incognito.github.io/hydragit/features/sidebar.html) · [multi-repo workspaces](https://latte-incognito.github.io/hydragit/features/multi-repo.html) · [status, status bar & badge](https://latte-incognito.github.io/hydragit/features/status.html) · [visual file history](https://latte-incognito.github.io/hydragit/features/history.html#filehistory) · [selection / line history](https://latte-incognito.github.io/hydragit/features/history.html#linehistory) · [inline line blame](https://latte-incognito.github.io/hydragit/features/history.html#blame)
 
-**Branches** — [tree & list](documentation/features/branches.html#list) · [checkout / switch](documentation/features/branches.html#checkout) · [create](documentation/features/branches.html#create) · [rename local / remote / folder](documentation/features/branches.html#rename) · [delete local](documentation/features/branches.html#delete) / [remote](documentation/features/remotes.html#remote-delete) · [branches containing a commit](documentation/features/branches.html#containing)
+**Branches** — [tree & list](https://latte-incognito.github.io/hydragit/features/branches.html#list) · [checkout / switch](https://latte-incognito.github.io/hydragit/features/branches.html#checkout) · [create](https://latte-incognito.github.io/hydragit/features/branches.html#create) · [rename local / remote / folder](https://latte-incognito.github.io/hydragit/features/branches.html#rename) · [delete local](https://latte-incognito.github.io/hydragit/features/branches.html#delete) / [remote](https://latte-incognito.github.io/hydragit/features/remotes.html#remote-delete) · [branches containing a commit](https://latte-incognito.github.io/hydragit/features/branches.html#containing)
 
-**Commit log & graph** — [log](documentation/features/commit-log-graph.html#log) · [lane graph](documentation/features/commit-log-graph.html#graph) · [hover-highlight](documentation/features/commit-log-graph.html#hover) · [detail pane](documentation/features/commit-log-graph.html#detail) · [columns & virtualization](documentation/features/commit-log-graph.html#columns)
+**Commit log & graph** — [log](https://latte-incognito.github.io/hydragit/features/commit-log-graph.html#log) · [lane graph](https://latte-incognito.github.io/hydragit/features/commit-log-graph.html#graph) · [hover-highlight](https://latte-incognito.github.io/hydragit/features/commit-log-graph.html#hover) · [detail pane](https://latte-incognito.github.io/hydragit/features/commit-log-graph.html#detail) · [columns & virtualization](https://latte-incognito.github.io/hydragit/features/commit-log-graph.html#columns)
 
-**Search & filter** — [message](documentation/features/search-filter.html#message) · [hash prefix jump](documentation/features/search-filter.html#hash) · [file](documentation/features/search-filter.html#file) · [author](documentation/features/search-filter.html#author) · [pickaxe / code search](documentation/features/search-filter.html#pickaxe) · [branch scope](documentation/features/search-filter.html#scope)
+**Search & filter** — [message](https://latte-incognito.github.io/hydragit/features/search-filter.html#message) · [hash prefix jump](https://latte-incognito.github.io/hydragit/features/search-filter.html#hash) · [file](https://latte-incognito.github.io/hydragit/features/search-filter.html#file) · [author](https://latte-incognito.github.io/hydragit/features/search-filter.html#author) · [pickaxe / code search](https://latte-incognito.github.io/hydragit/features/search-filter.html#pickaxe) · [branch scope](https://latte-incognito.github.io/hydragit/features/search-filter.html#scope)
 
-**Diff & compare** — [commit diff](documentation/features/diff.html) · [branch / ref compare](documentation/features/compare.html#range) · [ref vs working tree](documentation/features/compare.html#ref) · [file vs local](documentation/features/compare.html#file)
+**Diff & compare** — [commit diff](https://latte-incognito.github.io/hydragit/features/diff.html) · [branch / ref compare](https://latte-incognito.github.io/hydragit/features/compare.html#range) · [ref vs working tree](https://latte-incognito.github.io/hydragit/features/compare.html#ref) · [file vs local](https://latte-incognito.github.io/hydragit/features/compare.html#file)
 
-**Commit & staging** — [stage & commit](documentation/features/commit.html#commit) · [commit & push](documentation/features/commit.html#push) · [amend](documentation/features/commit.html#amend) · [pre-commit safety checks](documentation/features/commit.html#safety)
+**Commit & staging** — [stage & commit](https://latte-incognito.github.io/hydragit/features/commit.html#commit) · [commit & push](https://latte-incognito.github.io/hydragit/features/commit.html#push) · [amend](https://latte-incognito.github.io/hydragit/features/commit.html#amend) · [pre-commit safety checks](https://latte-incognito.github.io/hydragit/features/commit.html#safety)
 
-**History rewriting** — [interactive rebase editor](documentation/features/interactive-rebase.html#editor) · [pause on conflict](documentation/features/interactive-rebase.html#pause) · [squash with parent](documentation/features/interactive-rebase.html#squash) · [drop](documentation/features/interactive-rebase.html#drop) · [reword](documentation/features/interactive-rebase.html#reword) · [create patch](documentation/features/interactive-rebase.html#patch) · [push up to a commit](documentation/features/interactive-rebase.html#pushupto) · [fixup + autosquash](documentation/features/interactive-rebase.html#fixup)
+**History rewriting** — [interactive rebase editor](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#editor) · [pause on conflict](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#pause) · [squash with parent](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#squash) · [drop](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#drop) · [reword](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#reword) · [create patch](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#patch) · [push up to a commit](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#pushupto) · [fixup + autosquash](https://latte-incognito.github.io/hydragit/features/interactive-rebase.html#fixup)
 
-**Integrate & resolve** — [merge](documentation/features/merge-rebase-reset.html#merge) · [merge conflict preview](documentation/features/merge-rebase-reset.html#preview) · [rerere](documentation/features/conflicts.html#rerere) · [rebase](documentation/features/merge-rebase-reset.html#rebase) · [reset](documentation/features/merge-rebase-reset.html#reset) · [cherry-pick](documentation/features/cherrypick-revert.html#cherrypick) · [revert](documentation/features/cherrypick-revert.html#revert) · [conflict resolution](documentation/features/conflicts.html)
+**Integrate & resolve** — [merge](https://latte-incognito.github.io/hydragit/features/merge-rebase-reset.html#merge) · [merge conflict preview](https://latte-incognito.github.io/hydragit/features/merge-rebase-reset.html#preview) · [rerere](https://latte-incognito.github.io/hydragit/features/conflicts.html#rerere) · [rebase](https://latte-incognito.github.io/hydragit/features/merge-rebase-reset.html#rebase) · [reset](https://latte-incognito.github.io/hydragit/features/merge-rebase-reset.html#reset) · [cherry-pick](https://latte-incognito.github.io/hydragit/features/cherrypick-revert.html#cherrypick) · [revert](https://latte-incognito.github.io/hydragit/features/cherrypick-revert.html#revert) · [conflict resolution](https://latte-incognito.github.io/hydragit/features/conflicts.html)
 
-**Remotes & sync** — [sync (fetch + integrate)](documentation/features/remotes.html#sync) · [fetch](documentation/features/remotes.html#fetch) · [pull + pull mode](documentation/features/remotes.html#pull) · [push](documentation/features/remotes.html#push) · [safe force-push](documentation/features/remotes.html#force) · [auto-set upstream](documentation/features/remotes.html#upstream) · [remote branch delete](documentation/features/remotes.html#remote-delete) · [network-op timeout](documentation/features/remotes.html#timeout)
+**Remotes & sync** — [sync (fetch + integrate)](https://latte-incognito.github.io/hydragit/features/remotes.html#sync) · [fetch](https://latte-incognito.github.io/hydragit/features/remotes.html#fetch) · [pull + pull mode](https://latte-incognito.github.io/hydragit/features/remotes.html#pull) · [push](https://latte-incognito.github.io/hydragit/features/remotes.html#push) · [safe force-push](https://latte-incognito.github.io/hydragit/features/remotes.html#force) · [auto-set upstream](https://latte-incognito.github.io/hydragit/features/remotes.html#upstream) · [remote branch delete](https://latte-incognito.github.io/hydragit/features/remotes.html#remote-delete) · [network-op timeout](https://latte-incognito.github.io/hydragit/features/remotes.html#timeout)
 
-**Undo & safety** — [working-tree snapshots](documentation/features/snapshots.html) · [HEAD undo timeline (reflog)](documentation/features/reflog.html) · [reset to any point](documentation/features/reflog.html#reset) · [auto-stash safety net](documentation/features/reflog.html#autostash) · [live reflog refresh](documentation/features/reflog.html#live) · [undo last operation](documentation/features/undo-squash.html#undo) · [detached-HEAD banner](documentation/features/health-banners.html#detached) · [git identity setup](documentation/features/health-banners.html#identity) · [critical-error reload](documentation/features/health-banners.html#reload)
+**Undo & safety** — [working-tree snapshots](https://latte-incognito.github.io/hydragit/features/snapshots.html) · [HEAD undo timeline (reflog)](https://latte-incognito.github.io/hydragit/features/reflog.html) · [reset to any point](https://latte-incognito.github.io/hydragit/features/reflog.html#reset) · [auto-stash safety net](https://latte-incognito.github.io/hydragit/features/reflog.html#autostash) · [live reflog refresh](https://latte-incognito.github.io/hydragit/features/reflog.html#live) · [undo last operation](https://latte-incognito.github.io/hydragit/features/undo-squash.html#undo) · [detached-HEAD banner](https://latte-incognito.github.io/hydragit/features/health-banners.html#detached) · [git identity setup](https://latte-incognito.github.io/hydragit/features/health-banners.html#identity) · [critical-error reload](https://latte-incognito.github.io/hydragit/features/health-banners.html#reload)
 
-**Stash** — [list](documentation/features/stash.html#list) · [save](documentation/features/stash.html#save) · [apply / pop / unstash](documentation/features/stash.html#applypop) · [drop / clear](documentation/features/stash.html#dropclear) · [show diff & files](documentation/features/stash.html#show)
+**Stash** — [list](https://latte-incognito.github.io/hydragit/features/stash.html#list) · [save](https://latte-incognito.github.io/hydragit/features/stash.html#save) · [apply / pop / unstash](https://latte-incognito.github.io/hydragit/features/stash.html#applypop) · [drop / clear](https://latte-incognito.github.io/hydragit/features/stash.html#dropclear) · [show diff & files](https://latte-incognito.github.io/hydragit/features/stash.html#show)
 
-**Tags** — [list](documentation/features/tags.html#list) · [create](documentation/features/tags.html#create) · [delete](documentation/features/tags.html#delete) · [checkout · diff · merge · push](documentation/features/tags.html#more)
+**Tags** — [list](https://latte-incognito.github.io/hydragit/features/tags.html#list) · [create](https://latte-incognito.github.io/hydragit/features/tags.html#create) · [delete](https://latte-incognito.github.io/hydragit/features/tags.html#delete) · [checkout · diff · merge · push](https://latte-incognito.github.io/hydragit/features/tags.html#more)
 
-**Worktrees** — [list](documentation/features/worktrees.html#list) · [add](documentation/features/worktrees.html#add) · [open in new window](documentation/features/worktrees.html#open) · [lock / unlock](documentation/features/worktrees.html#lock) · [move](documentation/features/worktrees.html#move) · [remove](documentation/features/worktrees.html#remove) · [prune stale](documentation/features/worktrees.html#prune)
+**Worktrees** — [list](https://latte-incognito.github.io/hydragit/features/worktrees.html#list) · [add](https://latte-incognito.github.io/hydragit/features/worktrees.html#add) · [open in new window](https://latte-incognito.github.io/hydragit/features/worktrees.html#open) · [lock / unlock](https://latte-incognito.github.io/hydragit/features/worktrees.html#lock) · [move](https://latte-incognito.github.io/hydragit/features/worktrees.html#move) · [remove](https://latte-incognito.github.io/hydragit/features/worktrees.html#remove) · [prune stale](https://latte-incognito.github.io/hydragit/features/worktrees.html#prune)
 
-**Context menus & tooling** — [commit](documentation/features/context-menus.html#commit) / [branch](documentation/features/context-menus.html#branch) / [stash](documentation/features/context-menus.html#stash) / [tag](documentation/features/context-menus.html#tag) context menus · [logging & diagnostics](documentation/features/logging.html) · [version info](documentation/features/logging.html#version) · [force refresh](documentation/features/logging.html#refresh)
+**Context menus & tooling** — [commit](https://latte-incognito.github.io/hydragit/features/context-menus.html#commit) / [branch](https://latte-incognito.github.io/hydragit/features/context-menus.html#branch) / [stash](https://latte-incognito.github.io/hydragit/features/context-menus.html#stash) / [tag](https://latte-incognito.github.io/hydragit/features/context-menus.html#tag) context menus · [logging & diagnostics](https://latte-incognito.github.io/hydragit/features/logging.html) · [version info](https://latte-incognito.github.io/hydragit/features/logging.html#version) · [force refresh](https://latte-incognito.github.io/hydragit/features/logging.html#refresh)
 
 [0.2.6]: https://github.com/latte-incognito/hydragit/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/latte-incognito/hydragit/compare/v0.2.4...v0.2.5

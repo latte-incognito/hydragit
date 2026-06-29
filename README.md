@@ -49,7 +49,7 @@ Three things, immediately, with zero config:
 - **History & blame** — file history, line/selection history, inline blame
 
 📖 **Full feature documentation** (every entry point → what happens next):
-[`documentation/index.html`](documentation/index.html) ·
+**[hydragit docs site](https://latte-incognito.github.io/hydragit/)** ·
 feature index + per-version history: [`CHANGELOG.md`](CHANGELOG.md)
 
 ## Install
