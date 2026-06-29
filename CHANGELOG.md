@@ -11,6 +11,34 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](https://latte-incognito.github.io/hydragit/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
+## [Unreleased]
+
+### Added
+
+- **Documentation site on GitHub Pages.** New `.github/workflows/pages.yml`
+  deploys the self-contained `documentation/` site (the index + 26 per-feature
+  pages + `assets/`) to GitHub Pages on every push to `develop` that touches it,
+  served at <https://latte-incognito.github.io/hydragit/>. The README's docs link
+  and the CHANGELOG's ~140 per-feature links now point at that live site instead
+  of relative `.html` paths (which GitHub rendered as raw source and which never
+  resolved on the Marketplace). Pages **Source** must be set to *GitHub Actions*.
+
+### Changed
+
+- **Leaner published `.vsix` (package hygiene).** `.vscodeignore` now excludes the
+  compiled test files (`*.test.js`), source maps (`*.js.map`), and the stray
+  `webview/dist/` Vite output that were leaking into the package — the `.vsix`
+  dropped from ~52 to **36 files**, shipping only runtime artifacts (the 5
+  platform binaries, compiled host JS, webview assets, README/LICENSE/CHANGELOG).
+  Root cause was a `!extension/out/**` negation that re-included the whole tree
+  over the later exclude rules; removed it (nothing else excludes the compiled
+  `extension/out/*.js`, so they still ship).
+- **README prepared for the Marketplace listing.** The banner and demo GIF now
+  use absolute, cache-busted (`?v=1`) `raw.githubusercontent.com` URLs so they
+  render in the Marketplace / Details view (relative image paths never resolve
+  there); the "Full feature documentation" link points at the live Pages site;
+  removed the pre-publish "record a demo GIF" TODO.
+
 ## [0.3.1] — 2026-06-28
 
 ### Fixed

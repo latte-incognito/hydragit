@@ -2,7 +2,7 @@
   "name": "hydragit",
   "displayName": "HydraGit",
   "description": "An IntelliJ-style git panel for VS Code — branches, history, and diff in one place. No paywall.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "vkushnarenko",
   "license": "GPL-3.0-only",
   "icon": "images/icon.png",
