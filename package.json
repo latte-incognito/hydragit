@@ -16,6 +16,16 @@
   "categories": [
     "SCM Providers"
   ],
+  "keywords": [
+    "gitlens alternative",
+    "intellij inside vscode",
+    "hunk staging",
+    "file history",
+    "interactive rebase",
+    "git worktree",
+    "stash manager",
+    "cherry-pick"
+  ],
   "activationEvents": [
     "onStartupFinished"
   ],
