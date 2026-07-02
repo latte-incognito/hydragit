@@ -33,20 +33,27 @@ Three things, immediately, with zero config:
 - 🖱️ **Move around it** — one click to switch branches, stage, commit, push, stash, or diff. No command palette spelunking.
 - 🛟 **Fix mistakes safely** — visual interactive rebase, guided conflict resolution, and an undo timeline that auto-snapshots before anything risky.
 
-## All features
-- **Branch tree** — local + remote, folder grouping, right-click actions, ahead/behind
+## It won't let you lose work
+The thing that makes HydraGit different: it's built so a wrong click can't cost
+you your changes.
+
+- 🛟 **Auto-snapshot safety net** — before any destructive op (merge, rebase, reset, checkout, discard, stash pop, cherry-pick, revert…) HydraGit silently snapshots your working tree to `refs/hydragit/snapshots`. Discarded the wrong file? Reset too far? Restore it in one click — even things plain git can't undo.
+- 🔍 **Merge conflict preview** — see exactly which files will conflict *before* you merge. A true dry-run (`merge-tree`) that never touches your index or working tree.
+- 🚧 **Pre-commit safety checks** — warns before you commit a secret (`.env`, keys, tokens), a leftover `<<<<<<<` conflict marker, a huge file, or straight onto a protected branch.
+- ⏮️ **Undo timeline** — a reflog-based history of where HEAD has been; soft/mixed/hard reset back to any point, or undo the last operation outright.
+
+## Also included
 - **Commit log + lane graph** — HydraGit's own lane engine, virtualized full history, hover-highlight, search (message / hash / file / author)
-- **Inline diff** — click a commit, see changed files and per-file hunks
-- **Compare** — branch/ref ↔ ref, ref ↔ working tree, file ↔ local
-- **Stage & commit** — file tree, commit / commit & push / amend, right from the sidebar
-- **Stash manager** — list, save, pop, apply, drop, clear, show
+- **Branch tree** — local + remote, folder grouping, right-click actions, ahead/behind
+- **Inline diff & compare** — per-file hunks; branch/ref ↔ ref, ref ↔ working tree, file ↔ local
+- **Stage & commit** — file tree, hunk staging, commit / commit & push / amend, right from the sidebar
+- **Visual interactive rebase** — squash, drop, reword, fixup + autosquash, create patch, push-up-to — all pause-on-conflict
+- **Guided conflict resolution** — keep current/incoming, open merge editor, continue/abort; optional `rerere` auto-reuse
 - **Branch actions** — checkout, create, merge, rebase, reset, rename (local + remote + folder), delete (local + remote)
-- **History rewriting** — interactive rebase editor, squash, drop, reword, create patch, push-up-to — all pause-on-conflict
-- **Conflict resolution** — guided banner: keep current/incoming, open merge editor, continue/abort
 - **Remotes** — one-click Sync, fetch/pull (+ mode)/push, safe force-push (`--force-with-lease`), auto-set upstream
-- **Undo & safety** — reflog undo timeline (soft/mixed/hard reset), undo last operation, auto-stash net, detached-HEAD & identity banners
-- **Tags** — list, create (lightweight/annotated), delete
-- **History & blame** — file history, line/selection history, inline blame
+- **Worktrees** — full GUI: add/remove/lock/unlock/move/prune/open
+- **History & blame** — file history, line/selection history, buffer-aware inline blame (correct even with unsaved edits)
+- **Stash manager & tags** — stash list/save/pop/apply/drop/clear/show; tags list/create/delete
 
 📖 **Full feature documentation** (every entry point → what happens next):
 **[hydragit docs site](https://latte-incognito.github.io/hydragit/index.html)** ·

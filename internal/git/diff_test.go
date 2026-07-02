@@ -169,6 +169,47 @@ func TestDiffCommitEmpty(t *testing.T) {
 	}
 }
 
+// TestDiffCommit_rootCommit guards the initial commit: a parentless commit
+// diffs against the empty tree only with --root, so without it DiffCommit
+// returned no files for the very first commit. Build a repo whose first commit
+// already contains a file and assert it shows up as an addition.
+func TestDiffCommit_rootCommit(t *testing.T) {
+	dir := t.TempDir()
+	exec.Command("git", "-C", dir, "init").Run()
+	exec.Command("git", "-C", dir, "config", "user.email", "test@test.com").Run()
+	exec.Command("git", "-C", dir, "config", "user.name", "Test").Run()
+	if err := os.WriteFile(filepath.Join(dir, "first.txt"), []byte("line one\nline two\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exec.Command("git", "-C", dir, "add", ".").Run()
+	exec.Command("git", "-C", dir, "commit", "-m", "first").Run()
+
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := strings.TrimSpace(string(out))
+
+	files, err := DiffCommit(dir, hash)
+	if err != nil {
+		t.Fatalf("DiffCommit on root commit failed: %v", err)
+	}
+	if len(files) != 1 || files[0].Path != "first.txt" {
+		t.Fatalf("expected first.txt in the root commit diff, got %+v", files)
+	}
+	if files[0].Status != "A" || files[0].Additions == 0 {
+		t.Fatalf("expected root commit file added with additions, got %+v", files[0])
+	}
+
+	hunks, err := DiffFile(dir, hash, "first.txt")
+	if err != nil {
+		t.Fatalf("DiffFile on root commit failed: %v", err)
+	}
+	if len(hunks) == 0 || len(hunks[0].Lines) == 0 {
+		t.Fatal("expected hunks with lines for the root commit file")
+	}
+}
+
 func TestDiffCommitPickaxe(t *testing.T) {
 	dir := initRepo(t)
 	commitFile(t, dir, "a.go", "package main\n\nfunc magicToken() {}\n", "add a")

@@ -2,7 +2,7 @@
   "name": "hydragit",
   "displayName": "HydraGit",
   "description": "An IntelliJ-style git panel for VS Code — branches, history, and diff in one place. No paywall.",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "publisher": "vkushnarenko",
   "license": "GPL-3.0-only",
   "icon": "images/icon.png",
@@ -17,14 +17,25 @@
     "SCM Providers"
   ],
   "keywords": [
+    "git",
+    "git graph",
+    "git history",
+    "source control",
+    "commit graph",
     "gitlens alternative",
-    "intellij inside vscode",
+    "git blame",
+    "git log",
+    "reflog",
+    "merge conflict",
+    "diff",
+    "branch",
+    "interactive rebase",
     "hunk staging",
     "file history",
-    "interactive rebase",
     "git worktree",
     "stash manager",
-    "cherry-pick"
+    "cherry-pick",
+    "intellij inside vscode"
   ],
   "activationEvents": [
     "onStartupFinished"

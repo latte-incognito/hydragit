@@ -11,6 +11,31 @@ linear history with exactly one commit per version, created retroactively on
 Feature entries link to the per-feature docs in [`documentation/`](https://latte-incognito.github.io/hydragit/index.html);
 the [feature index](#feature-index) at the bottom lists everything that ships, by topic.
 
+## [0.3.3] — 2026-07-01
+
+### Changed
+
+- **Marketplace keywords expanded for search discoverability.** Added the
+  high-intent terms people actually search (`git`, `git graph`, `git history`,
+  `source control`, `commit graph`, `git blame`, `git log`, `diff`, `branch`, …)
+  alongside the existing ones. Takes effect on next publish.
+- **README feature list re-tiered around the "won't let you lose work" story.**
+  Leads with the differentiators (auto-snapshot net, merge preview, pre-commit
+  checks, undo timeline) instead of a flat list; table-stakes features moved
+  under "Also included."
+
+### Fixed
+
+- **Freshly `git init`'d repos no longer spam errors.** On a repo with no commits
+  yet, `HEAD` is unborn and `rev-parse --abbrev-ref HEAD` fails — `Status` returned
+  that error on every 3s poll. It now falls back to `symbolic-ref --short HEAD` to
+  report the unborn branch and still lists untracked files, so a brand-new repo
+  works without needing a manual first commit. A genuine non-repo still errors.
+- **The initial commit now shows its files.** A root (parentless) commit diffs
+  against nothing unless `--root` is passed, so the first commit's diff came back
+  empty. `DiffCommit` and `DiffFile` now pass `--root` (harmless on commits with a
+  parent), so the first commit lists its files as additions.
+
 ## [0.3.2] — 2026-06-28
 
 ### Added
@@ -399,6 +424,7 @@ The MVP was replaced with the real foundation in this range (~8 400 insertions).
 
 Everything HydraGit ships today, by topic. Each entry links to its full
 documentation (UI entry point → what happens next) in
+[0.3.3]: https://github.com/latte-incognito/hydragit/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/latte-incognito/hydragit/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/latte-incognito/hydragit/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/latte-incognito/hydragit/compare/v0.2.9...v0.3.0

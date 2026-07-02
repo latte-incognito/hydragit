@@ -35,7 +35,17 @@ func Status(repoPath string) (StatusResult, error) {
 
 	branch, err := run(repoPath, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
-		return res, err
+		// Fresh `git init` with no commits yet: HEAD is unborn, so rev-parse
+		// fails ("ambiguous argument 'HEAD'"). symbolic-ref still resolves the
+		// branch HEAD points at, and status --porcelain below still lists the
+		// untracked files — so we report the unborn branch and carry on rather
+		// than erroring out (which the 3s status poll would spam). Only a
+		// genuine non-repo makes symbolic-ref fail too.
+		sym, symErr := run(repoPath, "symbolic-ref", "--short", "HEAD")
+		if symErr != nil {
+			return res, err
+		}
+		branch = sym
 	}
 	res.Branch = branch
 	// `rev-parse --abbrev-ref HEAD` yields the literal "HEAD" when detached.
