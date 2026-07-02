@@ -13,6 +13,17 @@ the [feature index](#feature-index) at the bottom lists everything that ships, b
 
 ## [Unreleased]
 
+### Changed
+
+- **Marketplace keywords expanded for search discoverability.** Added the
+  high-intent terms people actually search (`git`, `git graph`, `git history`,
+  `source control`, `commit graph`, `git blame`, `git log`, `diff`, `branch`, …)
+  alongside the existing ones. Takes effect on next publish.
+- **README feature list re-tiered around the "won't let you lose work" story.**
+  Leads with the differentiators (auto-snapshot net, merge preview, pre-commit
+  checks, undo timeline) instead of a flat list; table-stakes features moved
+  under "Also included."
+
 ### Fixed
 
 - **Freshly `git init`'d repos no longer spam errors.** On a repo with no commits

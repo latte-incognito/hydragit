@@ -17,14 +17,25 @@
     "SCM Providers"
   ],
   "keywords": [
+    "git",
+    "git graph",
+    "git history",
+    "source control",
+    "commit graph",
     "gitlens alternative",
-    "intellij inside vscode",
+    "git blame",
+    "git log",
+    "reflog",
+    "merge conflict",
+    "diff",
+    "branch",
+    "interactive rebase",
     "hunk staging",
     "file history",
-    "interactive rebase",
     "git worktree",
     "stash manager",
-    "cherry-pick"
+    "cherry-pick",
+    "intellij inside vscode"
   ],
   "activationEvents": [
     "onStartupFinished"
